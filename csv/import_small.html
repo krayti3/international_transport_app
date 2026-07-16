@@ -1,0 +1,231 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Import</title></head><body>
+<h1>Import</h1>
+<input type="file" id="c"><br>
+<input type="file" id="d"><br>
+<input type="file" id="o"><br>
+<input type="file" id="t"><br>
+<input type="file" id="r"><br>
+<input type="file" id="cat"><br>
+<input type="file" id="j"><br>
+<button id="go">Go</button>
+<pre id="log"></pre>
+<script>
+const URL='https://jgehdsmrmcpnvcnfrjai.supabase.co';
+const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpnZWhkc21ybWNwbnZjbmZyamFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTMxMzQsImV4cCI6MjA5OTI2OTEzNH0.GurwFyegBNqiImJGUfwxEUuR2epzLlII1BwpBDPH1Kg';
+const H={'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':'application/json','Prefer':'return=representation,resolution=merge-duplicates'};
+const L=document.getElementById('log');
+function log(m){L.textContent+=m+'\n';}
+function dec(b){const u=new Uint8Array(b);let s='';for(let i=0;i<u.length;i++){const c=u[i];if(c<0x80)s+=String.fromCharCode(c);else if(c===0x80)s+='€';else if(c===0x82)s+='‚';else if(c===0x83)s+='ƒ';else if(c===0x84)s+='„';else if(c===0x85)s+='…';else if(c===0x86)s+='†';else if(c===0x87)s+='‡';else if(c===0x88)s+='ˆ';else if(c===0x89)s+='‰';else if(c===0x8A)s+='Š';else if(c===0x8B)s+='‹';else if(c===0x8C)s+='Œ';else if(c===0x8E)s+='Ž';else if(c===0x91)s+='‘';else if(c===0x92)s+='’';else if(c===0x93)s+='“';else if(c===0x94)s+='”';else if(c===0x95)s+='•';else if(c===0x96)s+='–';else if(c===0x97)s+='—';else if(c===0x98)s+='˜';else if(c===0x99)s+='™';else if(c===0x9A)s+='š';else if(c===0x9B)s+='›';else if(c===0x9C)s+='œ';else if(c===0x9E)s+='ž';else if(c===0x9F)s+='Ÿ';else s+=String.fromCharCode(c);}return s;}
+function psv(t,d){const ls=t.split(/\r?\n/).filter(l=>l.trim());if(!ls.length)return{h:[],r:[]};const h=ls[0].split(d);const rows=[];for(let i=1;i<ls.length;i++){const c=ls[i].split(d);const row={};for(let j=0;j<h.length;j++)row[h[j]]=c[j]!==undefined?c[j]:'';rows.push(row);}return{h,r:rows};}
+function pn(v){if(!v||!v.trim())return null;const s=v.trim().replace(/ /g,'');if(!s)return null;const f=parseFloat(s.replace(/\./g,'').replace(',','.'));return isNaN(f)?0:f;}
+function pd(v){if(!v||!v.trim())return null;const m=v.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);return m?m[3]+'-'+m[2]+'-'+m[1]:null;}
+function nl(v){return(v===null||v===undefined)?null:(String(v).trim()||null);}
+async function post(t,b){const u=URL+'/rest/v1/'+t;const d=JSON.stringify(b);for(let a=0;a<3;a++){try{const r=await fetch(u,{method:'POST',headers:H,body:d,mode:'cors'});const t=await r.text();if(!r.ok){if(r.status===429){await new Promise(e=>setTimeout(e,1e3*(a+1)));continue;}return{ok:false,s:r.status,e:t};}if(!t.trim())return{ok:true,d:[]};return{ok:true,d:JSON.parse(t)};}catch(e){if(a<2){await new Promise(e=>setTimeout(e,1e3*(a+1)));continue;}return{ok:false,e:String(e);}}}}
+function ck(a,s){const c=[];for(let i=0;i<a.length;i+=s)c.push(a.slice(i,i+s));return c;}
+async function rab(f){return new Promise((r,j)=>{const rr=new FileReader();rr.onload=()=>r(rr.result);rr.onerror=j;rr.readAsArrayBuffer(f);});}
+document.getElementById('go').onclick=async()=>{
+  const st={c:0,t:0,tr:0,d:0,o:0,m:0};
+  const sk={c:0,t:0,tr:0,d:0,o:0,m:0};
+  const er=[];
+  log('Start');
+  const cf=document.getElementById('cat').files[0];
+  const cats={};
+  if(cf){const txt=dec(await rab(cf));const{r}=psv(txt,';');for(const row of r){const cid=row['id_categorie'];if(cid)cats[cid]=row['categorie']||'other';}log('Cats: '+Object.keys(cats).length);}
+  
+  // CLIENTS
+  log('Clients...');
+  const clf=document.getElementById('c').files[0];
+  if(!clf){log('No clients');sk.c=0;}
+  else{
+    const{r}=psv(dec(await rab(clf)),';');
+    const cd=[];
+    for(const row of r){
+      const rid=row['RéfClient']||row['R‚fClient']||'';
+      if(!rid){sk.c++;continue;}
+      const cid=parseInt(rid);if(isNaN(cid)){sk.c++;continue;}
+      const nm=nl(row['NomSociété']||row['NomSoci‚t‚']);
+      const ph=nl(row['NuméroTél']||row['Num‚roT‚l']);
+      const ad=nl(row['AdresseFacturation']);
+      const ci=nl(row['Ville']);
+      const pr=nl(row['PrénomContact']||row['Pr‚nomContact'])||'';
+      const no=nl(row['NomContact'])||'';
+      cd.push({lid:cid,nm,ph,ad,ci,nc:nl((pr+' '+no).trim()),af:ad});
+    }
+    let cm={},ic=false;
+    for(const b of ck(cd,300)){
+      const body=b.map(r=>({id:r.lid,...r}));delete body.lid;
+      const res=await post('clients',body);
+      if(res.ok){for(const row of res.d)cm[row.id]=row.id;st.c+=res.d.length;}
+      else{
+        const err=(res.e||'').toLowerCase();
+        if(err.includes('identity')||err.includes('non-default value')){
+          ic=true;log('clients identity');const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('clients',b2);if(r2.ok){for(const row of r2.d){const o=b.find(x=>x.nm===row.nm&&x.ph===row.ph);if(o)cm[o.lid]=row.id;}st.c+=r2.d.length;}else{er.push('clients: '+(r2.e||r2.s));log('err clients: '+(r2.e||r2.s));}
+        }else{er.push('clients: '+(res.e||res.s));log('err clients: '+(res.e||res.s));}
+      }
+    }
+    if(ic){cm={};for(const b of ck(cd,300)){const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('clients',b2);if(r2.ok){for(const row of r2.d){const o=b.find(x=>x.nm===row.nm&&x.ph===row.ph);if(o)cm[o.lid]=row.id;}st.c+=r2.d.length;}else{er.push('clients batch: '+(r2.e||r2.s));}}}
+    log('clients: '+st.c+' map:'+Object.keys(cm).length);
+  }
+  
+  // TRUCKS
+  log('Trucks...');
+  const tf=document.getElementById('t').files[0];
+  if(!tf){log('No trucks');sk.t=0;}
+  else{
+    const{r}=psv(dec(await rab(tf)),';');
+    const td=[];
+    for(const row of r){
+      const rid=row['id_vehicule'];if(!rid){sk.t++;continue;}
+      const tid=parseInt(rid);if(isNaN(tid)){sk.t++;continue;}
+      const pl=nl(row['Immatriculation'])||'vehicules';
+      const mo=nl(row['Marque'])||'';
+      const su=(row['Susp']||'').trim().toUpperCase();
+      td.push({lid:tid,pl,mo,st:su==='TRUE'?'inactive':'active'});
+    }
+    let tm={},it=false;
+    for(const b of ck(td,300)){
+      const body=b.map(r=>({id:r.lid,...r}));delete body.lid;
+      const res=await post('trucks',body);
+      if(res.ok){for(const row of res.d)tm[row.id]=row.id;st.t+=res.d.length;}
+      else{
+        const err=(res.e||'').toLowerCase();
+        if(err.includes('identity')||err.includes('non-default value')){
+          it=true;log('trucks identity');const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('trucks',b2);if(r2.ok){for(const row of r2.d){const o=b.find(x=>x.pl===row.pl);if(o)tm[o.lid]=row.id;}st.t+=r2.d.length;}else{er.push('trucks: '+(r2.e||r2.s));log('err trucks: '+(r2.e||r2.s));}
+        }else{er.push('trucks: '+(res.e||res.s));log('err trucks: '+(res.e||res.s));}
+      }
+    }
+    if(it){tm={};for(const b of ck(td,300)){const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('trucks',b2);if(r2.ok){for(const row of r2.d){const o=b.find(x=>x.pl===row.pl);if(o)tm[o.lid]=row.id;}st.t+=r2.d.length;}else{er.push('trucks batch: '+(r2.e||r2.s));}}}
+    log('trucks: '+st.t+' map:'+Object.keys(tm).length);
+  }
+  
+  // TRAILERS
+  log('Trailers...');
+  const trf=document.getElementById('r').files[0];
+  if(!trf){log('No trailers');sk.tr=0;}
+  else{
+    const{r}=psv(dec(await rab(trf)),';');
+    const trd=[];
+    for(const row of r){
+      const rid=row['id_frigo'];if(!rid){sk.tr++;continue;}
+      const fid=parseInt(rid);if(isNaN(fid)){sk.tr++;continue;}
+      trd.push({lid:fid,pn:nl(row['frigo'])||'',tp:'refrigerated'});
+    }
+    let trm={},itr=false;
+    for(const b of ck(trd,300)){
+      const body=b.map(r=>({id:r.lid,...r}));delete body.lid;
+      const res=await post('trailers',body);
+      if(res.ok){for(const row of res.d)trm[row.id]=row.id;st.tr+=res.d.length;}
+      else{
+        const err=(res.e||'').toLowerCase();
+        if(err.includes('identity')||err.includes('non-default value')){
+          itr=true;log('trailers identity');const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('trailers',b2);if(r2.ok){for(const row of r2.d){const o=b.find(x=>x.pn===row.pn);if(o)trm[o.lid]=row.id;}st.tr+=r2.d.length;}else{er.push('trailers: '+(r2.e||r2.s));log('err trailers: '+(r2.e||r2.s));}
+        }else{er.push('trailers: '+(res.e||res.s));log('err trailers: '+(res.e||res.s));}
+      }
+    }
+    if(itr){trm={};for(const b of ck(trd,300)){const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('trailers',b2);if(r2.ok){for(const row of r2.d){const o=b.find(x=>x.pn===row.pn);if(o)trm[o.lid]=row.id;}st.tr+=r2.d.length;}else{er.push('trailers batch: '+(r2.e||r2.s));}}}
+    log('trailers: '+st.tr+' map:'+Object.keys(trm).length);
+  }
+  
+  // DRIVERS
+  log('Drivers...');
+  const df=document.getElementById('d').files[0];
+  if(!df){log('No drivers');sk.d=0;}
+  else{
+    const{r}=psv(dec(await rab(df)),';');
+    const dd=[];
+    for(const row of r){
+      const rid=row['RéfEmployé']||row['R‚fEmploy‚']||'';
+      if(!rid){sk.d++;continue;}
+      const did=parseInt(rid);if(isNaN(did)){sk.d++;continue;}
+      const pr=nl(row['Prénom']||row['Pr‚nom'])||'';
+      const no=nl(row['NomFamille'])||'';
+      dd.push({lid:did,nm:nl((pr+' '+no).trim()),ph:nl(row['TélProfessionnel']||row['T‚lProfessionnel']),lic:'',st:'active',bs:0,bp:0});
+    }
+    let dm={},id=false;
+    for(const b of ck(dd,300)){
+      const body=b.map(r=>({id:r.lid,...r}));delete body.lid;
+      const res=await post('drivers',body);
+      if(res.ok){for(const row of res.d)dm[row.id]=row.id;st.d+=res.d.length;}
+      else{
+        const err=(res.e||'').toLowerCase();
+        if(err.includes('identity')||err.includes('non-default value')){
+          id=true;log('drivers identity');const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('drivers',b2);if(r2.ok){for(const row of r2.d){const o=b.find(x=>x.nm===row.nm);if(o)dm[o.lid]=row.id;}st.d+=r2.d.length;}else{er.push('drivers: '+(r2.e||r2.s));log('err drivers: '+(r2.e||r2.s));}
+        }else{er.push('drivers: '+(res.e||res.s));log('err drivers: '+(res.e||res.s));}
+      }
+    }
+    if(id){dm={};for(const b of ck(dd,300)){const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('drivers',b2);if(r2.ok){for(const row of r2.d){const o=b.find(x=>x.nm===row.nm);if(o)dm[o.lid]=row.id;}st.d+=r2.d.length;}else{er.push('drivers batch: '+(r2.e||r2.s));}}}
+    log('drivers: '+st.d+' map:'+Object.keys(dm).length);
+  }
+  
+  // TRIP ORDERS
+  log('Orders...');
+  const of=document.getElementById('o').files[0];
+  if(!of){log('No orders');sk.o=0;}
+  else{
+    const{r}=psv(dec(await rab(of)),';');
+    const od=[];
+    for(const row of r){
+      const rid=row['RéfCommande']||row['R‚fCommande']||'';
+      if(!rid){sk.o++;continue;}
+      const oid=parseInt(rid);if(isNaN(oid)){sk.o++;continue;}
+      const cr=row['RéfClient']||row['R‚fClient']||'';
+      let cl=null;if(cr){const p=parseInt(cr);if(!isNaN(p))cl=p;}
+      if(cl===null||!cm[cl]){sk.o++;continue;}
+      const rt=nl(row['VilleExpédition']||row['VilleExp‚dition'])||nl(row['NomExpédition']||row['NomExp‚dition'])||'';
+      const pr=pn(row['FraisTransport'])||0;
+      const va=(row['Valider']||'').trim().toUpperCase();
+      const st=va==='TRUE'?'completed':'pending';
+      const dd=pd(row['DateCommande']);
+      const dr=row['RéfEmployé']||row['R‚fEmploy‚']||'';
+      const tr=row['Véhicule']||row['V‚hicule']||'';
+      const o={lid:oid,cid:cm[cl],rt,pr,st,dir:'outbound',se:0,dd};
+      if(dr){const dl=parseInt(dr);if(!isNaN(dl)&&dm[dl])o.did=dm[dl];}
+      if(tr){const tl=parseInt(tr);if(!isNaN(tl)&&tm[tl])o.tid=tm[tl];}
+      od.push(o);
+    }
+    for(const b of ck(od,300)){
+      const body=b.map(r=>({id:r.lid,...r}));delete body.lid;
+      const res=await post('trip_orders',body);
+      if(res.ok){st.o+=res.d.length;}
+      else{
+        const err=(res.e||'').toLowerCase();
+        if(err.includes('identity')||err.includes('non-default value')){
+          log('orders identity');const b2=b.map(r=>{const d={...r};delete d.lid;return d;});const r2=await post('trip_orders',b2);if(r2.ok)st.o+=r2.d.length;else{er.push('orders: '+(r2.e||r2.s));log('err orders: '+(r2.e||r2.s));}
+        }else{er.push('orders: '+(res.e||res.s));log('err orders: '+(res.e||res.s));}
+      }
+    }
+    log('orders: '+st.o);
+  }
+  
+  // TRUCK MAINTENANCE
+  log('Maintenance...');
+  const jf=document.getElementById('j').files[0];
+  if(!jf){log('No jobs');sk.m=0;}
+  else{
+    const{r}=psv(dec(await rab(jf)),';');
+    const jd=[];
+    for(const row of r){
+      const rid=row['Véhicule']||row['V‚hicule']||'';
+      if(!rid){sk.m++;continue;}
+      const jid=parseInt(rid);if(isNaN(jid)){sk.m++;continue;}
+      if(!tm[jid]){sk.m++;continue;}
+      const ct=row['categorie'];const et=ct?(cats[ct]||'other'):'other';
+      jd.push({tid:tm[jid],et,am:0,de:nl(row['JobName'])||'',dd:pd(row['ExpectedCompletionDate'])});
+    }
+    for(const b of ck(jd,300)){
+      const res=await post('truck_maintenance',b);
+      if(res.ok)st.m+=res.d.length;else{er.push('maint: '+(res.e||res.s));log('err maint: '+(res.e||res.s));}
+    }
+    log('maint: '+st.m);
+  }
+  
+  const tot=st.c+st.t+st.tr+st.d+st.o+st.m;
+  log('=== SUMMARY ===');
+  log('clients:'+st.c+' trucks:'+st.t+' trailers:'+st.tr+' drivers:'+st.d+' orders:'+st.o+' maint:'+st.m);
+  log('TOTAL:'+tot);
+  log('SKIPPED clients:'+sk.c+' trucks:'+sk.t+' trailers:'+sk.tr+' drivers:'+sk.d+' orders:'+sk.o+' maint:'+sk.m);
+  log('ERRORS:');
+  if(!er.length)log('None');else for(let i=0;i<Math.min(20,er.length);i++)log(er[i]);
+  log('NO DDL run');
+};
+</script></body></html>

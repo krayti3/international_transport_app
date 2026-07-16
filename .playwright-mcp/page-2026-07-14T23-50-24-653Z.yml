@@ -1,0 +1,33 @@
+- generic [ref=e6]:
+  - heading "Legacy CSV Import to Supabase" [level=1] [ref=e7]
+  - generic [ref=e8]:
+    - paragraph [ref=e9]:
+      - generic [ref=e10]:
+        - text: "Clientèle.csv:"
+        - button "Clientèle.csv:" [ref=e11]
+    - paragraph [ref=e12]:
+      - generic [ref=e13]:
+        - text: "Employés.csv:"
+        - button "Employés.csv:" [ref=e14]
+    - paragraph [ref=e15]:
+      - generic [ref=e16]:
+        - text: "Commandes.csv:"
+        - button "Commandes.csv:" [active] [ref=e17]
+    - paragraph [ref=e18]:
+      - generic [ref=e19]:
+        - text: "T00vehicules.csv:"
+        - button "T00vehicules.csv:" [ref=e20]
+    - paragraph [ref=e21]:
+      - generic [ref=e22]:
+        - text: "T00frigo.csv:"
+        - button "T00frigo.csv:" [ref=e23]
+    - paragraph [ref=e24]:
+      - generic [ref=e25]:
+        - text: "T09 categories.csv:"
+        - button "T09 categories.csv:" [ref=e26]
+    - paragraph [ref=e27]:
+      - generic [ref=e28]:
+        - text: "T09 tblJobs.csv:"
+        - button "T09 tblJobs.csv:" [ref=e29]
+  - button "Start Import" [ref=e30]
+  - button "Clear Log" [ref=e31]

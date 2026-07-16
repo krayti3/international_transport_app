@@ -1,0 +1,4 @@
+- generic [ref=f2e1]:
+  - heading "Test" [level=1] [ref=f2e2]
+  - button "Click" [active] [ref=f2e3]
+  - paragraph [ref=f2e4]: Clicked

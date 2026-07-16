@@ -1,0 +1,36 @@
+// Company profit report screen translations. Key = exact Arabic source string.
+const Map<String, String> frCompanyProfitReportScreen = <String, String>{
+  'تقرير الأرباح': 'Rapport des bénéfices',
+  'تقرير الأرباح الصافية': 'Rapport des bénéfices nets',
+  'تقرير الشهر الحالي ({0})': 'Rapport du mois en cours ({0})',
+  'إجمالي المداخيل (مع TVA)': 'Revenu total (avec TVA)',
+  'ضريبة TVA': 'Taxe TVA',
+  'إجمالي المداخيل (بدون TVA)': 'Revenu total (sans TVA)',
+  'إجمالي المصاريف': 'Total des dépenses',
+  'الأرباح الإجمالية': 'Bénéfices bruts',
+  'صافي الأرباح': 'Bénéfice net',
+  'نسبة المصاريف مقابل الأرباح': 'Ratio des dépenses par rapport aux bénéfices',
+  'تفاصيل المصاريف': 'Détails des dépenses',
+  'مصاريف تشغيل الرحلات': 'Frais d\'exploitation des trajets',
+  'مصاريف المكتب': 'Frais de bureau',
+  'الأجور والرواتب': 'Salaires et traitements',
+  'مصاريف صيانة الشاحنات': 'Frais de maintenance des camions',
+};
+
+const Map<String, String> enCompanyProfitReportScreen = <String, String>{
+  'تقرير الأرباح': 'Profit report',
+  'تقرير الأرباح الصافية': 'Net profit report',
+  'تقرير الشهر الحالي ({0})': 'Current month report ({0})',
+  'إجمالي المداخيل (مع TVA)': 'Total revenue (with VAT)',
+  'ضريبة TVA': 'VAT tax',
+  'إجمالي المداخيل (بدون TVA)': 'Total revenue (without VAT)',
+  'إجمالي المصاريف': 'Total expenses',
+  'الأرباح الإجمالية': 'Gross profit',
+  'صافي الأرباح': 'Net profit',
+  'نسبة المصاريف مقابل الأرباح': 'Expenses vs profit ratio',
+  'تفاصيل المصاريف': 'Expense details',
+  'مصاريف تشغيل الرحلات': 'Trip operating expenses',
+  'مصاريف المكتب': 'Office expenses',
+  'الأجور والرواتب': 'Wages and salaries',
+  'مصاريف صيانة الشاحنات': 'Truck maintenance expenses',
+};

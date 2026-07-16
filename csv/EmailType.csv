@@ -1,0 +1,2 @@
+refEmail;typeEmail;sendusing;smtpserver;smtpserverport;smtpauthenticate;smtpusess
+1;gmail;2;smtp.gmail.com;465;1;1

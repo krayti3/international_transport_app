@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Legacy CSV Import</title></head>
+<body>
+<h1>Legacy CSV Import to Supabase</h1>
+<div id="fileInputs">
+  <p><label>Clientèle.csv: <input type="file" id="clientsFile" accept=".csv"></label></p>
+  <p><label>Employés.csv: <input type="file" id="driversFile" accept=".csv"></label></p>
+  <p><label>Commandes.csv: <input type="file" id="ordersFile" accept=".csv"></label></p>
+  <p><label>T00vehicules.csv: <input type="file" id="trucksFile" accept=".csv"></label></p>
+  <p><label>T00frigo.csv: <input type="file" id="trailersFile" accept=".csv"></label></p>
+  <p><label>T09 categories.csv: <input type="file" id="categoriesFile" accept=".csv"></label></p>
+  <p><label>T09 tblJobs.csv: <input type="file" id="jobsFile" accept=".csv"></label></p>
+</div>
+<button id="importBtn">Start Import</button>
+<button id="clearBtn">Clear Log</button>
+<pre id="log" style="background:#f0f0f0;padding:10px;max-height:600px;overflow:auto;white-space:pre-wrap;"></pre>
+
+<script>
+const SUPABASE_URL = 'https://jgehdsmrmcpnvcnfrjai.supabase.co';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpnZWhkc21ybWNwbnZjbmZyamFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTMxMzQsImV4cCI6MjA5OTI2OTEzNH0.GurwFyegBNqiImJGUfwxEUuR2epzLlII1BwpBDPH1Kg';
+const HEADERS = {
+  'apikey': ANON_KEY,
+  'Authorization': 'Bearer ' + ANON_KEY,
+  'Content-Type': 'application/json',
+  'Prefer': 'return=representation,resolution=merge-duplicates'
+};
+const BATCH_SIZE = 300;
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+
+const logEl = document.getElementById('log');
+function log(msg) {
+  logEl.textContent += msg + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function decodeCp1252(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let result = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b < 0x80) {
+      result += String.fromCharCode(b);
+    } else if (b === 0x80) result += '€';
+    else if (b === 0x82) result += '‚';
+    else if (b === 0x83) result += 'ƒ';
+    else if (b === 0x84) result += '„';
+    else if (b === 0x85) result += '…';
+    else if (b === 0x86) result += '†';
+    else if (b === 0x87) result += '‡';
+    else if (b === 0x88) result += 'ˆ';
+    else if (b === 0x89) result += '‰';
+    else if (b === 0x8A) result += 'Š';
+    else if (b === 0x8B) result += '‹';
+    else if (b === 0x8C) result += 'Œ';
+    else if (b === 0x8E) result += 'Ž';
+    else if (b === 0x91) result += '‘';
+    else if (b === 0x92) result += '’';
+    else if (b === 0x93) result += '“';
+    else if (b === 0x94) result += '”';
+    else if (b === 0x95) result += '•';
+    else if (b === 0x96) result += '–';
+    else if (b === 0x97) result += '—';
+    else if (b === 0x98) result += '˜';
+    else if (b === 0x99) result += '™';
+    else if (b === 0x9A) result += 'š';
+    else if (b === 0x9B) result += '›';
+    else if (b === 0x9C) result += 'œ';
+    else if (b === 0x9E) result += 'ž';
+    else if (b === 0x9F) result += 'Ÿ';
+    else result += String.fromCharCode(b);
+  }
+  return result;
+}
+
+function parseCsv(text, delimiter) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length === 0) return { headers: [], rows: [] };
+  const headers = lines[0].split(delimiter);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(delimiter);
+    const row = {};
+    for (let j = 0; j < headers.length; j++) {
+      row[headers[j]] = cols[j] !== undefined ? cols[j] : '';
+    }
+    rows.push(row);
+  }
+  return { headers, rows };
+}
+
+function parseNumber(val) {
+  if (!val || val.trim() === '') return null;
+  const v = val.trim().replace(/ /g, '');
+  if (!v) return null;
+  const normalized = v.replace(/\./g, '').replace(',', '.');
+  const f = parseFloat(normalized);
+  if (isNaN(f)) return 0;
+  return f;
+}
+
+function parseDate(val) {
+  if (!val || val.trim() === '') return null;
+  const m = val.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  return m[3] + '-' + m[2] + '-' + m[1];
+}
+
+function nullify(val) {
+  if (val === null || val === undefined) return null;
+  const s = String(val).trim();
+  return s || null;
+}
+
+async function supabasePost(table, body) {
+  const url = SUPABASE_URL + '/rest/v1/' + table;
+  const data = JSON.stringify(body);
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: HEADERS,
+        body: data,
+        mode: 'cors'
+      });
+      const text = await resp.text();
+      if (!resp.ok) {
+        if (resp.status === 429) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY * (attempt + 1)));
+          continue;
+        }
+        return { ok: false, status: resp.status, error: text };
+      }
+      if (!text.trim()) return { ok: true, data: [] };
+      return { ok: true, data: JSON.parse(text) };
+    } catch (e) {
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY * (attempt + 1)));
+        continue;
+      }
+      return { ok: false, error: String(e) };
+    }
+  }
+}
+
+function chunk(arr, size) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
+}
+
+async function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function importAll() {
+  const stats = { clients: 0, trucks: 0, trailers: 0, drivers: 0, trip_orders: 0, truck_maintenance: 0 };
+  const skipped = { clients: 0, trucks: 0, trailers: 0, drivers: 0, trip_orders: 0, truck_maintenance: 0 };
+  const errors = [];
+
+  log('=== Starting import ===');
+
+  // Load categories
+  const catFile = document.getElementById('categoriesFile').files[0];
+  const categories = {};
+  if (catFile) {
+    const buf = await readFileAsArrayBuffer(catFile);
+    const text = decodeCp1252(buf);
+    const { rows } = parseCsv(text, ';');
+    for (const row of rows) {
+      const cid = row['id_categorie'];
+      const cat = row['categorie'];
+      if (cid) categories[cid] = cat || 'other';
+    }
+    log('Categories loaded: ' + Object.keys(categories).length);
+  } else {
+    log('No categories file selected, using default');
+  }
+
+  // 1. CLIENTS
+  log('Processing clients...');
+  const clientsFile = document.getElementById('clientsFile').files[0];
+  if (!clientsFile) {
+    log('No clients file selected');
+    skipped.clients = 0;
+  } else {
+    const buf = await readFileAsArrayBuffer(clientsFile);
+    const text = decodeCp1252(buf);
+    const { rows } = parseCsv(text, ';');
+    const clientsData = [];
+    for (const row of rows) {
+      const rid = row['RéfClient'] || row['R‚fClient'] || '';
+      if (!rid) { skipped.clients++; continue; }
+      const cid = parseInt(rid);
+      if (isNaN(cid)) { skipped.clients++; continue; }
+      const name = nullify(row['NomSociété'] || row['NomSoci‚t‚']);
+      const phone = nullify(row['NuméroTél'] || row['Num‚roT‚l']);
+      const address = nullify(row['AdresseFacturation']);
+      const city = nullify(row['Ville']);
+      const prenom = nullify(row['PrénomContact'] || row['Pr‚nomContact']) || '';
+      const nom = nullify(row['NomContact']) || '';
+      const nomContact = nullify((prenom + ' ' + nom).trim());
+      clientsData.push({
+        legacy_id: cid, name, phone, address, city,
+        nom_contact: nomContact,
+        adresse_facturation: address
+      });
+    }
+
+    let clientsMap = {};
+    let identityClients = false;
+    for (const batch of chunk(clientsData, BATCH_SIZE)) {
+      const body = batch.map(r => ({ id: r.legacy_id, ...r }));
+      delete body.legacy_id;
+      const res = await supabasePost('clients', body);
+      if (res.ok) {
+        for (const row of res.data) {
+          clientsMap[row.id] = row.id;
+        }
+        stats.clients += res.data.length;
+      } else {
+        const err = (res.error || '').toLowerCase();
+        if (err.includes('identity') || err.includes('non-default value') || err.includes('is an identity column')) {
+          identityClients = true;
+          log('  clients: identity column detected, retrying without id...');
+          const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+          const res2 = await supabasePost('clients', body2);
+          if (res2.ok) {
+            for (const row of res2.data) {
+              const orig = batch.find(b => b.name === row.name && b.phone === row.phone);
+              if (orig) clientsMap[orig.legacy_id] = row.id;
+            }
+            stats.clients += res2.data.length;
+          } else {
+            errors.push('clients insert without id: ' + (res2.error || res2.status));
+            log('  ERROR clients: ' + (res2.error || res2.status));
+          }
+        } else {
+          errors.push('clients insert: ' + (res.error || res.status));
+          log('  ERROR clients: ' + (res.error || res.status));
+        }
+      }
+    }
+    if (identityClients) {
+      clientsMap = {};
+      for (const batch of chunk(clientsData, BATCH_SIZE)) {
+        const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+        const res2 = await supabasePost('clients', body2);
+        if (res2.ok) {
+          for (const row of res2.data) {
+            const orig = batch.find(b => b.name === row.name && b.phone === row.phone);
+            if (orig) clientsMap[orig.legacy_id] = row.id;
+          }
+          stats.clients += res2.data.length;
+        } else {
+          errors.push('clients batch without id: ' + (res2.error || res2.status));
+        }
+      }
+    }
+    log('  clients inserted: ' + stats.clients + ', map size: ' + Object.keys(clientsMap).length);
+  }
+
+  // 2. TRUCKS
+  log('Processing trucks...');
+  const trucksFile = document.getElementById('trucksFile').files[0];
+  if (!trucksFile) {
+    log('No trucks file selected');
+    skipped.trucks = 0;
+  } else {
+    const buf = await readFileAsArrayBuffer(trucksFile);
+    const text = decodeCp1252(buf);
+    const { rows } = parseCsv(text, ';');
+    const trucksData = [];
+    for (const row of rows) {
+      const rid = row['id_vehicule'];
+      if (!rid) { skipped.trucks++; continue; }
+      const tid = parseInt(rid);
+      if (isNaN(tid)) { skipped.trucks++; continue; }
+      const plate = nullify(row['Immatriculation']) || 'vehicules';
+      const model = nullify(row['Marque']) || '';
+      const susp = (row['Susp'] || '').trim().toUpperCase();
+      const status = susp === 'TRUE' ? 'inactive' : 'active';
+      trucksData.push({ legacy_id: tid, plate, model, status });
+    }
+
+    let trucksMap = {};
+    let identityTrucks = false;
+    for (const batch of chunk(trucksData, BATCH_SIZE)) {
+      const body = batch.map(r => ({ id: r.legacy_id, ...r }));
+      delete body.legacy_id;
+      const res = await supabasePost('trucks', body);
+      if (res.ok) {
+        for (const row of res.data) trucksMap[row.id] = row.id;
+        stats.trucks += res.data.length;
+      } else {
+        const err = (res.error || '').toLowerCase();
+        if (err.includes('identity') || err.includes('non-default value')) {
+          identityTrucks = true;
+          log('  trucks: identity detected, retrying without id...');
+          const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+          const res2 = await supabasePost('trucks', body2);
+          if (res2.ok) {
+            for (const row of res2.data) {
+              const orig = batch.find(b => b.plate === row.plate);
+              if (orig) trucksMap[orig.legacy_id] = row.id;
+            }
+            stats.trucks += res2.data.length;
+          } else {
+            errors.push('trucks insert without id: ' + (res2.error || res2.status));
+            log('  ERROR trucks: ' + (res2.error || res2.status));
+          }
+        } else {
+          errors.push('trucks insert: ' + (res.error || res.status));
+          log('  ERROR trucks: ' + (res.error || res.status));
+        }
+      }
+    }
+    if (identityTrucks) {
+      trucksMap = {};
+      for (const batch of chunk(trucksData, BATCH_SIZE)) {
+        const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+        const res2 = await supabasePost('trucks', body2);
+        if (res2.ok) {
+          for (const row of res2.data) {
+            const orig = batch.find(b => b.plate === row.plate);
+            if (orig) trucksMap[orig.legacy_id] = row.id;
+          }
+          stats.trucks += res2.data.length;
+        } else {
+          errors.push('trucks batch without id: ' + (res2.error || res2.status));
+        }
+      }
+    }
+    log('  trucks inserted: ' + stats.trucks + ', map size: ' + Object.keys(trucksMap).length);
+  }
+
+  // 3. TRAILERS
+  log('Processing trailers...');
+  const trailersFile = document.getElementById('trailersFile').files[0];
+  if (!trailersFile) {
+    log('No trailers file selected');
+    skipped.trailers = 0;
+  } else {
+    const buf = await readFileAsArrayBuffer(trailersFile);
+    const text = decodeCp1252(buf);
+    const { rows } = parseCsv(text, ';');
+    const trailersData = [];
+    for (const row of rows) {
+      const rid = row['id_frigo'];
+      if (!rid) { skipped.trailers++; continue; }
+      const fid = parseInt(rid);
+      if (isNaN(fid)) { skipped.trailers++; continue; }
+      const plateNumber = nullify(row['frigo']) || '';
+      trailersData.push({ legacy_id: fid, plate_number: plateNumber, type: 'refrigerated' });
+    }
+
+    let trailersMap = {};
+    let identityTrailers = false;
+    for (const batch of chunk(trailersData, BATCH_SIZE)) {
+      const body = batch.map(r => ({ id: r.legacy_id, ...r }));
+      delete body.legacy_id;
+      const res = await supabasePost('trailers', body);
+      if (res.ok) {
+        for (const row of res.data) trailersMap[row.id] = row.id;
+        stats.trailers += res.data.length;
+      } else {
+        const err = (res.error || '').toLowerCase();
+        if (err.includes('identity') || err.includes('non-default value')) {
+          identityTrailers = true;
+          log('  trailers: identity detected, retrying without id...');
+          const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+          const res2 = await supabasePost('trailers', body2);
+          if (res2.ok) {
+            for (const row of res2.data) {
+              const orig = batch.find(b => b.plate_number === row.plate_number);
+              if (orig) trailersMap[orig.legacy_id] = row.id;
+            }
+            stats.trailers += res2.data.length;
+          } else {
+            errors.push('trailers insert without id: ' + (res2.error || res2.status));
+            log('  ERROR trailers: ' + (res2.error || res2.status));
+          }
+        } else {
+          errors.push('trailers insert: ' + (res.error || res.status));
+          log('  ERROR trailers: ' + (res.error || res.status));
+        }
+      }
+    }
+    if (identityTrailers) {
+      trailersMap = {};
+      for (const batch of chunk(trailersData, BATCH_SIZE)) {
+        const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+        const res2 = await supabasePost('trailers', body2);
+        if (res2.ok) {
+          for (const row of res2.data) {
+            const orig = batch.find(b => b.plate_number === row.plate_number);
+            if (orig) trailersMap[orig.legacy_id] = row.id;
+          }
+          stats.trailers += res2.data.length;
+        } else {
+          errors.push('trailers batch without id: ' + (res2.error || res2.status));
+        }
+      }
+    }
+    log('  trailers inserted: ' + stats.trailers + ', map size: ' + Object.keys(trailersMap).length);
+  }
+
+  // 4. DRIVERS
+  log('Processing drivers...');
+  const driversFile = document.getElementById('driversFile').files[0];
+  if (!driversFile) {
+    log('No drivers file selected');
+    skipped.drivers = 0;
+  } else {
+    const buf = await readFileAsArrayBuffer(driversFile);
+    const text = decodeCp1252(buf);
+    const { rows } = parseCsv(text, ';');
+    const driversData = [];
+    for (const row of rows) {
+      const rid = row['RéfEmployé'] || row['R‚fEmploy‚'] || '';
+      if (!rid) { skipped.drivers++; continue; }
+      const did = parseInt(rid);
+      if (isNaN(did)) { skipped.drivers++; continue; }
+      const prenom = nullify(row['Prénom'] || row['Pr‚nom']) || '';
+      const nom = nullify(row['NomFamille']) || '';
+      const name = nullify((prenom + ' ' + nom).trim());
+      const phone = nullify(row['TélProfessionnel'] || row['T‚lProfessionnel']);
+      driversData.push({
+        legacy_id: did, name, phone, license: '', status: 'active', base_salary: 0, bonus_percentage: 0
+      });
+    }
+
+    let driversMap = {};
+    let identityDrivers = false;
+    for (const batch of chunk(driversData, BATCH_SIZE)) {
+      const body = batch.map(r => ({ id: r.legacy_id, ...r }));
+      delete body.legacy_id;
+      const res = await supabasePost('drivers', body);
+      if (res.ok) {
+        for (const row of res.data) driversMap[row.id] = row.id;
+        stats.drivers += res.data.length;
+      } else {
+        const err = (res.error || '').toLowerCase();
+        if (err.includes('identity') || err.includes('non-default value')) {
+          identityDrivers = true;
+          log('  drivers: identity detected, retrying without id...');
+          const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+          const res2 = await supabasePost('drivers', body2);
+          if (res2.ok) {
+            for (const row of res2.data) {
+              const orig = batch.find(b => b.name === row.name);
+              if (orig) driversMap[orig.legacy_id] = row.id;
+            }
+            stats.drivers += res2.data.length;
+          } else {
+            errors.push('drivers insert without id: ' + (res2.error || res2.status));
+            log('  ERROR drivers: ' + (res2.error || res2.status));
+          }
+        } else {
+          errors.push('drivers insert: ' + (res.error || res.status));
+          log('  ERROR drivers: ' + (res.error || res.status));
+        }
+      }
+    }
+    if (identityDrivers) {
+      driversMap = {};
+      for (const batch of chunk(driversData, BATCH_SIZE)) {
+        const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+        const res2 = await supabasePost('drivers', body2);
+        if (res2.ok) {
+          for (const row of res2.data) {
+            const orig = batch.find(b => b.name === row.name);
+            if (orig) driversMap[orig.legacy_id] = row.id;
+          }
+          stats.drivers += res2.data.length;
+        } else {
+          errors.push('drivers batch without id: ' + (res2.error || res2.status));
+        }
+      }
+    }
+    log('  drivers inserted: ' + stats.drivers + ', map size: ' + Object.keys(driversMap).length);
+  }
+
+  // 5. TRIP ORDERS
+  log('Processing trip_orders...');
+  const ordersFile = document.getElementById('ordersFile').files[0];
+  if (!ordersFile) {
+    log('No orders file selected');
+    skipped.trip_orders = 0;
+  } else {
+    const buf = await readFileAsArrayBuffer(ordersFile);
+    const text = decodeCp1252(buf);
+    const { rows } = parseCsv(text, ';');
+    const ordersData = [];
+    for (const row of rows) {
+      const rid = row['RéfCommande'] || row['R‚fCommande'] || '';
+      if (!rid) { skipped.trip_orders++; continue; }
+      const oid = parseInt(rid);
+      if (isNaN(oid)) { skipped.trip_orders++; continue; }
+      const clientRid = row['RéfClient'] || row['R‚fClient'] || '';
+      let clientLid = null;
+      if (clientRid) {
+        const parsed = parseInt(clientRid);
+        if (!isNaN(parsed)) clientLid = parsed;
+      }
+      if (clientLid === null || !clientsMap[clientLid]) {
+        skipped.trip_orders++;
+        continue;
+      }
+      const route = nullify(row['VilleExpédition'] || row['VilleExp‚dition']) || nullify(row['NomExpédition'] || row['NomExp‚dition']) || '';
+      const price = parseNumber(row['FraisTransport']) || 0;
+      const valider = (row['Valider'] || '').trim().toUpperCase();
+      const status = valider === 'TRUE' ? 'completed' : 'pending';
+      const departureDate = parseDate(row['DateCommande']);
+      const driverRid = row['RéfEmployé'] || row['R‚fEmploy‚'] || '';
+      const truckRid = row['Véhicule'] || row['V‚hicule'] || '';
+
+      const order = {
+        legacy_id: oid,
+        client_id: clientsMap[clientLid],
+        route,
+        price,
+        status,
+        direction: 'outbound',
+        specific_expenses: 0,
+        departure_date: departureDate
+      };
+      if (driverRid) {
+        const dlid = parseInt(driverRid);
+        if (!isNaN(dlid) && driversMap[dlid]) order.driver_id = driversMap[dlid];
+      }
+      if (truckRid) {
+        const tlid = parseInt(truckRid);
+        if (!isNaN(tlid) && trucksMap[tlid]) order.truck_id = trucksMap[tlid];
+      }
+      ordersData.push(order);
+    }
+
+    for (const batch of chunk(ordersData, BATCH_SIZE)) {
+      const body = batch.map(r => ({ id: r.legacy_id, ...r }));
+      delete body.legacy_id;
+      const res = await supabasePost('trip_orders', body);
+      if (res.ok) {
+        stats.trip_orders += res.data.length;
+      } else {
+        const err = (res.error || '').toLowerCase();
+        if (err.includes('identity') || err.includes('non-default value')) {
+          log('  trip_orders: identity detected, retrying without id...');
+          const body2 = batch.map(r => { const d = { ...r }; delete d.legacy_id; return d; });
+          const res2 = await supabasePost('trip_orders', body2);
+          if (res2.ok) stats.trip_orders += res2.data.length;
+          else {
+            errors.push('trip_orders insert without id: ' + (res2.error || res2.status));
+            log('  ERROR trip_orders: ' + (res2.error || res2.status));
+          }
+        } else {
+          errors.push('trip_orders insert: ' + (res.error || res.status));
+          log('  ERROR trip_orders: ' + (res.error || res.status));
+        }
+      }
+    }
+    log('  trip_orders inserted: ' + stats.trip_orders);
+  }
+
+  // 6. TRUCK MAINTENANCE
+  log('Processing truck_maintenance...');
+  const jobsFile = document.getElementById('jobsFile').files[0];
+  if (!jobsFile) {
+    log('No jobs file selected');
+    skipped.truck_maintenance = 0;
+  } else {
+    const buf = await readFileAsArrayBuffer(jobsFile);
+    const text = decodeCp1252(buf);
+    const { rows } = parseCsv(text, ';');
+    const jobsData = [];
+    for (const row of rows) {
+      const rid = row['Véhicule'] || row['V‚hicule'] || '';
+      if (!rid) { skipped.truck_maintenance++; continue; }
+      const jid = parseInt(rid);
+      if (isNaN(jid)) { skipped.truck_maintenance++; continue; }
+      if (!trucksMap[jid]) { skipped.truck_maintenance++; continue; }
+      const catId = row['categorie'];
+      const expenseType = catId ? (categories[catId] || 'other') : 'other';
+      const description = nullify(row['JobName']);
+      const dueDate = parseDate(row['ExpectedCompletionDate']);
+      jobsData.push({
+        truck_id: trucksMap[jid],
+        expense_type: expenseType,
+        amount: 0,
+        description: description || '',
+        due_date: dueDate
+      });
+    }
+
+    for (const batch of chunk(jobsData, BATCH_SIZE)) {
+      const res = await supabasePost('truck_maintenance', batch);
+      if (res.ok) stats.truck_maintenance += res.data.length;
+      else {
+        errors.push('truck_maintenance insert: ' + (res.error || res.status));
+        log('  ERROR truck_maintenance: ' + (res.error || res.status));
+      }
+    }
+    log('  truck_maintenance inserted: ' + stats.truck_maintenance);
+  }
+
+  const total = stats.clients + stats.trucks + stats.trailers + stats.drivers + stats.trip_orders + stats.truck_maintenance;
+  log('=== IMPORT SUMMARY ===');
+  log('clients: ' + stats.clients);
+  log('trucks: ' + stats.trucks);
+  log('trailers: ' + stats.trailers);
+  log('drivers: ' + stats.drivers);
+  log('trip_orders: ' + stats.trip_orders);
+  log('truck_maintenance: ' + stats.truck_maintenance);
+  log('TOTAL: ' + total);
+  log('=== SKIPPED ===');
+  log('clients: ' + skipped.clients);
+  log('trucks: ' + skipped.trucks);
+  log('trailers: ' + skipped.trailers);
+  log('drivers: ' + skipped.drivers);
+  log('trip_orders: ' + skipped.trip_orders);
+  log('truck_maintenance: ' + skipped.truck_maintenance);
+  log('=== ERRORS ===');
+  if (errors.length === 0) log('None');
+  else {
+    for (const e of errors.slice(0, 20)) log(e);
+  }
+  log('NO schema/DDL was run.');
+}
+
+document.getElementById('importBtn').addEventListener('click', importAll);
+document.getElementById('clearBtn').addEventListener('click', () => {
+  logEl.textContent = '';
+});
+</script>
+</body>
+</html>

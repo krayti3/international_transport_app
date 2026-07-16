@@ -1,0 +1,8 @@
+$lines = Get-Content "lib/screens/truck_maintenance_screen.dart"
+Write-Host "Line 269: $($lines[268])"
+Write-Host "Line 270: $($lines[269])"
+Write-Host "Line 271: $($lines[270])"
+Write-Host "---"
+Write-Host "Line 432: $($lines[431])"
+Write-Host "Line 433: $($lines[432])"
+Write-Host "Line 434: $($lines[433])"
