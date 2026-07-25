@@ -1,7 +1,10 @@
 import 'dart:typed_data';
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:international_transport_app/models/invoice.dart';
+import 'package:international_transport_app/services/supabase_service.dart';
 
 class PdfService {
   static PdfService? _instance;
@@ -334,7 +337,7 @@ class PdfService {
   }
 
   Future<Uint8List> buildInvoicePdf({
-    required Map<String, dynamic> invoice,
+    required Invoice invoice,
     required List<Map<String, dynamic>> payments,
   }) async {
     final pdf = pw.Document();
@@ -342,24 +345,31 @@ class PdfService {
     final amiriBold = await PdfGoogleFonts.amiriBold();
     final companyName = 'شركة النقل الدولي';
     final reportDate = DateTime.now();
-    final formattedDate =
-        '${reportDate.day.toString().padLeft(2, '0')}/${reportDate.month.toString().padLeft(2, '0')}/${reportDate.year}';
+    final formattedDate = DateFormat('dd/MM/yyyy').format(reportDate);
 
-    final invoiceNumber = invoice['invoice_number']?.toString() ?? '#${invoice['id'] ?? '?'}';
-    final issueDate = invoice['issue_date']?.toString() ?? '';
-    final dueDate = invoice['due_date']?.toString() ?? '';
-    final totalAmount = (invoice['total_amount'] as num?)?.toDouble() ?? 0.0;
-    final paidAmount = (invoice['paid_amount'] as num?)?.toDouble() ?? 0.0;
+    final invoiceNumber = invoice.invoiceNumber;
+    final issueDate = invoice.issueDate != null ? DateFormat('dd/MM/yyyy').format(invoice.issueDate!) : '';
+    final dueDate = invoice.dueDate != null ? DateFormat('dd/MM/yyyy').format(invoice.dueDate!) : '';
+    final totalAmount = invoice.totalAmount.toDouble();
+    final paidAmount = invoice.paidAmount?.toDouble() ?? 0.0;
     final remaining = totalAmount - paidAmount;
-    final status = invoice['status']?.toString() ?? '';
-    final clientName = invoice['clients']?['name']?.toString() ?? 'بدون اسم';
-    final clientPhone = invoice['clients']?['phone']?.toString() ?? '';
-    final clientCity = invoice['clients']?['city']?.toString() ?? '';
-    final route = invoice['trip_order']?['route']?.toString() ?? '';
-    final currency = invoice['currency']?.toString() ?? 'MAD';
+    final status = invoice.status;
+    final supabaseService = SupabaseService();
+    final client = invoice.clientId.isNotEmpty
+        ? await supabaseService.getClientById(invoice.clientId)
+        : null;
+    final clientName = client?.name ?? 'Unknown';
+    final clientPhone = client?.phone ?? '';
+    final clientCity = client?.city ?? '';
+    final route = invoice.route ?? '';
+    final currency = invoice.currency ?? 'MAD';
     final currencySymbol = currency == 'EUR' ? '€' : 'DH';
-    final bankName = invoice['bank_account']?['bank_name']?.toString() ?? '';
-    final accountNumber = invoice['bank_account']?['account_number']?.toString() ?? '';
+    final bankInfoText = invoice.bankInfoText;
+    final bankAccount = invoice.bankAccountId != null
+        ? await supabaseService.getBankAccountById(invoice.bankAccountId!)
+        : null;
+    final bankName = bankAccount?.bankName ?? '';
+    final accountNumber = bankAccount?.accountNumber ?? '';
 
     String statusLabel = 'غير مدفوعة';
     switch (status) {
@@ -485,19 +495,28 @@ class PdfService {
                     child: pw.Text('المسار/الرحلة: $route', style: pw.TextStyle(font: amiri, fontSize: 13)),
                   ),
                 ],
-                if (bankName.isNotEmpty) ...[
+                if (bankInfoText != null && bankInfoText.isNotEmpty) ...[
                   pw.SizedBox(height: 8),
                   pw.Align(
                     alignment: pw.Alignment.centerRight,
-                    child: pw.Text('الحساب البنكي: $bankName ($currency)', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    child: pw.Text('معلومات الحساب البنكي: $bankInfoText', style: pw.TextStyle(font: amiri, fontSize: 13)),
                   ),
                 ],
-                if (accountNumber.isNotEmpty) ...[
-                  pw.SizedBox(height: 4),
-                  pw.Align(
-                    alignment: pw.Alignment.centerRight,
-                    child: pw.Text('رقم الحساب: $accountNumber', style: pw.TextStyle(font: amiri, fontSize: 12)),
-                  ),
+                if (bankInfoText == null || bankInfoText.isEmpty) ...[
+                  if (bankName.isNotEmpty) ...[
+                    pw.SizedBox(height: 8),
+                    pw.Align(
+                      alignment: pw.Alignment.centerRight,
+                      child: pw.Text('الحساب البنكي: $bankName ($currency)', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    ),
+                  ],
+                  if (accountNumber.isNotEmpty) ...[
+                    pw.SizedBox(height: 4),
+                    pw.Align(
+                      alignment: pw.Alignment.centerRight,
+                      child: pw.Text('رقم الحساب: $accountNumber', style: pw.TextStyle(font: amiri, fontSize: 12)),
+                    ),
+                  ],
                 ],
                 pw.SizedBox(height: 16),
                 pw.Table(
@@ -522,7 +541,7 @@ class PdfService {
   }
 
   Future<void> previewInvoice({
-    required Map<String, dynamic> invoice,
+    required Invoice invoice,
     required List<Map<String, dynamic>> payments,
   }) async {
     final pdfBytes = await buildInvoicePdf(invoice: invoice, payments: payments);
@@ -532,11 +551,11 @@ class PdfService {
   }
 
   Future<void> shareInvoice({
-    required Map<String, dynamic> invoice,
+    required Invoice invoice,
     required List<Map<String, dynamic>> payments,
   }) async {
     final pdfBytes = await buildInvoicePdf(invoice: invoice, payments: payments);
-    final name = invoice['invoice_number']?.toString() ?? 'فاتورة';
+    final name = invoice.invoiceNumber;
     await Printing.sharePdf(
       bytes: pdfBytes,
       filename: 'فاتورة_$name.pdf',
@@ -593,7 +612,7 @@ class PdfService {
           _cell(dueDate, amiri),
         _cell('${totalAmount.toStringAsFixed(2)} $currencySymbol', amiri),
         _cell('${paidAmount.toStringAsFixed(2)} $currencySymbol', amiri),
-          _cell('${remaining.toStringAsFixed(2)} د.أ', amiri),
+          _cell('${remaining.toStringAsFixed(2)} $currencySymbol', amiri),
         ],
       ));
     }

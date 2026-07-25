@@ -69,6 +69,7 @@ class NotificationService {
     DateTime expiryDate,
   ) async {
     try {
+      if (kIsWeb) return; // zonedSchedule not supported on web
       final now = tz.TZDateTime.now(tz.local);
       final expiry = tz.TZDateTime.from(expiryDate, tz.local);
 

@@ -19,7 +19,7 @@ class Trailer {
   factory Trailer.fromMap(Map<String, dynamic> map) {
     return Trailer(
       id: map['id'] as int?,
-      plate: map['plate']?.toString() ?? '',
+      plate: map['plate_number']?.toString() ?? map['plate']?.toString() ?? '',
       type: map['type']?.toString() ?? '',
       status: map['status']?.toString() ?? '',
       truckId: map['truck_id']?.toString() ?? map['truckId']?.toString(),
@@ -30,7 +30,7 @@ class Trailer {
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id': id,
-      'plate': plate,
+      'plate_number': plate,
       'type': type,
       'status': status,
       if (truckId != null) 'truck_id': truckId,

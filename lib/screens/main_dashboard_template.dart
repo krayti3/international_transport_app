@@ -17,6 +17,7 @@ import 'treasury_screen.dart';
 import 'fuel_receipt_screen.dart';
 import 'truck_tracking_screen.dart';
 import 'driver_salary_screen.dart';
+import 'workshop_repairs_screen.dart';
 
 /// عنصر واحد في قائمة التنقل (يربط بين العنوان والأيقونة والصفحة).
 class _NavEntry {
@@ -102,6 +103,15 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
         page: InvoicesScreen(isAdmin: _isAdmin),
       ),
       _NavEntry(
+        title: 'فواتير الورش',
+        shortTitle: 'ورش الإصلاح',
+        icon: Icons.build_rounded,
+        page: const WorkshopRepairInvoicesScreen(
+          workshopId: '',
+          workshopName: 'جميع الورش',
+        ),
+      ),
+      _NavEntry(
         title: 'الخزينة والصندوق',
         shortTitle: 'الخزينة',
         icon: Icons.account_balance_wallet_rounded,
@@ -167,10 +177,6 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-
-    // فحص حجم الشاشة: أكبر من 900 بكسل = حاسوب (قائمة جانبية)، أصغر = هاتف.
     final bool isDesktop = MediaQuery.of(context).size.width > 900;
 
     final pages = _entries.map((e) => e.page).toList();
@@ -179,12 +185,12 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
       body: Row(
         children: [
           // 🖥️ القائمة الجانبية الأنيقة على الحاسوب.
-          if (isDesktop) _buildSidebar(context, isDark),
+          if (isDesktop) _buildSidebar(context),
 
           // الشاشة الفعلية المعروضة حالياً (تحافظ على حالتها في الخلفية).
           Expanded(
             child: Container(
-              color: isDark ? const Color(0xFF121212) : Colors.grey[50],
+              color: Theme.of(context).colorScheme.surface,
               child: IndexedStack(
                 index: _selectedIndex,
                 children: pages,
@@ -200,17 +206,17 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
   }
 
   // ===================== القائمة الجانبية (حاسوب) =====================
-  Widget _buildSidebar(BuildContext context, bool isDark) {
-    final dividerColor = Theme.of(context).dividerColor;
-    final accent = isDark ? Colors.blue[300] : Colors.blue[800];
+  Widget _buildSidebar(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accent = colorScheme.primary;
 
     return Container(
       width: 260,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        color: colorScheme.surfaceContainer,
         border: Border(
-          left: BorderSide(color: dividerColor, width: 0.5),
-          right: BorderSide(color: dividerColor, width: 0.5),
+          left: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
+          right: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
         ),
       ),
       child: Column(
@@ -236,8 +242,8 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
           // معلومات المستخدم الحالي.
           ListTile(
             leading: CircleAvatar(
-              backgroundColor: Colors.blue[600],
-              child: const Icon(Icons.person_rounded, color: Colors.white),
+              backgroundColor: colorScheme.primary,
+              child: Icon(Icons.person_rounded, color: colorScheme.onPrimary),
             ),
             title: Text(
               _isAdmin ? 'المسؤول المالي' : 'موظف السكرتارية',
@@ -262,15 +268,15 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
                   padding: const EdgeInsets.symmetric(vertical: 4.0),
                   child: ListTile(
                     selected: isSelected,
-                    selectedTileColor: isDark
-                        ? Colors.blue[900]!.withValues(alpha: 0.3)
-                        : Colors.blue[50],
+                    selectedTileColor: isSelected
+                        ? colorScheme.primaryContainer.withAlpha(77)
+                        : Colors.transparent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                     leading: Icon(
                       item.icon,
-                      color: isSelected ? accent : Colors.grey,
+                      color: isSelected ? accent : colorScheme.onSurfaceVariant,
                     ),
                     title: Text(
                       item.title,
@@ -295,9 +301,9 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 IconButton(
-                  tooltip: isDark ? 'الوضع المضيء' : 'الوضع الداكن',
+                  tooltip: Theme.of(context).brightness == Brightness.dark ? 'الوضع المضيء' : 'الوضع الداكن',
                   icon: Icon(
-                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    Theme.of(context).brightness == Brightness.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                   ),
                   onPressed: _openThemeSwitch,
                 ),
@@ -307,15 +313,14 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
                     Platform.isWindows ? 'نسخة الحاسوب' : 'نسخة الهاتف',
                     style: const TextStyle(fontSize: 11),
                   ),
-                  backgroundColor:
-                      isDark ? Colors.blueGrey[900] : Colors.blue[50],
+                  backgroundColor: colorScheme.surfaceContainerHighest,
                   side: BorderSide.none,
                   visualDensity: VisualDensity.compact,
                 ),
                 if (widget.onSignOut != null)
                   IconButton(
                     tooltip: 'تسجيل الخروج',
-                    icon: const Icon(Icons.logout_rounded),
+                    icon: Icon(Icons.logout_rounded, color: colorScheme.error),
                     onPressed: _confirmSignOut,
                   ),
               ],
@@ -370,7 +375,7 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
       showDragHandle: true,
       isScrollControlled: true,
       builder: (ctx) {
-        final isDark = themeProvider.isDarkMode;
+        final colorScheme = Theme.of(ctx).colorScheme;
         return SafeArea(
           child: SingleChildScrollView(
             child: Column(
@@ -391,10 +396,10 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
                 // الإجراءات العامة.
                 SwitchListTile(
                   secondary: Icon(
-                    isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    Theme.of(ctx).brightness == Brightness.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                   ),
                   title: const Text('الوضع الداكن'),
-                  value: isDark,
+                  value: Theme.of(ctx).brightness == Brightness.dark,
                   onChanged: (_) {
                     final userId = Supabase.instance.client.auth.currentUser?.id;
                     themeProvider.toggleThemeForCurrentUser(userId);
@@ -402,16 +407,16 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.language),
-                  title: const Text('اللغة'),
+                  leading: Icon(Icons.language, color: colorScheme.primary),
+                  title: Text('اللغة', style: TextStyle(color: colorScheme.onSurface)),
                   trailing: const LanguageSwitcher(),
                 ),
                 if (widget.onSignOut != null)
                   ListTile(
-                    leading: const Icon(Icons.logout_rounded, color: Colors.red),
-                    title: const Text(
+                    leading: Icon(Icons.logout_rounded, color: colorScheme.error),
+                    title: Text(
                       'تسجيل الخروج',
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(color: colorScheme.error),
                     ),
                     onTap: () {
                       Navigator.pop(ctx);

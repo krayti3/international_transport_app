@@ -1,10 +1,15 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:decimal/decimal.dart'; // Decimal
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
+import 'package:international_transport_app/models/invoice.dart';
+import 'package:international_transport_app/screens/invoice_form_screen.dart';
 import '../services/supabase_service.dart';
 import '../services/pdf_service.dart';
 import '../services/excel_service.dart';
+import '../models/client.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -18,13 +23,14 @@ class InvoicesScreen extends StatefulWidget {
 
 class _InvoicesScreenState extends State<InvoicesScreen> {
   final SupabaseService _supabaseService = SupabaseService();
-  List<Map<String, dynamic>> _allInvoices = [];
+  List<Invoice> _allInvoices = [];
   bool _isLoading = true;
   String _currentFilter = 'all'; // all, unpaid, partially_paid, paid
   // إعدادات الـ TVA العامة (من جدول app_settings). الفاتورة تخزّن الإجمالي شاملاً
   // الضريبة (TTC)، والضريبة تُشتق ديناميكياً كما في تقرير الأرباح.
   bool _tvaEnabled = false;
   double _tvaPercentage = 0.0;
+  Map<String, String> _clientNames = {};
 
   @override
   void initState() {
@@ -35,10 +41,12 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   Future<void> _loadInvoices() async {
     setState(() => _isLoading = true);
     final invoices = await _supabaseService.getInvoices();
+    final clients = await _supabaseService.getClients();
     final settings = await _supabaseService.getAppSettings();
     setState(() {
       _allInvoices = invoices;
-      _tvaEnabled = settings?['is_enabled'] as bool? ?? false;
+      _clientNames = {for (final c in clients) c.id.toString(): c.name};
+      _tvaEnabled = settings?['is_enabled'] as bool? ?? true;
       _tvaPercentage = (settings?['percentage'] as num?)?.toDouble() ?? 0.0;
       _isLoading = false;
     });
@@ -51,9 +59,9 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     return totalTtc - base;
   }
 
-  List<Map<String, dynamic>> get _filteredInvoices {
+  List<Invoice> get _filteredInvoices {
     if (_currentFilter == 'all') return _allInvoices;
-    return _allInvoices.where((invoice) => invoice['status'] == _currentFilter).toList();
+    return _allInvoices.where((invoice) => invoice.status == _currentFilter).toList();
   }
 
   Color _statusColor(String? status) {
@@ -83,12 +91,12 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   Future<void> _openRecordPaymentDialog() async {
     final clients = await _supabaseService.getClients();
     final pendingClientIds = _allInvoices
-        .where((invoice) => invoice['status'] != 'paid')
-        .map((invoice) => invoice['client_id']?.toString())
+        .where((invoice) => invoice.status != 'paid')
+        .map((invoice) => invoice.clientId)
         .toSet();
-    final pendingClients = clients.where((client) => pendingClientIds.contains(client['id']?.toString())).toList();
+    final pendingClients = clients.where((client) => pendingClientIds.contains(client.id.toString())).toList();
 
-    final selectedClientController = ValueNotifier<Map<String, dynamic>?>(null);
+    final selectedClientController = ValueNotifier<Client?>(null);
     final amountController = TextEditingController();
     final methodController = TextEditingController();
     final refController = TextEditingController();
@@ -99,27 +107,25 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     bool isSubmitting = false;
 
     // يبني قسم التوزيع اليدوي لفواتير الزبون المختار
-    Widget buildManualSection(Map<String, dynamic>? selectedClient) {
+    Widget buildManualSection(Client? selectedClient) {
       if (selectedClient == null) return const SizedBox.shrink();
-      final clientId = selectedClient['id'];
+      final clientId = selectedClient.id;
       final pending = _allInvoices.where((i) =>
-        i['client_id']?.toString() == clientId?.toString() && i['status'] != 'paid').toList();
+        i.clientId == clientId.toString() && i.status != 'paid').toList();
 
-      if (lastAllocClientId?.toString() != clientId?.toString()) {
+      if (lastAllocClientId != clientId) {
         allocControllers.clear();
         for (final inv in pending) {
-          final id = inv['id'] as int;
-          final remaining = ((inv['total_amount'] as num?)?.toDouble() ?? 0.0) -
-              ((inv['paid_amount'] as num?)?.toDouble() ?? 0.0);
-          allocControllers[id] = TextEditingController(text: remaining.toStringAsFixed(2));
+          final remaining = inv.totalAmount - (inv.paidAmount ?? Decimal.zero);
+          allocControllers[inv.id!] = TextEditingController(text: remaining.toStringAsFixed(2));
         }
-        lastAllocClientId = clientId is int ? clientId : int.tryParse(clientId?.toString() ?? '');
+        lastAllocClientId = clientId;
       }
 
       if (pending.isEmpty) {
-        return const Padding(
-          padding: EdgeInsets.only(top: 12),
-          child: Text('لا توجد فواتير معلّقة لهذا الزبون', style: TextStyle(color: Colors.grey)),
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Text('لا توجد فواتير معلّقة لهذا الزبون', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         );
       }
 
@@ -136,10 +142,9 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           const Text('التوزيع اليدوي على الفواتير', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           ...pending.map((inv) {
-            final id = inv['id'] as int;
-            final number = inv['invoice_number']?.toString() ?? '#$id';
-            final remaining = ((inv['total_amount'] as num?)?.toDouble() ?? 0.0) -
-                ((inv['paid_amount'] as num?)?.toDouble() ?? 0.0);
+            final id = inv.id!;
+            final number = inv.invoiceNumber;
+            final remaining = inv.totalAmount - (inv.paidAmount ?? Decimal.zero);
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -172,7 +177,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     if (!mounted) return;
     await showDialog(
       context: context,
-      builder: (context) => ValueListenableBuilder<Map<String, dynamic>?>(
+      builder: (context) => ValueListenableBuilder<Client?>(
         valueListenable: selectedClientController,
         builder: (context, selectedClient, _) {
           return StatefulBuilder(
@@ -196,16 +201,18 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         },
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<Map<String, dynamic>>(
+                      DropdownButtonFormField<Client>(
                         decoration: const InputDecoration(labelText: 'الزبون'),
                         initialValue: selectedClient,
                         items: pendingClients.isEmpty
                             ? null
                             : pendingClients
+                                .toList()
+                                .sorted((a, b) => a.name.compareTo(b.name))
                                 .map(
-                                  (client) => DropdownMenuItem<Map<String, dynamic>>(
+                                  (client) => DropdownMenuItem<Client>(
                                     value: client,
-                                    child: Text(client['name'] ?? 'بدون اسم'),
+                                    child: Text(client.name),
                                   ),
                                 )
                                 .toList(),
@@ -266,20 +273,20 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                       : () async {
                           if (!formKey.currentState!.validate()) return;
                           final selectedClient = selectedClientController.value;
-                          final clientId = int.tryParse(selectedClient?['id']?.toString() ?? '');
-                          final totalAmountPaid = double.tryParse(amountController.text.trim()) ?? 0;
+                          final clientId = selectedClient?.id;
+                          final totalAmountPaid = Decimal.tryParse(amountController.text.trim()) ?? Decimal.zero;
                           final method = methodController.text.trim();
                           final ref = refController.text.trim();
 
-                          if (clientId == null || totalAmountPaid <= 0 || method.isEmpty) return;
+                          if (clientId == null || totalAmountPaid <= Decimal.zero || method.isEmpty) return;
 
                           if (modeController.value == 1) {
                             // توزيع يدوي
                             final allocations = <Map<String, dynamic>>[];
-                            double sumAlloc = 0;
+                            Decimal sumAlloc = Decimal.zero;
                             for (final entry in allocControllers.entries) {
-                              final amt = double.tryParse(entry.value.text.trim()) ?? 0;
-                              if (amt > 0) {
+                              final amt = Decimal.tryParse(entry.value.text.trim()) ?? Decimal.zero;
+                              if (amt > Decimal.zero) {
                                 allocations.add({'invoice_id': entry.key, 'amount': amt});
                                 sumAlloc += amt;
                               }
@@ -290,7 +297,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                               );
                               return;
                             }
-                            if ((sumAlloc - totalAmountPaid).abs() > 0.01) {
+                            if ((sumAlloc - totalAmountPaid).abs() > Decimal.parse('0.01')) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('مجموع التوزيع يجب أن يساوي المبلغ الإجمالي')),
                               );
@@ -300,7 +307,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                             try {
                               await _supabaseService.recordManualPayment(
                                 clientId: clientId,
-                                totalAmountPaid: totalAmountPaid,
+                                 totalAmountPaid: totalAmountPaid.toDouble(),
                                 method: method,
                                 ref: ref,
                                 allocations: allocations,
@@ -327,7 +334,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                           try {
                             await _supabaseService.recordBulkPayment(
                               clientId,
-                              totalAmountPaid,
+                               totalAmountPaid.toDouble(),
                               method,
                               ref,
                             );
@@ -358,15 +365,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     );
   }
 
-  Future<void> _openRecordInvoicePaymentDialog(Map<String, dynamic> invoice) async {
+  Future<void> _openRecordInvoicePaymentDialog(Invoice invoice) async {
     if (!mounted) return;
-    final invoiceId = invoice['id'] as int?;
+    final invoiceId = invoice.id;
     if (invoiceId == null) return;
 
-    final invoiceNumber = invoice['invoice_number']?.toString() ?? '#${invoice['id']}';
-    final clientName = invoice['clients']?['name']?.toString() ?? 'بدون اسم';
-    final totalAmount = (invoice['total_amount'] as num?)?.toDouble() ?? 0.0;
-    final paidAmount = (invoice['paid_amount'] as num?)?.toDouble() ?? 0.0;
+    final invoiceNumber = invoice.invoiceNumber;
+    final clientName = _clientNames[invoice.clientId] ?? 'Unknown';
+    final totalAmount = invoice.totalAmount;
+    final paidAmount = invoice.paidAmount ?? Decimal.zero;
     final remainingAmount = totalAmount - paidAmount;
 
     final amountController = TextEditingController();
@@ -387,8 +394,8 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('الزبون: $clientName', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('المتبقي: ${remainingAmount.toStringAsFixed(2)} د.أ',
-                      style: const TextStyle(color: Colors.red, fontSize: 16)),
+                   Text('المتبقي: ${remainingAmount.toStringAsFixed(2)} د.أ',
+                       style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 16)),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: amountController,
@@ -399,8 +406,8 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) return 'يرجى إدخال المبلغ';
-                      final parsed = double.tryParse(value.trim());
-                      if (parsed == null || parsed <= 0) return 'يرجى إدخال مبلغ صحيح';
+                      final parsed = Decimal.tryParse(value.trim());
+                      if (parsed == null || parsed <= Decimal.zero) return 'يرجى إدخال مبلغ صحيح';
                       if (parsed > remainingAmount) return 'المبلغ يتجاوز المتبقي (${remainingAmount.toStringAsFixed(2)})';
                       return null;
                     },
@@ -446,19 +453,19 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                       setStateDialog(() => isSubmitting = true);
 
                       try {
-                        final amount = double.tryParse(amountController.text.trim()) ?? 0.0;
+                        final amount = Decimal.tryParse(amountController.text.trim()) ?? Decimal.zero;
                         final method = methodController.text.trim();
                         final ref = refController.text.trim();
                         final newPaidAmount = paidAmount + amount;
 
                         await _supabaseService.addInvoicePayment({
                           'invoice_id': invoiceId,
-                          'amount_paid': amount,
+                          'amount_paid': amount.toString(),
                           'payment_method': method,
                           'receipt_reference': ref,
                         });
 
-                        await _supabaseService.updateInvoiceStatus(invoiceId, newPaidAmount);
+                        await _supabaseService.updateInvoiceStatus(invoiceId, newPaidAmount.toDouble());
 
                         if (!mounted) return;
                         Navigator.pop(context);
@@ -505,7 +512,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     );
 
     try {
-      final bytes = await ExcelService.instance.exportInvoices(invoices);
+      final bytes = await ExcelService.instance.exportInvoices(invoices.map((e) => e.toMap()).toList());
       await ExcelService.instance.shareExcel(bytes, 'الفواتير');
     } catch (e) {
       if (mounted) {
@@ -513,15 +520,16 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           SnackBar(content: Text('خطأ في إنشاء Excel: $e')),
         );
       }
-    } finally {
+    }
+    finally {
       if (mounted) {
         Navigator.pop(context);
       }
     }
   }
 
-  Future<void> _exportInvoicePdf(Map<String, dynamic> invoice) async {
-    final invoiceId = invoice['id'] as int?;
+  Future<void> _exportInvoicePdf(Invoice invoice) async {
+    final invoiceId = invoice.id;
     if (invoiceId == null) return;
 
     showDialog(
@@ -551,15 +559,16 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           SnackBar(content: Text('خطأ في إنشاء الفاتورة: $e')),
         );
       }
-    } finally {
+    }
+    finally {
       if (mounted) {
         Navigator.pop(context);
       }
     }
   }
 
-  Future<void> _printInvoice(Map<String, dynamic> invoice) async {
-    final invoiceId = invoice['id'] as int?;
+  Future<void> _printInvoice(Invoice invoice) async {
+    final invoiceId = invoice.id;
     if (invoiceId == null) return;
 
     showDialog(
@@ -592,7 +601,8 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           SnackBar(content: Text('خطأ في الطباعة: $e')),
         );
       }
-    } finally {
+    }
+    finally {
       if (mounted) {
         Navigator.pop(context);
       }
@@ -623,6 +633,11 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               }
             },
             tooltip: 'تصدير PDF',
+          ),
+          IconButton(
+            icon: const Icon(Icons.payment),
+            onPressed: _openRecordPaymentDialog,
+            tooltip: 'تسجيل دفعة',
           ),
           IconButton(
             icon: const Icon(Icons.print),
@@ -696,14 +711,14 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                           itemCount: _filteredInvoices.length,
                           itemBuilder: (context, index) {
                             final invoice = _filteredInvoices[index];
-                            final clientName = invoice['clients']?['name'] ?? 'بدون اسم';
-                            final totalAmount = (invoice['total_amount'] as num?)?.toDouble() ?? 0.0;
-                            final paidAmount = (invoice['paid_amount'] as num?)?.toDouble() ?? 0.0;
+                             final clientName = _clientNames[invoice.clientId] ?? 'Unknown';
+                             final totalAmount = invoice.totalAmount.toDouble();
+                            final paidAmount = invoice.paidAmount?.toDouble() ?? 0.0;
                             final remainingAmount = totalAmount - paidAmount;
                             final progress = totalAmount > 0 ? paidAmount / totalAmount : 0.0;
-                            final status = invoice['status'] ?? 'unpaid';
-                            final invoiceNumber = invoice['invoice_number'] ?? '#${invoice['id'] ?? '?'}';
-                            final dueDate = invoice['due_date'] ?? '';
+                            final status = invoice.status;
+                            final invoiceNumber = invoice.invoiceNumber;
+                            final dueDate = invoice.dueDate?.toString() ?? '';
 
                             return Card(
                               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -722,7 +737,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                           decoration: BoxDecoration(
-                                            color: _statusColor(status).withValues(alpha: 0.15),
+                                            color: _statusColor(status).withAlpha(30),
                                             borderRadius: BorderRadius.circular(12),
                                             border: Border.all(color: _statusColor(status)),
                                           ),
@@ -737,7 +752,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                                     Text('الزبون: $clientName', style: const TextStyle(fontSize: 14)),
                                     const SizedBox(height: 4),
                                     if (dueDate.isNotEmpty)
-                                      Text('تاريخ الاستحقاق: $dueDate', style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                                      Text('تاريخ الاستحقاق: $dueDate', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                     const SizedBox(height: 12),
 
                                     // Progress
@@ -748,7 +763,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                                             value: progress.clamp(0.0, 1.0),
                                             minHeight: 8,
                                             color: _statusColor(status),
-                                            backgroundColor: Colors.grey.shade300,
+                                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                                           ),
                                         ),
                                         const SizedBox(width: 12),
@@ -762,9 +777,9 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         Text('الإجمالي: ${totalAmount.toStringAsFixed(2)}${_tvaEnabled ? '  •  TVA: ${_tvaOf(totalAmount).toStringAsFixed(2)}' : ''}'),
-                                        Text(
+                                         Text(
                                           'المتبقي: ${remainingAmount.toStringAsFixed(2)}',
-                                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                                          style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.bold),
                                         ),
                                        ],
                                      ),
@@ -804,26 +819,31 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openRecordPaymentDialog,
-        icon: const Icon(Icons.payments),
-        label: const Text('تسجيل دفعة على الحساب'),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const InvoiceFormScreen()),
+          ).then((_) => _loadInvoices());
+        },
+        tooltip: 'إنشاء فاتورة',
+        child: const Icon(Icons.add),
       ),
     );
   }
 
   // ملخص مالي علوي بأرقام حقيقية محسوبة من الفواتير المحمّلة.
   Widget _buildStatsHeader() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     double totalReceivable = 0;
     double totalTva = 0;
     int unpaidCount = 0;
     for (final inv in _allInvoices) {
-      final total = (inv['total_amount'] as num?)?.toDouble() ?? 0.0;
-      final paid = (inv['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final total = inv.totalAmount.toDouble();
+      final paid = inv.paidAmount?.toDouble() ?? 0.0;
       totalReceivable += (total - paid);
       totalTva += _tvaOf(total);
-      if ((inv['status']?.toString() ?? 'unpaid') != 'paid') unpaidCount++;
+      if (inv.status != 'paid') unpaidCount++;
     }
 
     final cards = <Widget>[
@@ -831,30 +851,26 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         'إجمالي المستحقات',
         NumberFormat('#,###.00').format(totalReceivable),
         Icons.account_balance_wallet_rounded,
-        Colors.blue,
-        isDark,
+        colorScheme.primary,
       ),
       _buildStatCard(
         'فواتير غير مسددة',
         '$unpaidCount',
         Icons.receipt_long_rounded,
-        Colors.orange,
-        isDark,
+        colorScheme.tertiary,
       ),
       if (_tvaEnabled)
         _buildStatCard(
           'ضريبة TVA (${_tvaPercentage.toStringAsFixed(0)}%)',
           NumberFormat('#,###.00').format(totalTva),
           Icons.account_balance_rounded,
-          Colors.purple,
-          isDark,
+          colorScheme.secondary,
         ),
       _buildStatCard(
         'إجمالي الفواتير',
         '${_allInvoices.length}',
         Icons.analytics_rounded,
-        Colors.teal,
-        isDark,
+        colorScheme.primary,
       ),
     ];
 
@@ -871,12 +887,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   }
 
   Widget _buildStatCard(
-      String title, String value, IconData icon, Color color, bool isDark) {
+      String title, String value, IconData icon, Color color) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: 200,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
       ),
@@ -884,7 +901,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: color.withValues(alpha: 0.15),
+            backgroundColor: color.withAlpha(30),
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 12),
@@ -894,7 +911,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
                 Text(value,
@@ -926,7 +943,7 @@ class _FilterChip extends StatelessWidget {
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => onTap(),
-      selectedColor: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+      selectedColor: Theme.of(context).primaryColor.withAlpha(50),
       checkmarkColor: Theme.of(context).primaryColor,
     );
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/pdf_service.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import '../l10n/app_localizations.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -63,7 +63,7 @@ class _ClientStatementScreenState extends State<ClientStatementScreen> {
     try {
       final dt = DateTime.tryParse(dateStr);
       if (dt == null) return dateStr;
-      return DateFormat('yyyy/MM/dd').format(dt);
+      return DateFormat('dd/MM/yyyy').format(dt);
     } catch (_) {
       return dateStr;
     }
@@ -190,7 +190,7 @@ class _ClientStatementScreenState extends State<ClientStatementScreen> {
                             description,
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
-                          subtitle: Text(date),
+                          subtitle: Text(date, textDirection: TextDirection.ltr),
                           trailing: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.end,

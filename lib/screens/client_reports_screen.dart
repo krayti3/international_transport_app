@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:collection/collection.dart';
+import '../models/client.dart';
 import '../services/supabase_service.dart';
 import '../services/pdf_service.dart';
 import '../widgets/responsive_layout.dart';
@@ -18,7 +20,7 @@ class _ClientReportsScreenState extends State<ClientReportsScreen> {
   final SupabaseService _supabaseService = SupabaseService();
   final _formKey = GlobalKey<FormState>();
 
-  List<Map<String, dynamic>> _clients = [];
+  List<Client> _clients = [];
   List<Map<String, dynamic>> _drivers = [];
   List<Map<String, dynamic>> _trucks = [];
 
@@ -152,8 +154,8 @@ class _ClientReportsScreenState extends State<ClientReportsScreen> {
     if (_selectedClientId == null || _clientTrips.isEmpty) return;
 
     final client = _clients.firstWhere(
-      (c) => c['id'] == _selectedClientId,
-      orElse: () => {},
+      (c) => c.id == _selectedClientId,
+      orElse: () => throw StateError('Client not found'),
     );
 
     setState(() => _isExporting = true);
@@ -174,7 +176,7 @@ class _ClientReportsScreenState extends State<ClientReportsScreen> {
 
     try {
       await PdfService.instance.previewClientReport(
-        client: client,
+        client: client.toMap(),
         trips: _clientTrips,
         totalRevenue: _totalRevenue,
         totalExpenses: _totalExpenses,
@@ -240,12 +242,15 @@ class _ClientReportsScreenState extends State<ClientReportsScreen> {
                                 border: OutlineInputBorder(),
                                 prefixIcon: Icon(Icons.person_search),
                               ),
-                              items: _clients.map((c) {
-                                return DropdownMenuItem<int>(
-                                  value: c['id'] as int?,
-                                  child: Text(c['name']?.toString() ?? 'بدون اسم'),
-                                );
-                              }).toList(),
+                              items: _clients
+                                  .toList()
+                                   .sorted((a, b) => a.name.compareTo(b.name))
+                                  .map((c) {
+                                    return DropdownMenuItem<int>(
+                                      value: c.id,
+                                      child: Text(c.name),
+                                    );
+                                  }).toList(),
                               onChanged: (v) => _onClientSelected(v),
                               validator: (v) =>
                                   v == null ? 'يرجى اختيار زبون' : null,

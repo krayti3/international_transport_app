@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../services/supabase_service.dart';
@@ -40,7 +41,6 @@ class _RealtimeNotificationsState extends State<RealtimeNotifications> {
         ),
       );
       await _localNotifier.initialize(settings: settings);
-      // Best-effort permission request on Android 13+.
       await _localNotifier
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
@@ -65,7 +65,7 @@ class _RealtimeNotificationsState extends State<RealtimeNotifications> {
     );
   }
 
-  void _show(Map<String, dynamic> row) {
+  Future<void> _show(Map<String, dynamic> row) async {
     final title = row['title']?.toString() ?? '';
     final message = row['message']?.toString() ?? '';
 
@@ -88,24 +88,26 @@ class _RealtimeNotificationsState extends State<RealtimeNotifications> {
       );
     }
 
-    // System notification (mainly mobile; Windows is guarded/non-fatal).
-    try {
-      _localNotifier.show(
-        id: row['id'] is int ? row['id'] as int : DateTime.now().millisecond,
-        title: title,
-        body: message,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'advances_channel',
-            'العُهد والرحلات',
-            importance: Importance.high,
-            priority: Priority.high,
+    // System notification (mobile only; web/desktop use the in-app SnackBar).
+    if (!kIsWeb) {
+      try {
+        await _localNotifier.show(
+          id: row['id'] is int ? row['id'] as int : DateTime.now().millisecond,
+          title: title,
+          body: message,
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'advances_channel',
+              'العُهد والرحلات',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+            iOS: DarwinNotificationDetails(),
           ),
-          iOS: DarwinNotificationDetails(),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Local notification show failed (non-fatal): $e');
+        );
+      } catch (e) {
+        debugPrint('Local notification show failed (non-fatal): $e');
+      }
     }
   }
 

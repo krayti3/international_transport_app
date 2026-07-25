@@ -140,7 +140,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                             margin: const EdgeInsets.symmetric(vertical: 6),
                             child: ListTile(
                               leading: const Icon(Icons.local_shipping, color: Colors.indigo),
-                              title: Text(e['truck_plate']?.toString() ?? ''),
+                               title: Text(e['truck_plate']?.toString() ?? '', textDirection: TextDirection.ltr, textAlign: TextAlign.left),
                               trailing: Text(
                                 '${(e['amount'] as double).toStringAsFixed(2)} DH',
                                 style: const TextStyle(

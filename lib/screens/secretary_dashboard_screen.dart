@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:decimal/decimal.dart';
+import 'package:collection/collection.dart';
 import 'package:international_transport_app/services/calculation_engine.dart';
 import 'package:international_transport_app/services/supabase_service.dart';
 import '../models/trip_order.dart';
@@ -18,6 +19,7 @@ class SecretaryDashboardScreen extends StatefulWidget {
 }
 
 class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
+  final SupabaseService _supabaseService = SupabaseService();
   final _supabase = Supabase.instance.client;
 
   List<Map<String, dynamic>> _tripOrders = [];
@@ -100,6 +102,16 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   }
 
   Future<void> _deleteTripOrder(int id) async {
+    final inUse = await _supabaseService.isTripOrderInUse(id);
+    if (inUse) {
+      if (!mounted) return;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لا يمكن حذف أمر الرحلة لأنه مرتبط بمدفوعات أو رحلات فرعية')),
+        );
+      }
+      return;
+    }
     try {
       await _supabase.from('trip_orders').delete().eq('id', id);
       if (!mounted) return;
@@ -120,6 +132,16 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   }
 
   Future<void> _deleteInvoice(int id) async {
+    final inUse = await _supabaseService.isInvoiceInUse(id);
+    if (inUse) {
+      if (!mounted) return;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لا يمكن حذف الفاتورة لأنها مرتبطة بتخصيصات دفع')),
+        );
+      }
+      return;
+    }
     try {
       await _supabase.from('invoices').delete().eq('id', id);
       if (!mounted) return;
@@ -234,12 +256,13 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   }
 
   Future<void> _openAddInvoiceDialog() async {
-    final clients = await _supabase.from('clients').select('id, name, city').order('name');
+    final clients = await _supabase.from('clients').select('id, name, city, default_bank_account, default_bank_account_id').order('name');
     final bankAccounts = await _supabase.from('bank_accounts').select().eq('is_active', true);
     final appSettings = await _supabase.from('app_settings').select('percentage, is_enabled').eq('id', 1).maybeSingle();
     
     final clientsList = List<Map<String, dynamic>>.from(clients as List);
     final bankAccountsList = List<Map<String, dynamic>>.from(bankAccounts as List);
+    String? selectedBankAccountType = 'moroccan';
     final tvaPercentage = (appSettings?['percentage'] as num?)?.toDouble() ?? 20.0;
     final isTvaEnabled = appSettings?['is_enabled'] as bool? ?? true;
     final tvaRate = isTvaEnabled ? Decimal.parse(tvaPercentage.toString()) : Decimal.zero;
@@ -262,19 +285,33 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
               children: [
                 DropdownButtonFormField<int>(
                   decoration: const InputDecoration(labelText: 'الزبون', border: OutlineInputBorder()),
-                  items: clientsList.map((client) {
-                    final id = client['id'] as int;
-                    final name = client['name']?.toString() ?? 'بدون اسم';
-                    final city = client['city']?.toString() ?? '';
-                    return DropdownMenuItem<int>(
-                      value: id,
-                      child: Text('$name ($city)'),
-                    );
-                  }).toList(),
+                  items: clientsList
+                      .toList()
+                      .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
+                      .map((client) {
+                        final id = client['id'] as int;
+                        final name = client['name']?.toString() ?? 'بدون اسم';
+                        final city = client['city']?.toString() ?? '';
+                        return DropdownMenuItem<int>(
+                          value: id,
+                          child: Text('$name ($city)'),
+                        );
+                      }).toList(),
                   onChanged: (val) {
                     setDialogState(() {
                       selectedClientId = val;
                       final client = clientsList.firstWhere((c) => c['id'] == val);
+                      final defaultBankType = client['default_bank_account']?.toString();
+                      if (defaultBankType == 'moroccan' || defaultBankType == 'european') {
+                        selectedBankAccountType = defaultBankType;
+                      } else {
+                        final fallbackId = client['default_bank_account_id']?.toString();
+                        if (fallbackId == 'moroccan' || fallbackId == 'european') {
+                          selectedBankAccountType = fallbackId;
+                        } else {
+                          selectedBankAccountType = 'moroccan';
+                        }
+                      }
                       final defaultBankId = client['default_bank_account_id']?.toString();
                       if (defaultBankId != null && bankAccountsList.any((b) => b['id'] == defaultBankId)) {
                         selectedBankAccountId = defaultBankId;
@@ -285,18 +322,34 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'الحساب البنكي', border: OutlineInputBorder()),
-                  items: bankAccountsList.map((account) {
-                    final id = account['id'].toString();
-                    final bankName = account['bank_name']?.toString() ?? '';
-                    final currency = account['currency']?.toString() ?? '';
-                    return DropdownMenuItem<String>(
-                      value: id,
-                      child: Text('$bankName ($currency)'),
-                    );
-                  }).toList(),
+                  items: bankAccountsList
+                      .toList()
+                      .sorted((a, b) => (a['bank_name']?.toString() ?? '').compareTo(b['bank_name']?.toString() ?? ''))
+                      .map((account) {
+                        final id = account['id'].toString();
+                        final bankName = account['bank_name']?.toString() ?? '';
+                        final currency = account['currency']?.toString() ?? '';
+                        return DropdownMenuItem<String>(
+                          value: id,
+                          child: Text('$bankName ($currency)'),
+                        );
+                      }).toList(),
                   onChanged: (val) {
                     setDialogState(() {
                       selectedBankAccountId = val;
+                    });
+                  },
+                ),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'نوع الحساب البنكي', border: OutlineInputBorder()),
+                  initialValue: selectedBankAccountType,
+                  items: const [
+                    DropdownMenuItem(value: 'moroccan', child: Text('🇲🇦 الحساب المغربي (MAD)')),
+                    DropdownMenuItem(value: 'european', child: Text('🇪🇺 الحساب الأوروبي (EUR)')),
+                  ],
+                  onChanged: (val) {
+                    setDialogState(() {
+                      selectedBankAccountType = val;
                     });
                   },
                 ),
@@ -363,9 +416,9 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                         );
                         return;
                       }
-                      if (selectedBankAccountId == null) {
+                      if (selectedBankAccountType == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('يرجى اختيار الحساب البنكي')),
+                          const SnackBar(content: Text('يرجى اختيار نوع الحساب البنكي')),
                         );
                         return;
                       }
@@ -380,12 +433,14 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
 
                       try {
                         final supabaseService = SupabaseService();
-                        await supabaseService.createInvoice(
-                          clientId: selectedClientId!,
-                          amount: amount.toDouble(),
-                          inputMode: inputMode,
-                          bankAccountId: selectedBankAccountId,
-                        );
+                         await supabaseService.createInvoice(
+                           clientId: selectedClientId!,
+                           amount: amount,
+                           inputMode: inputMode,
+                           bankAccountId: selectedBankAccountId,
+                           bankAccountType: selectedBankAccountType,
+                           bankInfoText: null,
+                         );
                         if (!mounted) return;
                         Navigator.pop(context);
                         if (context.mounted) {
@@ -475,24 +530,21 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
     if (clientId == null) return 'غير محدد';
     final client = _clients.firstWhere(
       (c) => c['id']?.toString() == clientId.toString(),
-      orElse: () => const {},
+      orElse: () => const <String, dynamic>{},
     );
     return client['name']?.toString() ?? 'غير محدد';
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF121212) : const Color(0xFFF5F5F5);
-    final headerColor = isDark ? Colors.blueGrey[800] : Colors.blueGrey[900];
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: const Text('لوحة تحكم السكرتيرة'),
-        backgroundColor: headerColor,
-        foregroundColor: Colors.white,
+        backgroundColor: colorScheme.surfaceContainerHighest,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
       ),
       body: _isLoading
@@ -502,7 +554,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
+                      Icon(Icons.error_outline_rounded, size: 48, color: Theme.of(context).colorScheme.error),
                       const SizedBox(height: 16),
                       Text('حدث خطأ: $_error'),
                       const SizedBox(height: 16),
@@ -534,9 +586,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                         title: 'إجمالي العملاء',
                                         value: '$_totalClients',
                                         icon: Icons.people_rounded,
-                                        color: Colors.blue,
-                                        isDark: isDark,
-                                        cardColor: cardColor,
+                                        color: Theme.of(context).colorScheme.primary,
                                       ),
                                     ),
                                     SizedBox(
@@ -545,9 +595,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                         title: 'أوامر الرحلات النشطة',
                                         value: '$_activeTripOrders',
                                         icon: Icons.local_shipping_rounded,
-                                        color: Colors.teal,
-                                        isDark: isDark,
-                                        cardColor: cardColor,
+                                        color: Theme.of(context).colorScheme.tertiary,
                                       ),
                                     ),
                                     SizedBox(
@@ -556,9 +604,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                         title: 'الفواتير المستحقة',
                                         value: '$_outstandingInvoices',
                                         icon: Icons.receipt_long_rounded,
-                                        color: Colors.orange,
-                                        isDark: isDark,
-                                        cardColor: cardColor,
+                                        color: Theme.of(context).colorScheme.secondary,
                                       ),
                                     ),
                                     SizedBox(
@@ -567,9 +613,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                         title: 'إجمالي المبالغ المستحقة',
                                         value: '${NumberFormat('#,##0.00').format(_outstandingAmount)} DH',
                                         icon: Icons.attach_money_rounded,
-                                        color: Colors.red,
-                                        isDark: isDark,
-                                        cardColor: cardColor,
+                                        color: Theme.of(context).colorScheme.error,
                                       ),
                                     ),
                                   ],
@@ -598,27 +642,27 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                   onPressed: _openAddInvoiceDialog,
                                   icon: const Icon(Icons.add_card_rounded),
                                   label: const Text('إدخال فاتورة جديدة'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueGrey[700],
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                                  ),
-                                ),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => const TripFormScreen()),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.add_road_rounded),
-                                  label: const Text('إنشاء أمر رحلة جديد'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.indigo,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                                  ),
-                                ),
+                                   style: ElevatedButton.styleFrom(
+                                     backgroundColor: Theme.of(context).colorScheme.primary,
+                                     foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                   ),
+                                 ),
+                                 ElevatedButton.icon(
+                                   onPressed: () {
+                                     Navigator.push(
+                                       context,
+                                       MaterialPageRoute(builder: (context) => const TripFormScreen()),
+                                     );
+                                   },
+                                   icon: const Icon(Icons.add_road_rounded),
+                                   label: const Text('إنشاء أمر رحلة جديد'),
+                                   style: ElevatedButton.styleFrom(
+                                     backgroundColor: Theme.of(context).colorScheme.tertiary,
+                                     foregroundColor: Theme.of(context).colorScheme.onTertiary,
+                                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                   ),
+                                 ),
                               ],
                             ),
 
@@ -630,14 +674,14 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.grey[300] : headerColor,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 12),
 
                             if (_tripOrders.isEmpty)
                               Card(
-                                color: cardColor,
+                                color: Theme.of(context).colorScheme.surfaceContainer,
                                 child: const Padding(
                                   padding: EdgeInsets.all(32.0),
                                   child: Center(child: Text('لا توجد أوامر رحلات')),
@@ -698,14 +742,14 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.grey[300] : headerColor,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 12),
 
                             if (_invoices.isEmpty)
                               Card(
-                                color: cardColor,
+                                color: Theme.of(context).colorScheme.surfaceContainer,
                                 child: const Padding(
                                   padding: EdgeInsets.all(32.0),
                                   child: Center(child: Text('لا توجد فواتير')),
@@ -772,29 +816,27 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-  final bool isDark;
-  final Color cardColor;
 
   const _StatCard({
     required this.title,
     required this.value,
     required this.icon,
     required this.color,
-    required this.isDark,
-    required this.cardColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.grey[700]! : Colors.grey[200]!),
-        boxShadow: isDark
-            ? null
-            : [BoxShadow(color: Colors.grey.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: colorScheme.outlineVariant),
+        boxShadow: [
+          if (Theme.of(context).brightness == Brightness.light)
+            BoxShadow(color: colorScheme.shadow.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4)),
+        ]
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,7 +845,7 @@ class _StatCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w500)),
+                child: Text(title, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500)),
               ),
               CircleAvatar(
                 backgroundColor: color.withValues(alpha: 0.12),
@@ -818,7 +860,7 @@ class _StatCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: colorScheme.onSurface,
             ),
             overflow: TextOverflow.ellipsis,
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/bank_account.dart';
 import '../services/supabase_service.dart';
 import '../l10n/locale_provider.dart';
 import '../widgets/role_guard.dart';
@@ -18,7 +19,7 @@ class BankAccountsScreen extends StatefulWidget {
 
 class _BankAccountsScreenState extends State<BankAccountsScreen> {
   final SupabaseService _supabaseService = SupabaseService();
-  List<Map<String, dynamic>> _accounts = [];
+  List<BankAccount> _accounts = [];
   bool _isLoading = true;
 
   /// م helper ثنائي اللغة: العربية افتراضياً، الفرنسية عند اختيار اللغة الفرنسية.
@@ -65,21 +66,21 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
     );
   }
 
-  Future<void> _openAccountDialog({Map<String, dynamic>? account}) async {
+  Future<void> _openAccountDialog({BankAccount? account}) async {
     final isEdit = account != null;
 
     final bankNameController =
-        TextEditingController(text: account?['bank_name']?.toString() ?? '');
+        TextEditingController(text: account?.bankName ?? '');
     final accountNumberController =
-        TextEditingController(text: account?['account_number']?.toString() ?? '');
+        TextEditingController(text: account?.accountNumber ?? '');
     final accountHolderController =
-        TextEditingController(text: account?['account_holder']?.toString() ?? '');
+        TextEditingController(text: account?.accountHolder ?? '');
     final ibanController =
-        TextEditingController(text: account?['iban']?.toString() ?? '');
+        TextEditingController(text: account?.iban ?? '');
     final swiftController =
-        TextEditingController(text: account?['swift_code']?.toString() ?? '');
-    String currency = account?['currency']?.toString() ?? 'MAD';
-    bool isActive = account?['is_active'] as bool? ?? true;
+        TextEditingController(text: account?.swiftCode ?? '');
+    String currency = account?.currency ?? 'MAD';
+    bool isActive = account?.isActive ?? true;
 
     await showDialog(
       context: context,
@@ -171,26 +172,23 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
                     return;
                   }
 
-                  final data = {
-                    'bank_name': bankName,
-                    'account_number': accountNumber,
-                    'account_holder': accountHolder,
-                    'currency': currency,
-                    'iban': ibanController.text.trim(),
-                    'swift_code': swiftController.text.trim(),
-                    'is_active': isActive,
-                  };
+                  final newAccount = BankAccount(
+                    id: account?.id ?? '',
+                    bankName: bankName,
+                    accountNumber: accountNumber,
+                    accountHolder: accountHolder,
+                    currency: currency,
+                    iban: ibanController.text.trim(),
+                    swiftCode: swiftController.text.trim(),
+                    isActive: isActive,
+                  );
 
                   try {
-                    if (isEdit) {
-                      await _supabaseService.updateBankAccount(
-                        account['id'] as String,
-                        data,
-                        localRow: account,
-                      );
-                    } else {
-                      await _supabaseService.addBankAccount(data);
-                    }
+                     if (isEdit) {
+                       await _supabaseService.updateBankAccount(newAccount.id, newAccount.toMap(), localRow: newAccount.toMap());
+                     } else {
+                       await _supabaseService.addBankAccount(newAccount.toMap());
+                     }
                     if (!mounted) return;
                     Navigator.pop(context);
                     await _loadAccounts();
@@ -227,7 +225,17 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
     );
   }
 
-  Future<void> _confirmDelete(Map<String, dynamic> account) async {
+  Future<void> _confirmDelete(BankAccount account) async {
+    final inUse = await _supabaseService.isBankAccountInUse(account.id);
+    if (inUse) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_t('لا يمكن حذف هذا الحساب لأنه مرتبط بزبائن أو فواتير', 'Impossible de supprimer ce compte car il est lié')),
+        ),
+      );
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => Directionality(
@@ -237,7 +245,7 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
         child: AlertDialog(
           title: Text(_t('تأكيد الحذف', 'Confirmer la suppression')),
           content: Text(
-            _t('هل أنت متأكد من حذف هذا الحساب البنكي؟',
+            _t('هل أنت متأكد من حذف هذا الحساب البنكي?',
                 'Êtes-vous sûr de vouloir supprimer ce compte bancaire ?'),
           ),
           actions: [
@@ -258,7 +266,7 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
     if (confirmed != true) return;
 
     try {
-      await _supabaseService.deleteBankAccount(account['id'] as String);
+      await _supabaseService.deleteBankAccount(account.id);
       if (!mounted) return;
       await _loadAccounts();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -310,11 +318,10 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
                     itemCount: _accounts.length,
                     itemBuilder: (context, index) {
                       final account = _accounts[index];
-                      final currency =
-                          account['currency']?.toString() ?? 'MAD';
-                      final iban = account['iban']?.toString() ?? '';
-                      final holder = account['account_holder']?.toString() ?? '';
-                      final isActive = account['is_active'] as bool? ?? true;
+                      final currency = account.currency;
+                      final iban = account.iban ?? '';
+                      final holder = account.accountHolder;
+                      final isActive = account.isActive;
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 4),
@@ -324,8 +331,7 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  account['bank_name']?.toString() ??
-                                      _t('بدون اسم', 'Sans nom'),
+                                  account.bankName,
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                               ),
@@ -337,7 +343,7 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${_t('الحساب', 'Compte')}: ${account['account_number'] ?? ''}'
+                                '${_t('الحساب', 'Compte')}: ${account.accountNumber}'
                                 '${holder.isNotEmpty ? ' • $holder' : ''}',
                               ),
                               if (iban.isNotEmpty)

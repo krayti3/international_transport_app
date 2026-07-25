@@ -101,7 +101,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool isDesktop = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
@@ -123,23 +122,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'لوحة التحكم الإدارية العليا',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.blueGrey[900]),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'الملخص المالي واللوجستي والسيولة النقدية الحية للشركة',
-                          style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[400] : Colors.grey[500]),
-                                ),
-                               ],
-                              ),
+                         Text(
+                           'لوحة التحكم الإدارية العليا',
+                           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+                         ),
+                         const SizedBox(height: 4),
+                         Text(
+                           'الملخص المالي واللوجستي والسيولة النقدية الحية للشركة',
+                           style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                         ),
+                      ],
                     ),
-                   const SizedBox(width: 16),
+                  ),
+                  const SizedBox(width: 16),
                   CircleAvatar(
-                    backgroundColor: Colors.blue[700]!.withValues(alpha: 0.15),
+                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                     radius: 24,
-                    child: Icon(Icons.admin_panel_settings_rounded, color: Colors.blue[400], size: 28),
+                    child: Icon(Icons.admin_panel_settings_rounded, color: Theme.of(context).colorScheme.primary, size: 28),
                   )
                 ],
               ),
@@ -169,105 +168,107 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         builder: (context, advSnapshot) {
                           final double pendingInWay = advSnapshot.data ?? 0.0;
 
-                      // 💰 كروت المؤشرات المالية الكبرى (متجاوبة)
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (isDesktop)
-                            Row(
-                              children: [
-                                _buildKpiCard('صافي رصيد الصندوق والبنك', '${NumberFormat('#,###.00').format(stats['netBalance'])} DH', Icons.account_balance_wallet_rounded, Colors.green, isDark),
-                                const SizedBox(width: 12),
-                                _buildKpiCard('أموال معلقة في الطريق (عُهد للسائقين)', '${NumberFormat('#,###.00').format(pendingInWay)} DH', Icons.local_shipping_rounded, Colors.orange, isDark),
-                                const SizedBox(width: 12),
-                                _buildKpiCard('إجمالي التدفقات الخارجة (المصاريف)', '${NumberFormat('#,###.00').format(stats['totalExpense'])} DH', Icons.trending_down_rounded, Colors.red, isDark),
-                              ],
-                            )
-                          else
-                            Column(
-                              children: [
-                                _buildKpiCard('صافي رصيد الصندوق والبنك', '${NumberFormat('#,###.00').format(stats['netBalance'])} DH', Icons.account_balance_wallet_rounded, Colors.green, isDark, fullWidth: true),
-                                const SizedBox(height: 12),
+                          // 💰 كروت المؤشرات المالية الكبرى (متجاوبة)
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (isDesktop)
                                 Row(
                                   children: [
-                                    _buildKpiCard('أموال في الطريق', '${NumberFormat('#,###.00').format(pendingInWay)} DH', Icons.local_shipping_rounded, Colors.orange, isDark),
+                                    _buildKpiCard('صافي رصيد الصندوق والبنك', '${NumberFormat('#,###.00').format(stats['netBalance'])} DH', Icons.account_balance_wallet_rounded, Colors.green),
                                     const SizedBox(width: 12),
-                                    _buildKpiCard('المصاريف الكلية', '${NumberFormat('#,###.00').format(stats['totalExpense'])} DH', Icons.trending_down_rounded, Colors.red, isDark),
+                                    _buildKpiCard('أموال معلقة في الطريق (عُهد للسائقين)', '${NumberFormat('#,###.00').format(pendingInWay)} DH', Icons.local_shipping_rounded, Colors.orange),
+                                    const SizedBox(width: 12),
+                                    _buildKpiCard('إجمالي التدفقات الخارجة (المصاريف)', '${NumberFormat('#,###.00').format(stats['totalExpense'])} DH', Icons.trending_down_rounded, Colors.red),
                                   ],
                                 )
-                              ],
-                            ),
+                              else
+                                Column(
+                                  children: [
+                                    _buildKpiCard('صافي رصيد الصندوق والبنك', '${NumberFormat('#,###.00').format(stats['netBalance'])} DH', Icons.account_balance_wallet_rounded, Colors.green, fullWidth: true),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        _buildKpiCard('أموال في الطريق', '${NumberFormat('#,###.00').format(pendingInWay)} DH', Icons.local_shipping_rounded, Colors.orange),
+                                        const SizedBox(width: 12),
+                                        _buildKpiCard('المصاريف الكلية', '${NumberFormat('#,###.00').format(stats['totalExpense'])} DH', Icons.trending_down_rounded, Colors.red),
+                                      ],
+                                    )
+                                  ],
+                                ),
 
-                          const SizedBox(height: 28),
+                              const SizedBox(height: 28),
 
-                          // 📉 قسم الرسم البياني المصغر لتشريح المصاريف التشغيلية
-                          Text(
-                            'تشريح وتحليل المصاريف التشغيلية واللوجستية',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.grey[300] : Colors.blueGrey[800]),
-                          ),
-                          const SizedBox(height: 12),
+                              // 📉 قسم الرسم البياني المصغر لتشريح المصاريف التشغيلية
+                               Text(
+                                 'تشريح وتحليل المصاريف التشغيلية واللوجستية',
+                                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+                               ),
+                              const SizedBox(height: 12),
 
-                          Card(
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              side: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
-                            ),
-                            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                            child: Padding(
-                              padding: const EdgeInsets.all(20.0),
-                              child: Column(
+                              Card(
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
+                                ),
+                                 color: Theme.of(context).colorScheme.surfaceContainer,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(20.0),
+                                  child: Column(
+                                    children: [
+                                      _buildExpenseProgressBar('وقود ومازوت الرحلات الدولية', stats['fuelExpense'], stats['totalExpense'], Colors.amber[700]!),
+                                      const SizedBox(height: 16),
+                                      _buildExpenseProgressBar('رواتب وأجور وبونص السائقين', stats['salaryExpense'], stats['totalExpense'], Colors.teal),
+                                      const SizedBox(height: 16),
+                                      _buildExpenseProgressBar('صيانة المقطورات وقطع الغيار الطارئة', maintenanceExpense, stats['totalExpense'], Colors.red[400]!),
+                                      const SizedBox(height: 16),
+                                      _buildExpenseProgressBar('مصاريف عمومية وإدارية ومكتبية', stats['generalExpense'], stats['totalExpense'], Colors.blue[400]!),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // 📈 كروت إحصاء المعاملات السريعة
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  _buildExpenseProgressBar('وقود ومازوت الرحلات الدولية', stats['fuelExpense'], stats['totalExpense'], Colors.amber[700]!),
-                                  const SizedBox(height: 16),
-                                  _buildExpenseProgressBar('رواتب وأجور وبونص السائقين', stats['salaryExpense'], stats['totalExpense'], Colors.teal),
-                                  const SizedBox(height: 16),
-                                  _buildExpenseProgressBar('صيانة المقطورات وقطع الغيار الطارئة', maintenanceExpense, stats['totalExpense'], Colors.red[400]!),
-                                  const SizedBox(height: 16),
-                                  _buildExpenseProgressBar('مصاريف عمومية وإدارية ومكتبية', stats['generalExpense'], stats['totalExpense'], Colors.blue[400]!),
+                                   Text('نبض النظام الكلي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                                   Chip(
+                                     label: Text('إجمالي العمليات الموثقة: ${stats['totalTransactions']}'),
+                                     backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+                                   ),
                                 ],
                               ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // 📈 كروت إحصاء المعاملات السريعة
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('نبض النظام الكلي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.grey[300] : Colors.blueGrey[800])),
-                              Chip(
-                                label: Text('إجمالي العمليات الموثقة: ${stats['totalTransactions']}'),
-                                backgroundColor: isDark ? Colors.blueGrey.withValues(alpha: 0.25) : Colors.blueGrey.withValues(alpha: 0.12),
-                              ),
                             ],
-                          ),
-                              ],
-                            ),
-                          },
-                        ),
-                      },
-                    ),
-                  },
-                ),
-              ],
-            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
           ),
         ),
-      );
-}
+      ),
+    );
+  }
 
   // بناء كروت الـ KPI المتقدمة والملونة ذكياً
-  Widget _buildKpiCard(String title, String value, IconData icon, Color color, bool isDark, {bool fullWidth = false}) {
+  Widget _buildKpiCard(String title, String value, IconData icon, Color color, {bool fullWidth = false}) {
+    final colorScheme = Theme.of(context).colorScheme;
     final cardWidget = Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
         border: Border.fromBorderSide(BorderSide(color: Theme.of(context).dividerColor, width: 0.5)),
         boxShadow: [
-          if (!isDark) BoxShadow(color: Colors.grey.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))
+          if (Theme.of(context).brightness == Brightness.light)
+            BoxShadow(color: colorScheme.shadow.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))
         ]
       ),
       child: Column(
@@ -277,7 +278,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(title, style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[500], fontSize: 13, fontWeight: FontWeight.w500)),
+                child: Text(title, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500)),
               ),
               CircleAvatar(
                 backgroundColor: color.withValues(alpha: 0.12),
@@ -289,7 +290,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           const SizedBox(height: 14),
           Text(
             value,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
             overflow: TextOverflow.ellipsis,
           ),
         ],

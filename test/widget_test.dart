@@ -11,11 +11,18 @@ import 'package:international_transport_app/main.dart';
 import 'package:international_transport_app/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:hive/hive.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   setUpAll(() async {
     // Initialize Hive so LocaleProvider can open its box during tests.
     Hive.init('/');
+    // Initialize Supabase so services that access Supabase.instance do not
+    // assert during smoke tests.
+    await Supabase.initialize(
+      url: 'https://dummy.supabase.co',
+      publishableKey: 'dummy-key',
+    );
   });
 
   testWidgets('App boots and shows the login screen', (WidgetTester tester) async {

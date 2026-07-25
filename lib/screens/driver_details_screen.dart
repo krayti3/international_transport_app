@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:collection/collection.dart';
 import '../services/supabase_service.dart';
 import '../l10n/app_localizations.dart';
+import 'driver_trips_screen.dart';
+import 'driver_advances_screen.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -23,7 +26,6 @@ class DriverDetailsScreen extends StatefulWidget {
 class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
   final SupabaseService _supabaseService = SupabaseService();
   bool _isDeleting = false;
-  bool _hasLinkedRecords = false;
   int _tripCount = 0;
   int _advanceCount = 0;
   List<Map<String, dynamic>> _trucks = [];
@@ -56,19 +58,19 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
       setState(() {
         _tripCount = driverTrips.length;
         _advanceCount = driverAdvances.length;
-        _hasLinkedRecords = _tripCount > 0 || _advanceCount > 0;
       });
     }
   }
 
   Future<void> _confirmDelete() async {
-    if (_hasLinkedRecords) {
+    final inUse = await _supabaseService.isDriverInUse(widget.driver['id'] as int);
+    if (inUse) {
       if (!mounted) return;
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: Text(context.tr('تأكيد الحذف')),
-          content: Text(context.tr('لا يمكن حذف السائق لوجود رحلات أو عهد مرتبطة')),
+          content: Text(context.tr('لا يمكن حذف السائق لأنه مرتبط ببيانات أخرى')),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -186,6 +188,12 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
                     decoration: InputDecoration(labelText: context.tr('الشاحنة الافتراضية')),
                     initialValue: defaultTruckId,
                     items: _trucks
+                        .toList()
+                        .sorted((a, b) {
+                          final aPlate = (a['plate']?.toString() ?? a['plate_number']?.toString() ?? '').toLowerCase();
+                          final bPlate = (b['plate']?.toString() ?? b['plate_number']?.toString() ?? '').toLowerCase();
+                          return aPlate.compareTo(bPlate);
+                        })
                         .map((t) => DropdownMenuItem(
                               value: t['id']?.toString(),
                               child: Text(t['plate']?.toString() ?? t['plate_number']?.toString() ?? context.tr('بدون لوحة')),
@@ -236,6 +244,7 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final name = widget.driver['name']?.toString() ?? context.tr('بدون اسم');
     final phone = widget.driver['phone']?.toString() ?? '';
     final license = widget.driver['license']?.toString() ?? '';
@@ -299,48 +308,94 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          context.tr('السجل'),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildStatRow(context.tr('رحلات'), '$_tripCount', Icons.local_shipping),
-                        const SizedBox(height: 8),
-                        _buildStatRow(context.tr('عهد'), '$_advanceCount', Icons.account_balance_wallet),
-                        if (!_hasLinkedRecords) ...[
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    context.tr('لا توجد رحلات أو عهد مسجلة'),
-                                    style: TextStyle(color: Colors.orange.shade700, fontSize: 13),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
+                 const SizedBox(height: 20),
+                 Column(
+                   children: [
+                     Card(
+                       color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                       shape: RoundedRectangleBorder(
+                         borderRadius: BorderRadius.circular(12),
+                         side: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
+                       ),
+                       child: InkWell(
+                         borderRadius: BorderRadius.circular(12),
+                         onTap: () {
+                           Navigator.push(
+                             context,
+                             MaterialPageRoute(
+                               builder: (_) => DriverTripsScreen(
+                                 isAdmin: true,
+                                 driverId: widget.driver['id'] as int,
+                               ),
+                             ),
+                           );
+                         },
+                         child: ListTile(
+                           leading: Icon(Icons.local_shipping_rounded, color: Colors.blue.shade700, size: 28),
+                           title: Text('رحلات', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                           subtitle: Text('$_tripCount رحلة مسجلة'),
+                           trailing: Row(
+                             mainAxisSize: MainAxisSize.min,
+                             children: [
+                               Container(
+                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                 decoration: BoxDecoration(
+                                   color: Colors.blue.withValues(alpha: 0.1),
+                                   borderRadius: BorderRadius.circular(12),
+                                 ),
+                                 child: Text('$_tripCount', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                               ),
+                               const SizedBox(width: 4),
+                               Icon(Icons.chevron_left_rounded, color: Colors.grey.shade600),
+                             ],
+                           ),
+                         ),
+                       ),
+                     ),
+                     const SizedBox(height: 10),
+                     Card(
+                       color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                       shape: RoundedRectangleBorder(
+                         borderRadius: BorderRadius.circular(12),
+                         side: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
+                       ),
+                       child: InkWell(
+                         borderRadius: BorderRadius.circular(12),
+                         onTap: () {
+                           Navigator.push(
+                             context,
+                             MaterialPageRoute(
+                               builder: (_) => DriverAdvancesScreen(
+                                 isAdmin: true,
+                                 driverId: widget.driver['id'] as int,
+                               ),
+                             ),
+                           );
+                         },
+                         child: ListTile(
+                           leading: Icon(Icons.account_balance_wallet_rounded, color: Colors.teal.shade700, size: 28),
+                           title: Text('عهد', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                           subtitle: Text('$_advanceCount عهدة مسجلة'),
+                           trailing: Row(
+                             mainAxisSize: MainAxisSize.min,
+                             children: [
+                               Container(
+                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                 decoration: BoxDecoration(
+                                   color: Colors.teal.withValues(alpha: 0.1),
+                                   borderRadius: BorderRadius.circular(12),
+                                 ),
+                                 child: Text('$_advanceCount', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                               ),
+                               const SizedBox(width: 4),
+                               Icon(Icons.chevron_left_rounded, color: Colors.grey.shade600),
+                             ],
+                           ),
+                         ),
+                       ),
+                     ),
+                   ],
+                 ),
               ],
             ),
     );
@@ -365,35 +420,6 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
           child: Text(
             value.isEmpty ? '-' : value,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatRow(String label, String count, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: Colors.blue.shade700),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.blue.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            count,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue.shade700,
-            ),
           ),
         ),
       ],

@@ -31,8 +31,8 @@ class _AgingReportScreenState extends State<AgingReportScreen> {
 
     if (mounted) {
       setState(() {
-        _invoices = invoices;
-        _clients = clients;
+        _invoices = invoices.map((inv) => inv.toMap()).toList();
+        _clients = clients.map((c) => c.toMap()).toList();
         _isLoading = false;
       });
     }

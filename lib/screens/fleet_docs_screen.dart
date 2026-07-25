@@ -1,50 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:collection/collection.dart';
+import 'dart:typed_data';
+import 'package:intl/intl.dart' show DateFormat;
 import '../services/supabase_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'document_categories_screen.dart';
+import '../widgets/date_wheel_picker.dart';
 
 class FleetDocsScreen extends StatefulWidget {
-  const FleetDocsScreen({super.key, required this.isAdmin});
+  const FleetDocsScreen({super.key, required this.isAdmin, this.trailerId});
   final bool isAdmin;
+  final int? trailerId;
 
   @override
   State<FleetDocsScreen> createState() => _FleetDocsScreenState();
 }
 
-class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProviderStateMixin {
+class _FleetDocsScreenState extends State<FleetDocsScreen> {
   final SupabaseService _supabaseService = SupabaseService();
-  late TabController _tabController;
 
-  List<Map<String, dynamic>> _trucks = [];
   List<Map<String, dynamic>> _trailers = [];
-  List<Map<String, dynamic>> _categories = [];
   List<Map<String, dynamic>> _fleetDocuments = [];
   bool _isLoading = true;
+  String? _docFilter;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadData();
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final trucks = await _supabaseService.getTrucks();
       final trailers = await _supabaseService.getTrailers();
-      final categories = await _supabaseService.getDocumentCategories();
       final docs = await _supabaseService.getFleetDocuments();
       if (!mounted) return;
       setState(() {
-        _trucks = trucks;
-        _trailers = trailers;
-        _categories = categories;
+        _trailers = widget.trailerId != null
+            ? trailers.where((t) => t['id'] == widget.trailerId).toList()
+            : trailers;
         _fleetDocuments = docs;
         _isLoading = false;
       });
@@ -55,23 +55,30 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
     }
   }
 
-  List<Map<String, dynamic>> _getDocsForEntity(String entityType, int entityId) {
-    return _fleetDocuments
-        .where((doc) => doc['entity_type'] == entityType && doc['entity_id'] == entityId)
+  List<Map<String, dynamic>> _filterDocs(List<Map<String, dynamic>> docs) {
+    final now = DateTime.now();
+    return docs.where((doc) {
+      final expiryStr = doc['expiry_date']?.toString();
+      if (expiryStr == null || expiryStr.isEmpty) return _docFilter == null;
+      final expiryDate = DateTime.tryParse(expiryStr);
+      if (expiryDate == null) return _docFilter == null;
+      final diff = expiryDate.difference(now).inDays;
+      if (_docFilter == null) return true;
+      if (_docFilter == 'expired') return diff < 0;
+      if (_docFilter == 'expiring_soon') return diff >= 0 && diff <= 15;
+      return true;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _getDocsForTrailer(int trailerId) {
+    final docs = _fleetDocuments
+        .where((doc) => doc['entity_type'] == 'trailer' && doc['entity_id'] == trailerId)
         .toList();
+    return _filterDocs(docs);
   }
 
-  String _getVehiclePlate(Map<String, dynamic> vehicle, String entityType) {
-    if (entityType == 'truck') {
-      return vehicle['plate']?.toString() ?? vehicle['plate_number']?.toString() ?? 'بدون لوحة';
-    }
-    return vehicle['plate_number']?.toString() ?? vehicle['plate']?.toString() ?? 'بدون لوحة';
-  }
-
-  String _getVehicleLabel(Map<String, dynamic> vehicle, String entityType) {
-    final plate = _getVehiclePlate(vehicle, entityType);
-    final model = vehicle['model']?.toString() ?? vehicle['type']?.toString() ?? '';
-    return model.isNotEmpty ? '$plate - $model' : plate;
+  String _getTrailerPlate(Map<String, dynamic> trailer) {
+    return trailer['plate_number']?.toString() ?? trailer['plate']?.toString() ?? 'بدون لوحة';
   }
 
   Color _getDocColor(DateTime? expiryDate, bool isDark) {
@@ -101,29 +108,38 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
     return 'متبقي $diff يوم';
   }
 
-  String _getCategoryName(int? categoryId) {
-    if (categoryId == null) return 'غير معروف';
-    final cat = _categories.firstWhere(
-      (c) => c['id'] == categoryId,
-      orElse: () => <String, dynamic>{'name': 'غير معروف'},
-    );
-    return cat['name']?.toString() ?? 'غير معروف';
-  }
-
-  Future<void> _openDocDialog({Map<String, dynamic>? doc, required String entityType, int? entityId}) async {
+  Future<void> _openDocDialog({Map<String, dynamic>? doc, int? entityId}) async {
     final isEdit = doc != null;
     int? selectedVehicleId = doc != null
         ? doc['entity_id'] as int?
-        : entityId ?? (entityType == 'truck' ? (_trucks.isNotEmpty ? _trucks.first['id'] as int : null) : (_trailers.isNotEmpty ? _trailers.first['id'] as int : null));
+        : entityId ?? (_trailers.isNotEmpty ? _trailers.first['id'] as int : null);
 
-    int? selectedCategoryId = doc != null ? doc['category_id'] as int? : (_categories.isNotEmpty ? _categories.first['id'] as int : null);
     final numberController = TextEditingController(text: doc?['document_number']?.toString() ?? '');
     final urlController = TextEditingController(text: doc?['attachment_url']?.toString() ?? '');
+    String? selectedDocType;
+    final ImagePicker picker = ImagePicker();
+    String? attachmentUrl = doc != null ? doc['attachment_url']?.toString() : null;
+    Uint8List? pickedImageBytes;
+    String? pickedImageName;
     DateTime? expiryDate = doc != null && doc['expiry_date'] != null
         ? DateTime.tryParse(doc['expiry_date'].toString())
         : null;
 
-    final vehicles = entityType == 'truck' ? _trucks : _trailers;
+    List<Map<String, dynamic>> docTypes = [];
+    await _supabaseService.getDocumentCategories().then((cats) {
+      docTypes.addAll(cats);
+    });
+    if (!mounted) return;
+    final String? docTypeName = doc?['doc_type']?.toString();
+    if (docTypeName != null && docTypes.any((c) => c['name']?.toString() == docTypeName)) {
+      selectedDocType = docTypeName;
+    } else if (docTypes.isNotEmpty) {
+      selectedDocType = docTypes.first['name']?.toString();
+    } else {
+      selectedDocType = '';
+    }
+
+    final vehicles = _trailers;
 
     await showDialog(
       context: context,
@@ -135,27 +151,60 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<int>(
-                  decoration: InputDecoration(labelText: entityType == 'truck' ? 'الشاحنة' : 'المقطورة'),
+                  decoration: const InputDecoration(labelText: 'المقطورة'),
                   initialValue: selectedVehicleId,
                   items: vehicles
+                      .toList()
+                      .sorted((a, b) {
+                        final aPlate = (a['plate_number']?.toString() ?? a['plate']?.toString() ?? '').toLowerCase();
+                        final bPlate = (b['plate_number']?.toString() ?? b['plate']?.toString() ?? '').toLowerCase();
+                        return aPlate.compareTo(bPlate);
+                      })
                       .map((v) => DropdownMenuItem<int>(
                             value: v['id'] as int,
-                            child: Text(_getVehicleLabel(v, entityType)),
+                            child: Text(_getTrailerPlate(v)),
                           ))
                       .toList(),
                   onChanged: (value) => setDialogState(() => selectedVehicleId = value),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(labelText: 'نوع الوثيقة'),
-                  initialValue: selectedCategoryId,
-                  items: _categories
-                      .map((c) => DropdownMenuItem<int>(
-                            value: c['id'] as int,
-                            child: Text(c['name']?.toString() ?? ''),
-                          ))
-                      .toList(),
-                  onChanged: (value) => setDialogState(() => selectedCategoryId = value),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedDocType,
+                  decoration: InputDecoration(
+                    labelText: 'نوع الوثيقة',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.manage_history, size: 20),
+                      tooltip: 'إدارة أنواع الوثائق',
+                      onPressed: () async {
+                        if (!widget.isAdmin) return;
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const DocumentCategoriesScreen()),
+                        );
+                        final cats = await _supabaseService.getDocumentCategories();
+                        if (mounted) {
+                          setDialogState(() {
+                            docTypes = cats;
+                            if (!docTypes.any((c) => c['name']?.toString() == selectedDocType)) {
+                              selectedDocType = null;
+                            }
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  items: [
+                    ...docTypes.map((c) => DropdownMenuItem(
+                      value: c['name']?.toString() ?? '',
+                      child: Text(c['name']?.toString() ?? ''),
+                    )),
+                    if (docTypes.isEmpty)
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('لا توجد أنواع'),
+                      ),
+                  ],
+                  onChanged: (v) => setDialogState(() => selectedDocType = v),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -165,22 +214,23 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                 const SizedBox(height: 12),
                 InkWell(
                   onTap: () async {
-                    final picked = await showDatePicker(
+                    final picked = await showDateWheelPicker(
                       context: context,
                       initialDate: expiryDate ?? DateTime.now().add(const Duration(days: 365)),
                       firstDate: DateTime(2020),
                       lastDate: DateTime(2035),
                     );
-                    if (picked != null) {
-                      setDialogState(() => expiryDate = picked);
-                    }
+                     if (picked != null) {
+                       setDialogState(() => expiryDate = picked);
+                     }
                   },
                   child: InputDecorator(
                     decoration: const InputDecoration(labelText: 'تاريخ انتهاء الصلاحية'),
                     child: Text(
                       expiryDate == null
                           ? 'اختر التاريخ'
-                          : DateFormat('yyyy/MM/dd').format(expiryDate!),
+                          : DateFormat('dd/MM/yyyy').format(expiryDate!),
+                      textDirection: TextDirection.ltr,
                     ),
                   ),
                 ),
@@ -189,6 +239,32 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                   controller: urlController,
                   decoration: const InputDecoration(labelText: 'رابط المرفق (اختياري)'),
                 ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final XFile? picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+                    if (picked != null) {
+                      final bytes = await picked.readAsBytes();
+                      setDialogState(() {
+                        pickedImageBytes = bytes;
+                        pickedImageName = picked.name;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.image),
+                  label: const Text('إرفاق صورة الوثيقة'),
+                ),
+                if (pickedImageBytes != null) ...[
+                  const SizedBox(height: 8),
+                  Image.memory(pickedImageBytes!, height: 140, fit: BoxFit.cover),
+                  const SizedBox(height: 4),
+                  const Text('تم اختيار الصورة', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ] else if (attachmentUrl != null && attachmentUrl!.isNotEmpty && attachmentUrl!.startsWith('http')) ...[
+                  const SizedBox(height: 8),
+                  Image.network(attachmentUrl!, height: 140, fit: BoxFit.cover),
+                  const SizedBox(height: 4),
+                  const Text('الصورة الحالية', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
               ],
             ),
           ),
@@ -196,19 +272,56 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
             ElevatedButton(
               onPressed: () async {
-                if (selectedVehicleId == null || selectedCategoryId == null || expiryDate == null) {
+                if (selectedVehicleId == null || expiryDate == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('يرجى ملء جميع الحقول المطلوبة')),
                   );
                   return;
                 }
+                if (selectedDocType == null || selectedDocType == '') {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('يرجى اختيار نوع الوثيقة')),
+                  );
+                  return;
+                }
+                if (!isEdit) {
+                  final exists = await _supabaseService.hasFleetDocumentType(
+                    'trailer',
+                    selectedVehicleId!,
+                    selectedDocType!,
+                  );
+                  if (exists) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('وثيقة من نوع "$selectedDocType" مسجلة مسبقاً لهذه المقطورة'),
+                      ),
+                    );
+                    return;
+                  }
+                }
+                 if (pickedImageBytes != null && selectedVehicleId != null) {
+                  try {
+                    attachmentUrl = await _supabaseService.uploadFleetDocImage(
+                      entityType: 'trailer',
+                      entityId: selectedVehicleId!,
+                      fileName: pickedImageName ?? 'doc.jpg',
+                      bytes: pickedImageBytes!,
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذّر رفع الصورة: $e')));
+                    return;
+                  }
+                }
                 final data = {
-                  'entity_type': entityType,
+                  'entity_type': 'trailer',
                   'entity_id': selectedVehicleId,
-                  'category_id': selectedCategoryId,
+                  'doc_type': selectedDocType ?? '',
                   'document_number': numberController.text.trim(),
                   'expiry_date': expiryDate!.toIso8601String().split('T').first,
-                  'attachment_url': urlController.text.trim(),
+                  'attachment_url': attachmentUrl ?? '',
                 };
                 try {
                   if (isEdit) {
@@ -267,19 +380,10 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final vehicles = _tabController.index == 0 ? _trucks : _trailers;
-    final entityType = _tabController.index == 0 ? 'truck' : 'trailer';
 
     return Scaffold(
         appBar: AppBar(
-          title: const Text('وثائق الأسطول'),
-          bottom: TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(text: 'الشاحنات', icon: Icon(Icons.local_shipping_rounded)),
-              Tab(text: 'المقطورات', icon: Icon(Icons.share_rounded)),
-            ],
-          ),
+          title: const Text('وثائق المقطورات'),
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
@@ -290,20 +394,45 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : vehicles.isEmpty
+            : _trailers.isEmpty
                 ? Center(
                     child: Text(
-                      _tabController.index == 0 ? 'لا توجد شاحنات مسجلة' : 'لا توجد مقطورات مسجلة',
+                      widget.trailerId != null ? 'لا توجد وثائق لهذه المقطورة' : 'لا توجد مقطورات مسجلة',
                       style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]),
                     ),
                   )
-                : ListView.builder(
+                : Column(
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            ChoiceChip(
+                              label: const Text('الكل'),
+                              selected: _docFilter == null,
+                              onSelected: (_) => setState(() => _docFilter = null)),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              label: const Text('منتهية'),
+                              selected: _docFilter == 'expired',
+                              onSelected: (_) => setState(() => _docFilter = 'expired')),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              label: const Text('تنتهي خلال 15 يوم'),
+                              selected: _docFilter == 'expiring_soon',
+                              onSelected: (_) => setState(() => _docFilter = 'expiring_soon')),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
                     padding: const EdgeInsets.all(12),
-                    itemCount: vehicles.length,
+                    itemCount: _trailers.length,
                     itemBuilder: (context, index) {
-                      final vehicle = vehicles[index];
-                      final docs = _getDocsForEntity(entityType, vehicle['id'] as int);
-                      final plate = _getVehiclePlate(vehicle, entityType);
+                      final vehicle = _trailers[index];
+                      final docs = _getDocsForTrailer(vehicle['id'] as int);
+                      final plate = _getTrailerPlate(vehicle);
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 6),
@@ -312,7 +441,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                         child: ExpansionTile(
                           title: Row(
                             children: [
-                              Icon(Icons.local_shipping_rounded, color: Colors.teal[600], size: 20),
+                              Icon(Icons.share_rounded, color: Colors.teal[600], size: 20),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -338,7 +467,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                             ],
                           ),
                           subtitle: Text(
-                            vehicle['model']?.toString() ?? vehicle['type']?.toString() ?? '',
+                            vehicle['type']?.toString() ?? '',
                             style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600], fontSize: 12),
                           ),
                           children: [
@@ -359,7 +488,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                                 final cardColor = _getDocColor(expiryDate, isDark);
                                 final borderColor = _getDocBorderColor(expiryDate);
                                 final statusText = _getDocStatusText(expiryDate);
-                                final categoryName = _getCategoryName(doc['category_id'] as int?);
+                                final docType = doc['doc_type']?.toString() ?? 'وثيقة';
 
                                 return Container(
                                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -376,7 +505,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              categoryName,
+                                              docType,
                                               style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87),
                                             ),
                                             const SizedBox(height: 4),
@@ -389,6 +518,19 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                                               statusText,
                                               style: TextStyle(fontSize: 12, color: borderColor, fontWeight: FontWeight.w600),
                                             ),
+                                            if ((doc['attachment_url']?.toString() ?? '').startsWith('http')) ...[
+                                              const SizedBox(height: 6),
+                                              GestureDetector(
+                                                onTap: () => showDialog(
+                                                  context: context,
+                                                  builder: (_) => Dialog(child: Image.network(doc['attachment_url'].toString())),
+                                                ),
+                                                child: ClipRRect(
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  child: Image.network(doc['attachment_url'].toString(), height: 90, fit: BoxFit.cover),
+                                                ),
+                                              ),
+                                            ],
                                           ],
                                         ),
                                       ),
@@ -396,7 +538,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                                         PopupMenuButton<String>(
                                           onSelected: (value) {
                                             if (value == 'edit') {
-                                              _openDocDialog(doc: doc, entityType: entityType, entityId: vehicle['id'] as int);
+                                              _openDocDialog(doc: doc, entityId: vehicle['id'] as int);
                                             } else if (value == 'delete') {
                                               _confirmDelete(doc);
                                             }
@@ -416,9 +558,12 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> with SingleTickerProv
                       );
                     },
                   ),
+                      ),
+                    ],
+                  ),
         floatingActionButton: widget.isAdmin
             ? FloatingActionButton(
-                onPressed: () => _openDocDialog(entityType: entityType),
+                onPressed: () => _openDocDialog(),
                 tooltip: 'إضافة وثيقة',
                 child: const Icon(Icons.add),
               )

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:collection/collection.dart';
 import '../services/supabase_service.dart';
 import '../l10n/app_localizations.dart';
 import 'driver_details_screen.dart';
@@ -150,6 +151,12 @@ class _DriversScreenState extends State<DriversScreen> {
                     decoration: InputDecoration(labelText: context.tr('الشاحنة الافتراضية')),
                     initialValue: defaultTruckId,
                     items: _trucks
+                        .toList()
+                        .sorted((a, b) {
+                          final aPlate = (a['plate']?.toString() ?? a['plate_number']?.toString() ?? '').toLowerCase();
+                          final bPlate = (b['plate']?.toString() ?? b['plate_number']?.toString() ?? '').toLowerCase();
+                          return aPlate.compareTo(bPlate);
+                        })
                         .map((t) => DropdownMenuItem(
                               value: t['id']?.toString(),
                               child: Text(t['plate']?.toString() ?? t['plate_number']?.toString() ?? context.tr('بدون لوحة')),

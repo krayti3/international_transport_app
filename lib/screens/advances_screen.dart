@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:collection/collection.dart';
+import 'package:intl/intl.dart' show NumberFormat;
 import '../services/supabase_service.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -141,6 +142,8 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                     decoration: const InputDecoration(labelText: 'السائق'),
                     initialValue: selectedDriverId,
                     items: drivers
+                        .toList()
+                        .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
                         .map((d) => DropdownMenuItem<int>(
                               value: d['id'] as int?,
                               child: Text(d['name']?.toString() ?? 'بدون اسم'),
@@ -171,6 +174,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: dateOutController,
+                    textDirection: TextDirection.ltr,
                     decoration: const InputDecoration(labelText: 'تاريخ الانطلاق'),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'يرجى إدخال التاريخ';
@@ -208,14 +212,15 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: dateReturnController,
-                    decoration: const InputDecoration(labelText: 'تاريخ العودة'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: notesController,
+                   const SizedBox(height: 12),
+                   TextFormField(
+                     controller: dateReturnController,
+                     textDirection: TextDirection.ltr,
+                     decoration: const InputDecoration(labelText: 'تاريخ العودة'),
+                   ),
+                   const SizedBox(height: 12),
+                   TextFormField(
+                     controller: notesController,
                     decoration: const InputDecoration(labelText: 'الملاحظات'),
                     maxLines: 3,
                   ),
@@ -353,6 +358,16 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
   }
 
   Future<void> _confirmDelete(Map<String, dynamic> advance) async {
+    final id = advance['id'] as int?;
+    if (id == null) return;
+    final inUse = await _supabaseService.isAdvanceInUse(id);
+    if (inUse) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يمكن حذف هذه العهدة لأنها مرتبطة بمدفوعات')),
+      );
+      return;
+    }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -372,7 +387,6 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
       ),
     );
     if (confirm == true) {
-      final id = advance['id'];
       await _supabaseService.deleteAdvance(id);
       await _loadData();
       if (mounted) {

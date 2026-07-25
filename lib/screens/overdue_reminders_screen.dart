@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart' show DateFormat;
+import 'package:decimal/decimal.dart';
+import 'package:international_transport_app/models/invoice.dart';
 import '../services/supabase_service.dart';
 import '../l10n/app_localizations.dart';
 
@@ -17,7 +20,7 @@ class OverdueRemindersScreen extends StatefulWidget {
 
 class _OverdueRemindersScreenState extends State<OverdueRemindersScreen> {
   final SupabaseService _supabaseService = SupabaseService();
-  List<Map<String, dynamic>> _invoices = [];
+  List<Invoice> _invoices = [];
   bool _isLoading = true;
 
   @override
@@ -36,34 +39,32 @@ class _OverdueRemindersScreenState extends State<OverdueRemindersScreen> {
     });
   }
 
-  String _invoiceNumber(Map<String, dynamic> inv) =>
-      inv['invoice_number']?.toString() ?? '#${inv['id'] ?? '?'}';
+  String _invoiceNumber(Invoice inv) =>
+      inv.invoiceNumber;
 
-  double _remaining(Map<String, dynamic> inv) {
-    final total = (inv['total_amount'] as num?)?.toDouble() ?? 0.0;
-    final paid = (inv['paid_amount'] as num?)?.toDouble() ?? 0.0;
+  double _remaining(Invoice inv) {
+    final total = inv.totalAmount.toDouble();
+    final paid = (inv.paidAmount ?? Decimal.zero).toDouble();
     return (total - paid).clamp(0.0, total);
   }
 
-  int _daysOverdue(Map<String, dynamic> inv) {
-    final due = inv['due_date'] != null
-        ? DateTime.tryParse(inv['due_date'].toString())
-        : null;
+  int _daysOverdue(Invoice inv) {
+    final due = inv.dueDate;
     if (due == null) return 0;
     return DateTime.now().difference(due).inDays;
   }
 
-  String _clientName(Map<String, dynamic> inv) {
-    final client = inv['client'] as Map<String, dynamic>?;
+  String _clientName(Invoice inv) {
+    final client = inv.client;
     return client?['name']?.toString() ?? context.tr('بدون اسم');
   }
 
-  String _clientPhone(Map<String, dynamic> inv) {
-    final client = inv['client'] as Map<String, dynamic>?;
+  String _clientPhone(Invoice inv) {
+    final client = inv.client;
     return client?['phone']?.toString() ?? '';
   }
 
-  Future<void> _sendWhatsApp(Map<String, dynamic> inv) async {
+  Future<void> _sendWhatsApp(Invoice inv) async {
     final phone = _clientPhone(inv).replaceAll(RegExp(r'\D'), '');
     if (phone.isEmpty) {
       if (!mounted) return;
@@ -161,7 +162,7 @@ class _OverdueRemindersScreenState extends State<OverdueRemindersScreen> {
                                 'المبلغ المتبقي: ${_remaining(inv).toStringAsFixed(2)} درهم',
                                 style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
-                              Text('تاريخ الاستحقاق: ${inv['due_date'] ?? ''}'),
+                               Text('تاريخ الاستحقاق: ${inv.dueDate != null ? DateFormat('dd/MM/yyyy').format(inv.dueDate!) : ''}', textDirection: TextDirection.ltr),
                               const SizedBox(height: 12),
                               SizedBox(
                                 width: double.infinity,

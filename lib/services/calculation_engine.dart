@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:decimal/decimal.dart';
 
 class InvoiceCalculation {
@@ -7,7 +5,7 @@ class InvoiceCalculation {
   final Decimal tvaAmount;
   final Decimal ttcAmount;
   final Decimal tvaRate;
-  final String inputMode;
+  final String inputMode; // 'HT' or 'TTC'
 
   InvoiceCalculation({
     required this.htAmount,
@@ -22,72 +20,64 @@ class InvoiceCalculation {
     required String inputMode,
     required Decimal tvaRate,
   }) {
-    return CalculationEngine.calculate(
-      amount: inputAmount,
-      inputMode: inputMode,
-      tvaRate: tvaRate,
-    );
-  }
-
-  @override
-  String toString() {
-    return 'HT: $htAmount, TVA: $tvaAmount, TTC: $ttcAmount';
+    if (inputMode == 'HT') {
+      final ht = inputAmount;
+      final tva = ht * (tvaRate / Decimal.fromInt(100)).toDecimal();
+      final ttc = ht + tva;
+      return InvoiceCalculation(
+        htAmount: ht,
+        tvaAmount: tva,
+        ttcAmount: ttc,
+        tvaRate: tvaRate,
+        inputMode: inputMode,
+      );
+    } else if (inputMode == 'TTC') {
+      final ttc = inputAmount;
+      final ht = (ttc / (Decimal.one + (tvaRate / Decimal.fromInt(100)).toDecimal())).toDecimal();
+      final tva = ht * (tvaRate / Decimal.fromInt(100)).toDecimal();
+      return InvoiceCalculation(
+        htAmount: ht,
+        tvaAmount: tva,
+        ttcAmount: ttc,
+        tvaRate: tvaRate,
+        inputMode: inputMode,
+      );
+    } else {
+      throw ArgumentError('Invalid input mode: $inputMode');
+    }
   }
 }
 
 class CalculationEngine {
   static InvoiceCalculation calculate({
     required Decimal amount,
-    required String inputMode,
+    required String inputMode, // 'HT' or 'TTC'
     required Decimal tvaRate,
   }) {
-    if (inputMode != 'HT' && inputMode != 'TTC') {
-      throw ArgumentError('Invalid input mode: $inputMode. Must be HT or TTC.');
-    }
-
-    final amountD = amount.toDouble();
-    final rateD = tvaRate.toDouble();
-
-    double htD;
-    double tvaD;
-    double ttcD;
-
-    if (inputMode == 'HT') {
-      htD = amountD;
-      tvaD = _calculateTVA(htD, rateD);
-      ttcD = _calculateTTC(htD, rateD);
-    } else {
-      ttcD = amountD;
-      htD = _calculateHTFromTTC(ttcD, rateD);
-      tvaD = _calculateTVA(htD, rateD);
-    }
-
-    return InvoiceCalculation(
-      htAmount: Decimal.parse(htD.toString()),
-      tvaAmount: Decimal.parse(tvaD.toString()),
-      ttcAmount: Decimal.parse(ttcD.toString()),
-      tvaRate: tvaRate,
+    return InvoiceCalculation.fromInput(
+      inputAmount: amount,
       inputMode: inputMode,
+      tvaRate: tvaRate,
     );
   }
 
-  static double _calculateTVA(double htAmount, double tvaRate) {
-    return htAmount * tvaRate / 100.0;
+  static Decimal calculateTVA(Decimal htAmount, Decimal tvaRate) {
+    return htAmount * (tvaRate / Decimal.fromInt(100)).toDecimal();
   }
 
-  static double _calculateTTC(double htAmount, double tvaRate) {
-    return htAmount + _calculateTVA(htAmount, tvaRate);
+  static Decimal calculateTTC(Decimal htAmount, Decimal tvaRate) {
+    return htAmount + calculateTVA(htAmount, tvaRate);
   }
 
-  static double _calculateHTFromTTC(double ttcAmount, double tvaRate) {
-    final divisor = 1.0 + tvaRate / 100.0;
-    return ttcAmount / divisor;
+  static Decimal calculateHTFromTTC(Decimal ttcAmount, Decimal tvaRate) {
+    return (ttcAmount / (Decimal.one + (tvaRate / Decimal.fromInt(100)).toDecimal())).toDecimal();
   }
 
-  static Decimal roundToCurrency(Decimal amount, {int decimals = 2}) {
-    final factor = pow(10.0, decimals).toDouble();
-    final multiplied = amount.toDouble() * factor;
-    final rounded = multiplied.round().toDouble();
-    return Decimal.parse((rounded / factor).toString());
+  static Decimal roundToCurrency(Decimal amount, int decimals) {
+    final factor = Decimal.parse(Decimal.fromInt(10).pow(decimals).toString());
+    final scaled = amount * factor;
+    final rounded = scaled.round();
+    final roundedDecimal = Decimal.parse(rounded.toString());
+    return Decimal.parse((roundedDecimal / factor).toString());
   }
 }

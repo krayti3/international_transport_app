@@ -7,10 +7,10 @@ class BankAccount {
   final String? iban;
   final String? swiftCode;
   final bool isActive;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
-  BankAccount({
+  const BankAccount({
     required this.id,
     required this.bankName,
     required this.accountNumber,
@@ -19,12 +19,41 @@ class BankAccount {
     this.iban,
     this.swiftCode,
     this.isActive = true,
-    required this.createdAt,
-    required this.updatedAt,
+    this.createdAt,
+    this.updatedAt,
   });
 
   String get displayName => '$bankName ($currency)';
-  String get currencySymbol => currency == 'MAD' ? 'DH' : '€';
+
+  factory BankAccount.fromMap(Map<String, dynamic> map) {
+    return BankAccount(
+      id: map['id'] as String,
+      bankName: map['bank_name'] as String,
+      accountNumber: map['account_number'] as String,
+      accountHolder: map['account_holder'] as String,
+      currency: map['currency'] as String,
+      iban: map['iban'] as String?,
+      swiftCode: map['swift_code'] as String?,
+      isActive: map['is_active'] as bool,
+      createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'].toString()) : null,
+      updatedAt: map['updated_at'] != null ? DateTime.tryParse(map['updated_at'].toString()) : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'bank_name': bankName,
+      'account_number': accountNumber,
+      'account_holder': accountHolder,
+      'currency': currency,
+      if (iban != null) 'iban': iban,
+      if (swiftCode != null) 'swift_code': swiftCode,
+      'is_active': isActive,
+      if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
+    };
+  }
 
   BankAccount copyWith({
     String? id,
@@ -52,36 +81,6 @@ class BankAccount {
     );
   }
 
-  factory BankAccount.fromMap(Map<String, dynamic> map) {
-    return BankAccount(
-      id: map['id'] as String,
-      bankName: map['bank_name'] as String,
-      accountNumber: map['account_number'] as String,
-      accountHolder: map['account_holder'] as String,
-      currency: map['currency'] as String,
-      iban: map['iban'] as String?,
-      swiftCode: map['swift_code'] as String?,
-      isActive: map['is_active'] as bool? ?? true,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'bank_name': bankName,
-      'account_number': accountNumber,
-      'account_holder': accountHolder,
-      'currency': currency,
-      'iban': iban,
-      'swift_code': swiftCode,
-      'is_active': isActive,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
-    };
-  }
-
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -93,5 +92,7 @@ class BankAccount {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() => displayName;
+  String toString() {
+    return 'BankAccount{id: $id, bankName: $bankName, currency: $currency}';
+  }
 }

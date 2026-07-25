@@ -136,8 +136,6 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -146,7 +144,7 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
           children: [
             Text(
               'مسح تذاكر المازوت والوقود الذكي',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.blueGrey[900]),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
             ),
             const SizedBox(height: 4),
             Text(
@@ -160,7 +158,7 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
                 width: double.infinity,
                 height: 220,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E1E) : Colors.grey[100],
+                   color: Theme.of(context).colorScheme.surfaceContainer,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
                 ),
@@ -217,7 +215,7 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
               ),
 
             const SizedBox(height: 24),
-            Text('البيانات المستخرجة والمراجعة المالية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey[400])),
+            Text('البيانات المستخرجة والمراجعة المالية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
             const SizedBox(height: 12),
 
             Card(
@@ -226,7 +224,7 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
               ),
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              color: Theme.of(context).colorScheme.surfaceContainer,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -276,8 +274,8 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text('تأكيد البيانات وتثبيت الخصم المالي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[700],
-                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),

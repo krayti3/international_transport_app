@@ -8,7 +8,7 @@ class CsvRow {
   CsvRow(this.headers, this.values);
 
   String? get(String header) => values[header];
-  String? getOrEmpty(String header) => values[header] ?? '';
+  String getOrEmpty(String header) => values[header] ?? '';
   int? getInt(String header) => int.tryParse(values[header]?.trim() ?? '');
   double? getDouble(String header) {
     final raw = values[header]?.trim() ?? '';

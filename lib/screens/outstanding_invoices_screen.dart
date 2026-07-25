@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart' show DateFormat;
+import 'package:decimal/decimal.dart';
+import 'package:collection/collection.dart';
+import 'package:international_transport_app/models/client.dart';
+import 'package:international_transport_app/models/invoice.dart';
 import '../services/supabase_service.dart';
 import '../services/pdf_service.dart';
 
@@ -14,10 +19,10 @@ class OutstandingInvoicesScreen extends StatefulWidget {
 
 class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
   final SupabaseService _supabaseService = SupabaseService();
-  List<Map<String, dynamic>> _clients = [];
-  List<Map<String, dynamic>> _outstandingInvoices = [];
+  List<Client> _clients = [];
+  List<Invoice> _outstandingInvoices = [];
   int? _selectedClientId;
-  Map<String, dynamic>? _selectedClient;
+  Client? _selectedClient;
   bool _isLoadingClients = true;
   bool _isLoadingInvoices = false;
   bool _isExporting = false;
@@ -57,8 +62,8 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
     try {
       final invoices = await _supabaseService.getOutstandingInvoices(clientId);
       final client = _clients.firstWhere(
-        (c) => c['id'] == clientId,
-        orElse: () => invoices.isNotEmpty ? invoices.first['client'] ?? {} : {},
+        (c) => c.id == clientId,
+        orElse: () => invoices.isNotEmpty ? Client.fromMap(invoices.first.toMap()) : Client(name: '', phone: ''),
       );
 
       if (mounted) {
@@ -123,8 +128,8 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
 
     try {
       await PdfService.instance.previewOutstandingStatement(
-        client: _selectedClient!,
-        invoices: _outstandingInvoices,
+        client: _selectedClient!.toMap(),
+        invoices: _outstandingInvoices.map((e) => e.toMap()).toList(),
       );
     } catch (e) {
       if (mounted) {
@@ -161,8 +166,8 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
 
     try {
       await PdfService.instance.shareOutstandingStatement(
-        client: _selectedClient!,
-        invoices: _outstandingInvoices,
+        client: _selectedClient!.toMap(),
+        invoices: _outstandingInvoices.map((e) => e.toMap()).toList(),
       );
     } catch (e) {
       if (mounted) {
@@ -181,14 +186,12 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
   Future<void> _copyWhatsAppMessage() async {
     if (_selectedClient == null || _outstandingInvoices.isEmpty) return;
 
-    final clientName = _selectedClient!['name']?.toString() ??
-        _selectedClient!['company_name']?.toString() ??
-        'عميلنا الكريم';
+    final clientName = _selectedClient!.name;
 
     double totalRemaining = 0.0;
     for (final invoice in _outstandingInvoices) {
-      final total = (invoice['total_amount'] as num?)?.toDouble() ?? 0.0;
-      final paid = (invoice['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final total = invoice.totalAmount.toDouble();
+      final paid = (invoice.paidAmount ?? Decimal.zero).toDouble();
       totalRemaining += (total - paid);
     }
 
@@ -206,8 +209,8 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
   double _getTotalRemaining() {
     double total = 0.0;
     for (final invoice in _outstandingInvoices) {
-      final totalAmount = (invoice['total_amount'] as num?)?.toDouble() ?? 0.0;
-      final paidAmount = (invoice['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final totalAmount = invoice.totalAmount.toDouble();
+      final paidAmount = (invoice.paidAmount ?? Decimal.zero).toDouble();
       total += (totalAmount - paidAmount);
     }
     return total;
@@ -239,12 +242,15 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.person_search),
                           ),
-                          items: _clients.map((c) {
-                            return DropdownMenuItem<int>(
-                              value: c['id'] as int?,
-                              child: Text(c['name']?.toString() ?? 'بدون اسم'),
-                            );
-                          }).toList(),
+                           items: _clients
+                               .toList()
+                                .sorted((a, b) => a.name.compareTo(b.name))
+                               .map((c) {
+                                 return DropdownMenuItem<int>(
+                                   value: c.id,
+                                   child: Text(c.name),
+                                 );
+                               }).toList(),
                           onChanged: (v) => _onClientSelected(v),
                         ),
                       ),
@@ -369,14 +375,14 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
     );
   }
 
-  Widget _buildInvoiceCard(Map<String, dynamic> invoice) {
-    final invoiceNumber = invoice['invoice_number']?.toString() ?? '#${invoice['id'] ?? '?'}';
-    final issueDate = invoice['issue_date']?.toString() ?? '';
-    final dueDate = invoice['due_date']?.toString() ?? '';
-    final totalAmount = (invoice['total_amount'] as num?)?.toDouble() ?? 0.0;
-    final paidAmount = (invoice['paid_amount'] as num?)?.toDouble() ?? 0.0;
+  Widget _buildInvoiceCard(Invoice invoice) {
+    final invoiceNumber = invoice.invoiceNumber;
+    final issueDate = invoice.issueDate != null ? DateFormat('dd/MM/yyyy').format(invoice.issueDate!) : '';
+    final dueDate = invoice.dueDate != null ? DateFormat('dd/MM/yyyy').format(invoice.dueDate!) : '';
+    final totalAmount = invoice.totalAmount.toDouble();
+    final paidAmount = (invoice.paidAmount ?? Decimal.zero).toDouble();
     final remaining = totalAmount - paidAmount;
-    final status = invoice['status']?.toString() ?? 'unpaid';
+    final status = invoice.status;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -413,7 +419,7 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
                   child: _buildInfoChip('رقم الفاتورة', invoiceNumber),
                 ),
                 Expanded(
-                  child: _buildInfoChip('تاريخ الإصدار', issueDate),
+                  child: _buildInfoChip('تاريخ الإصدار', issueDate, textDirection: TextDirection.ltr),
                 ),
               ],
             ),
@@ -421,7 +427,7 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildInfoChip('تاريخ الاستحقاق', dueDate),
+                  child: _buildInfoChip('تاريخ الاستحقاق', dueDate, textDirection: TextDirection.ltr),
                 ),
                 Expanded(
                   child: _buildInfoChip('الإجمالي', '${totalAmount.toStringAsFixed(2)} د.أ'),
@@ -449,7 +455,7 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
     );
   }
 
-  Widget _buildInfoChip(String label, String value) {
+  Widget _buildInfoChip(String label, String value, {TextDirection? textDirection}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -458,6 +464,7 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
         Text(
           value,
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          textDirection: textDirection,
         ),
       ],
     );

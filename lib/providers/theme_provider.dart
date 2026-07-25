@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../services/supabase_service.dart';
 
 class ThemeProvider extends ChangeNotifier {
   static const String _boxName = 'settings';
@@ -9,11 +10,46 @@ class ThemeProvider extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == ThemeMode.dark;
 
-  ThemeProvider() {
-    _loadFromStorage(null);
+  final SupabaseService _supabaseService = SupabaseService();
+  ThemeProvider();
+
+  Future<void> initialize(String? userId) async {
+    await _loadFromStorage(null);
+    if (userId != null && userId.isNotEmpty) {
+      await _loadFromStorage(userId);
+    }
+  }
+
+  Future<void> reloadForUser(String? userId) async {
+    if (userId != null && userId.isNotEmpty) {
+      await _loadFromStorage(userId);
+      try {
+        final row = await _supabaseService.supabase
+            .from('users')
+            .select('theme_mode')
+            .eq('id', userId)
+            .maybeSingle();
+        final modeStr = row?['theme_mode']?.toString() ?? 'system';
+        ThemeMode mode;
+        switch (modeStr) {
+          case 'dark':
+            mode = ThemeMode.dark;
+            break;
+          case 'light':
+            mode = ThemeMode.light;
+            break;
+          default:
+            mode = ThemeMode.system;
+        }
+        await setThemeMode(mode, userId: userId);
+      } catch (e) {
+        debugPrint('ThemeProvider.reloadForUser error: $e');
+      }
+    }
   }
 
   Future<void> _loadFromStorage(String? userId) async {
+    debugPrint('ThemeProvider._loadFromStorage: userId=$userId, key=${_resolveKey(userId)}');
     try {
       final box = await Hive.openBox(_boxName);
       final saved = box.get(_resolveKey(userId));
@@ -36,10 +72,6 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadForUser(String? userId) async {
-    await _loadFromStorage(userId);
-  }
-
   String _resolveKey(String? userId) {
     if (userId != null && userId.isNotEmpty) {
       return '${_key}_$userId';
@@ -48,7 +80,7 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> setThemeMode(ThemeMode mode, {String? userId}) async {
-    if (_themeMode == mode) return;
+    debugPrint('ThemeProvider.setThemeMode: mode=$mode, userId=$userId, key=${_resolveKey(userId)}');
     _themeMode = mode;
     try {
       final box = await Hive.openBox(_boxName);
@@ -65,8 +97,11 @@ class ThemeProvider extends ChangeNotifier {
           break;
       }
       await box.put(_resolveKey(userId), value);
-    } catch (_) {
-      // ignore
+      if (userId != null && userId.isNotEmpty) {
+        await _supabaseService.updateUserThemeMode(userId, value);
+      }
+    } catch (e) {
+      debugPrint('ThemeProvider.setThemeMode error: $e');
     }
     notifyListeners();
   }

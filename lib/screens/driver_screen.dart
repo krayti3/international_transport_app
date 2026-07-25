@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:collection/collection.dart';
 import '../services/supabase_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../l10n/app_localizations.dart';
@@ -148,6 +149,8 @@ class _DriverScreenState extends State<DriverScreen> {
                 isExpanded: true,
                 initialValue: _selectedDriverId,
                 items: _drivers
+                    .toList()
+                    .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
                     .map((d) => DropdownMenuItem<int>(
                           value: d['id'] as int?,
                           child: Text(d['name']?.toString() ?? context.tr('بدون اسم')),

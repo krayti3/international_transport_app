@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/supabase_service.dart';
@@ -132,6 +133,8 @@ class _TripFormScreenState extends State<TripFormScreen> {
                           ),
                           initialValue: _selectedDriverId,
                           items: _drivers
+                              .toList()
+                              .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
                               .map((d) => DropdownMenuItem<int>(
                                     value: d['id'] as int?,
                                     child: Text(d['name']?.toString() ?? 'بدون اسم'),

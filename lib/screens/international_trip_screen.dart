@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:collection/collection.dart';
 import '../services/supabase_service.dart';
 import '../widgets/responsive_layout.dart';
+import '../widgets/date_wheel_picker.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -75,7 +77,7 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
         _drivers = drivers;
         _trucks = trucks;
         _trailers = trailers;
-        _clients = clients;
+        _clients = clients.map((c) => c.toMap()).toList();
         _isLoading = false;
       });
     }
@@ -199,7 +201,10 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
                 prefixIcon: Icon(Icons.person),
               ),
               initialValue: _driverId,
-              items: _drivers.map((d) {
+              items: _drivers
+                  .toList()
+                  .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
+                  .map((d) {
                 return DropdownMenuItem<int>(
                   value: d['id'] as int?,
                   child: Text(d['name']?.toString() ?? 'بدون اسم'),
@@ -216,7 +221,14 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
                 prefixIcon: Icon(Icons.local_shipping),
               ),
               initialValue: _truckId,
-              items: _trucks.map((t) {
+              items: _trucks
+                  .toList()
+                  .sorted((a, b) {
+                final aPlate = (a['plate']?.toString() ?? a['plate_number']?.toString() ?? '').toLowerCase();
+                final bPlate = (b['plate']?.toString() ?? b['plate_number']?.toString() ?? '').toLowerCase();
+                return aPlate.compareTo(bPlate);
+              })
+                  .map((t) {
                 final plate = t['plate']?.toString() ?? t['plate_number']?.toString() ?? 'بدون لوحة';
                 return DropdownMenuItem<int>(
                   value: t['id'] as int?,
@@ -233,6 +245,19 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
                   if (defaultDriver.isNotEmpty) {
                     _driverId = defaultDriver['id'] as int?;
                   }
+                  final defaultTrailerId = int.tryParse(
+                    _trucks.firstWhere(
+                      (t) => t['id'] == v,
+                      orElse: () => <String, dynamic>{},
+                    )['default_trailer_id']?.toString() ?? '',
+                  );
+                  if (defaultTrailerId != null) {
+                    if (_trailers.any((t) => t['id'] == defaultTrailerId)) {
+                      _trailerId = defaultTrailerId;
+                    }
+                  } else {
+                    _trailerId = null;
+                  }
                 }
               }),
               validator: (v) => v == null ? 'يرجى اختيار الشاحنة' : null,
@@ -247,10 +272,17 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
               initialValue: _trailerId,
               items: [
                 const DropdownMenuItem<int?>(value: null, child: Text('بدون مقطورة')),
-                ..._trailers.map((t) {
+                ..._trailers
+                    .toList()
+                    .sorted((a, b) {
+                  final aPlate = (a['plate']?.toString() ?? a['plate_number']?.toString() ?? '').toLowerCase();
+                  final bPlate = (b['plate']?.toString() ?? b['plate_number']?.toString() ?? '').toLowerCase();
+                  return aPlate.compareTo(bPlate);
+                })
+                    .map((t) {
                   return DropdownMenuItem<int?>(
                     value: t['id'] as int?,
-                    child: Text(t['plate_number']?.toString() ?? 'بدون لوحة'),
+                    child: Text(t['plate_number']?.toString() ?? t['plate']?.toString() ?? 'بدون لوحة'),
                   );
                 }),
               ],
@@ -282,7 +314,7 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
               ),
               readOnly: true,
               onTap: () async {
-                final picked = await showDatePicker(
+                final picked = await showDateWheelPicker(
                   context: context,
                   initialDate: DateTime.now(),
                   firstDate: DateTime(2020),
@@ -326,7 +358,10 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
                 prefixIcon: Icon(Icons.person_outline),
               ),
               initialValue: _outboundClientId,
-              items: _clients.map((c) {
+              items: _clients
+                  .toList()
+                  .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
+                  .map((c) {
                 return DropdownMenuItem<int>(
                   value: c['id'] as int?,
                   child: Text(c['name']?.toString() ?? 'بدون اسم'),
@@ -384,7 +419,10 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
                 prefixIcon: Icon(Icons.person_outline),
               ),
               initialValue: _returnClientId,
-              items: _clients.map((c) {
+              items: _clients
+                  .toList()
+                  .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
+                  .map((c) {
                 return DropdownMenuItem<int>(
                   value: c['id'] as int?,
                   child: Text(c['name']?.toString() ?? 'بدون اسم'),

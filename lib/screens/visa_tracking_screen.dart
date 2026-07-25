@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import '../services/supabase_service.dart';
+import '../widgets/date_wheel_picker.dart';
 
 class VisaTrackingScreen extends StatefulWidget {
   const VisaTrackingScreen({super.key});
@@ -82,7 +83,7 @@ class _VisaTrackingScreenState extends State<VisaTrackingScreen> {
                 const SizedBox(height: 12),
                 InkWell(
                   onTap: () async {
-                    final picked = await showDatePicker(
+                    final picked = await showDateWheelPicker(
                       context: context,
                       initialDate: expiryDate ?? DateTime.now().add(const Duration(days: 365)),
                       firstDate: DateTime(2020),
@@ -97,7 +98,8 @@ class _VisaTrackingScreenState extends State<VisaTrackingScreen> {
                     child: Text(
                       expiryDate == null
                           ? 'اختر التاريخ'
-                          : DateFormat('yyyy/MM/dd').format(expiryDate!),
+                          : DateFormat('dd/MM/yyyy').format(expiryDate!),
+                      textDirection: TextDirection.ltr,
                     ),
                   ),
                 ),

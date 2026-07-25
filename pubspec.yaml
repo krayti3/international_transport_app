@@ -36,7 +36,7 @@ dependencies:
   internet_connection_checker: ^3.0.1
   url_launcher: ^6.3.0
   decimal: ^2.3.0
-  flutter_dotenv: ^2.1.0
+  collection: ^1.19.0
 
 dev_dependencies:
   flutter_test:

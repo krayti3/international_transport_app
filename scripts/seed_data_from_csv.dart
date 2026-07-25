@@ -1,4 +1,5 @@
 
+import 'package:international_transport_app/models/client.dart';
 import 'package:international_transport_app/services/supabase_service.dart';
 import 'csv_reader.dart';
 
@@ -58,18 +59,18 @@ Future<void> _seedClients(SupabaseService service, bool dryRun, bool verbose) as
       final name = row.get('NomSociété')?.trim();
       if (name == null || name.isEmpty) continue;
 
-      final data = <String, dynamic>{
-        'name': name,
-        'phone': row.getOrEmpty('NuméroTél'),
-        'address': row.getOrEmpty('AdresseFacturation'),
-        'city': row.getOrEmpty('Ville'),
-        'nom_contact': row.get('NomContact'),
-        'adresse_facturation': row.getOrEmpty('AdresseFacturation'),
-      };
+      final newClient = Client(
+        name: name,
+        phone: row.getOrEmpty('NuméroTél'),
+        address: row.getOrEmpty('AdresseFacturation'),
+        city: row.getOrEmpty('Ville'),
+        nomContact: row.get('NomContact'),
+        adresseFacturation: row.getOrEmpty('AdresseFacturation'),
+      );
 
       if (verbose) print('  Client: $name');
       if (!dryRun) {
-        await service.addClient(data);
+        await service.addClient(newClient);
       }
       inserted++;
     }

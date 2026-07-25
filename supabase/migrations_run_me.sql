@@ -1,8 +1,8 @@
--- =====================================================================
--- International Transport App — Consolidated Supabase Migration
+﻿-- =====================================================================
+-- International Transport App â€” Consolidated Supabase Migration
 -- =====================================================================
 -- HOW TO RUN:
---   1. Open your Supabase project → SQL Editor → New query.
+--   1. Open your Supabase project â†’ SQL Editor â†’ New query.
 --   2. Paste the ENTIRE contents of this file.
 --   3. Click "Run".
 --
@@ -14,7 +14,7 @@
 -- NOTE: A few base tables (clients, trucks, trip_orders, invoices) are
 -- assumed to already exist in the project's base schema; the ALTER TABLE
 -- statements below reconcile/extend them. If any of them is missing you
--- will get a "relation does not exist" error — create the base schema
+-- will get a "relation does not exist" error â€” create the base schema
 -- first, then re-run this file.
 -- =====================================================================
 
@@ -195,7 +195,7 @@ alter table public.trip_orders
 -- 02. 20240101000001_advances.sql
 -- =====================================================================
 
--- Migration: create the advances (العُهد) table for driver trip advances.
+-- Migration: create the advances (Ø§Ù„Ø¹ÙÙ‡Ø¯) table for driver trip advances.
 -- Safe to re-run: all objects are guarded with if not exists / drop if exists.
 
 -- 1. Create the advances table. A row represents cash an advance the secretary
@@ -369,7 +369,7 @@ end $$;
 create table if not exists public.trailers (
   id bigserial primary key,
   plate_number text not null,
-  type text -- ثلاجة، عادية، إلخ
+  type text -- Ø«Ù„Ø§Ø¬Ø©ØŒ Ø¹Ø§Ø¯ÙŠØ©ØŒ Ø¥Ù„Ø®
 );
 
 -- 2. Unified vehicle documents (covers trucks AND trailers). Distinct from the
@@ -445,12 +445,12 @@ create table if not exists public.treasury_transactions (
   id bigint generated always as identity primary key,
   type text not null
     check (type in (
-      'capital_injection',  -- تزويد صاحب المشروع
-      'trip_revenue',       -- دخل فواتير الرحلات
-      'owner_withdrawal',   -- سحب صاحب المشروع
-      'office_expense',     -- مصاريف المكتب
-      'salary',             -- أجور الموظفين والسائقين
-      'trip_expense'        -- مصاريف الرحلات والعُهد
+      'capital_injection',  -- ØªØ²ÙˆÙŠØ¯ ØµØ§Ø­Ø¨ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹
+      'trip_revenue',       -- Ø¯Ø®Ù„ ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ø±Ø­Ù„Ø§Øª
+      'owner_withdrawal',   -- Ø³Ø­Ø¨ ØµØ§Ø­Ø¨ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹
+      'office_expense',     -- Ù…ØµØ§Ø±ÙŠÙ Ø§Ù„Ù…ÙƒØªØ¨
+      'salary',             -- Ø£Ø¬ÙˆØ± Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ† ÙˆØ§Ù„Ø³Ø§Ø¦Ù‚ÙŠÙ†
+      'trip_expense'        -- Ù…ØµØ§Ø±ÙŠÙ Ø§Ù„Ø±Ø­Ù„Ø§Øª ÙˆØ§Ù„Ø¹ÙÙ‡Ø¯
     )),
   amount numeric not null check (amount >= 0),
   description text,
@@ -479,8 +479,8 @@ create index if not exists treasury_transactions_created_at_idx
 --    id forces the table to hold exactly one row.
 create table if not exists public.app_settings (
   id integer primary key default 1,
-  percentage numeric not null default 20,       -- نسبة الـ TVA الافتراضية (مثلاً 20%)
-  is_enabled boolean not null default true,     -- تفعيل أو إلغاء الـ TVA تماماً
+  percentage numeric not null default 20,       -- Ù†Ø³Ø¨Ø© Ø§Ù„Ù€ TVA Ø§Ù„Ø§ÙØªØ±Ø§Ø¶ÙŠØ© (Ù…Ø«Ù„Ø§Ù‹ 20%)
+  is_enabled boolean not null default true,     -- ØªÙØ¹ÙŠÙ„ Ø£Ùˆ Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ù€ TVA ØªÙ…Ø§Ù…Ø§Ù‹
   constraint app_settings_single_row check (id = 1)
 );
 
@@ -551,7 +551,7 @@ create index if not exists treasury_transactions_receipt_idx
 -- 10. 20240101000009_advance_treasury_link.sql
 -- =====================================================================
 
--- Migration: link each advance (عهدة) to its treasury (cash-box) postings.
+-- Migration: link each advance (Ø¹Ù‡Ø¯Ø©) to its treasury (cash-box) postings.
 -- Stores the id of the base outflow tx and the optional overspend tx so the
 -- app can keep treasury_transactions in sync with advances. Safe to re-run.
 
@@ -628,27 +628,27 @@ create index if not exists drivers_user_id_idx
 -- 13. 0004_payments_allocations.sql
 -- =====================================================================
 
--- جداول الدفعات وتوزيعها على الفواتير (متوافقة مع أسماء أعمدة الكود في Dart)
--- مطابقة لـ models/payment.dart و models/payment_invoice_allocation.dart
--- العلاقة بين الدفعة والفواتير هي Many-to-Many عبر الجدول الوسيط.
--- ملاحظة: يعتمد هذا الجزء على وجود الجدولين clients و invoices مسبقاً.
+-- Ø¬Ø¯Ø§ÙˆÙ„ Ø§Ù„Ø¯ÙØ¹Ø§Øª ÙˆØªÙˆØ²ÙŠØ¹Ù‡Ø§ Ø¹Ù„Ù‰ Ø§Ù„ÙÙˆØ§ØªÙŠØ± (Ù…ØªÙˆØ§ÙÙ‚Ø© Ù…Ø¹ Ø£Ø³Ù…Ø§Ø¡ Ø£Ø¹Ù…Ø¯Ø© Ø§Ù„ÙƒÙˆØ¯ ÙÙŠ Dart)
+-- Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù€ models/payment.dart Ùˆ models/payment_invoice_allocation.dart
+-- Ø§Ù„Ø¹Ù„Ø§Ù‚Ø© Ø¨ÙŠÙ† Ø§Ù„Ø¯ÙØ¹Ø© ÙˆØ§Ù„ÙÙˆØ§ØªÙŠØ± Ù‡ÙŠ Many-to-Many Ø¹Ø¨Ø± Ø§Ù„Ø¬Ø¯ÙˆÙ„ Ø§Ù„ÙˆØ³ÙŠØ·.
+-- Ù…Ù„Ø§Ø­Ø¸Ø©: ÙŠØ¹ØªÙ…Ø¯ Ù‡Ø°Ø§ Ø§Ù„Ø¬Ø²Ø¡ Ø¹Ù„Ù‰ ÙˆØ¬ÙˆØ¯ Ø§Ù„Ø¬Ø¯ÙˆÙ„ÙŠÙ† clients Ùˆ invoices Ù…Ø³Ø¨Ù‚Ø§Ù‹.
 
--- 1) جدول الدفعات الإجمالية (payments)
+-- 1) Ø¬Ø¯ÙˆÙ„ Ø§Ù„Ø¯ÙØ¹Ø§Øª Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠØ© (payments)
 CREATE TABLE IF NOT EXISTS payments (
     id BIGSERIAL PRIMARY KEY,
     client_id BIGINT REFERENCES clients(id),
-    amount NUMERIC NOT NULL,                       -- المبلغ الإجمالي الذي دفعه الزبون (مثلاً 50000)
-    method TEXT,                                   -- طريقة الدفع (تحويل بنكي، شيك، نقداً، كمبيالة)
-    ref TEXT,                                      -- رقم الشيك أو المرجع/الوصل
+    amount NUMERIC NOT NULL,                       -- Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø°ÙŠ Ø¯ÙØ¹Ù‡ Ø§Ù„Ø²Ø¨ÙˆÙ† (Ù…Ø«Ù„Ø§Ù‹ 50000)
+    method TEXT,                                   -- Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹ (ØªØ­ÙˆÙŠÙ„ Ø¨Ù†ÙƒÙŠØŒ Ø´ÙŠÙƒØŒ Ù†Ù‚Ø¯Ø§Ù‹ØŒ ÙƒÙ…Ø¨ÙŠØ§Ù„Ø©)
+    ref TEXT,                                      -- Ø±Ù‚Ù… Ø§Ù„Ø´ÙŠÙƒ Ø£Ùˆ Ø§Ù„Ù…Ø±Ø¬Ø¹/Ø§Ù„ÙˆØµÙ„
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2) الجدول الوسيط لتقسيم الدفعة على الفواتير (payment_invoice_allocations)
+-- 2) Ø§Ù„Ø¬Ø¯ÙˆÙ„ Ø§Ù„ÙˆØ³ÙŠØ· Ù„ØªÙ‚Ø³ÙŠÙ… Ø§Ù„Ø¯ÙØ¹Ø© Ø¹Ù„Ù‰ Ø§Ù„ÙÙˆØ§ØªÙŠØ± (payment_invoice_allocations)
 CREATE TABLE IF NOT EXISTS payment_invoice_allocations (
     id BIGSERIAL PRIMARY KEY,
     payment_id BIGINT REFERENCES payments(id) ON DELETE CASCADE,
     invoice_id BIGINT REFERENCES invoices(id) ON DELETE CASCADE,
-    allocated_amount NUMERIC NOT NULL              -- كم خُصص من هذه الدفعة لهذه الفاتورة بالتحديد
+    allocated_amount NUMERIC NOT NULL              -- ÙƒÙ… Ø®ÙØµØµ Ù…Ù† Ù‡Ø°Ù‡ Ø§Ù„Ø¯ÙØ¹Ø© Ù„Ù‡Ø°Ù‡ Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø¨Ø§Ù„ØªØ­Ø¯ÙŠØ¯
 );
 
 CREATE INDEX IF NOT EXISTS idx_payments_client_id ON payments(client_id);
@@ -704,6 +704,380 @@ create policy "Manage trip_order_documents"
 
 grant select, insert, update, delete on table public.trip_order_documents to authenticated, anon;
 
+
+-- =====================================================================
+-- 15. 20250720210000_clients_invoice_with_tva.sql
+-- =====================================================================
+
+-- Migration: add invoice_with_tva column to clients table.
+-- Safe to re-run: guarded with IF NOT EXISTS.
+
+alter table public.clients
+  add column if not exists invoice_with_tva boolean not null default false;
+
+-- Bump cache.
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 16. 20250719110000_fleet_doc_type_free_text.sql
+-- =====================================================================
+
+-- Migration: convert fleet_documents.category_id (FK) into free-text doc_type
+DO $$
+DECLARE
+  v_conname text;
+BEGIN
+  SELECT tc.constraint_name
+    INTO v_conname
+    FROM information_schema.table_constraints tc
+   WHERE tc.table_schema = 'public'
+     AND tc.table_name   = 'fleet_documents'
+     AND tc.constraint_type = 'FOREIGN KEY'
+     AND tc.constraint_name = 'fleet_documents_category_id_fkey';
+
+  IF v_conname IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE public.fleet_documents DROP CONSTRAINT %I;', v_conname);
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  v_has_old int;
+BEGIN
+  SELECT COUNT(*)
+    INTO v_has_old
+    FROM information_schema.columns
+   WHERE table_schema = 'public'
+     AND table_name   = 'fleet_documents'
+     AND column_name  = 'category_id';
+
+  IF v_has_old = 1 THEN
+    EXECUTE 'ALTER TABLE public.fleet_documents RENAME COLUMN category_id TO doc_type;';
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  v_dtype text;
+BEGIN
+  SELECT data_type
+    INTO v_dtype
+    FROM information_schema.columns
+   WHERE table_schema = 'public'
+     AND table_name   = 'fleet_documents'
+     AND column_name  = 'doc_type';
+
+  IF v_dtype IS NOT NULL AND v_dtype <> 'text' THEN
+    EXECUTE 'ALTER TABLE public.fleet_documents ALTER COLUMN doc_type TYPE text USING doc_type::text;';
+  END IF;
+END $$;
+
+ALTER TABLE public.fleet_documents ALTER COLUMN doc_type DROP NOT NULL;
+
+UPDATE public.system_settings SET updated_at = now() WHERE id = 1;
+
+
+-- =====================================================================
+-- 17. 20250722000000_trailer_maintenance.sql
+-- =====================================================================
+
+-- trailer_maintenance table
+create table if not exists public.trailer_maintenance (
+  id            serial primary key,
+  trailer_id    integer not null,
+  expense_type  text not null,
+  description   text,
+  amount        numeric not null,
+  km_at_time    numeric,
+  due_date      text,
+  payment_status text default 'paid_by_owner',
+  provider_name text,
+  maintenance_date text not null,
+  created_at    text default now(),
+  updated_at    text default now()
+);
+
+create index if not exists idx_trailer_maintenance_trailer_id
+  on public.trailer_maintenance (trailer_id);
+
+alter table public.trailer_maintenance enable row level security;
+
+drop policy if exists "Allow authenticated access" on public.trailer_maintenance;
+create policy "Allow authenticated access"
+  on public.trailer_maintenance
+  for all
+  to authenticated
+  using (true)
+  with check (true);
+
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 18. 20250723000000_add_model_and_oil_tracking.sql
+-- =====================================================================
+
+-- Migration: add truck model column, daily km average, and oil-change tracking fields
+-- Safe to re-run: all ALTERs are guarded with IF NOT EXISTS.
+
+-- 1. Trucks: add model text and daily_km_average numeric
+alter table public.trucks
+  add column if not exists model text,
+  add column if not exists daily_km_average numeric;
+
+-- 2. Truck maintenance: add oil change tracking columns
+alter table public.truck_maintenance
+  add column if not exists oil_interval_km numeric,
+  add column if not exists next_change_km numeric,
+  add column if not exists next_change_date date;
+
+-- Bump cache
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 19. 20250724000000_add_default_driver_to_trucks.sql
+-- =====================================================================
+
+-- Migration: add default_driver_id column to trucks
+-- Safe to re-run: guarded with IF NOT EXISTS.
+
+alter table public.trucks
+  add column if not exists default_driver_id integer references public.drivers(id) on delete set null;
+
+-- Unique constraint: one truck per default driver at most
+create unique index if not exists idx_trucks_default_driver_id
+  on public.trucks (default_driver_id)
+  where default_driver_id is not null;
+
+
+-- =====================================================================
+-- 20. 20250101000015_truck_locations.sql
+-- =====================================================================
+
+-- Add GPS location tracking columns to the trucks table
+-- These columns are used by the truck tracking screen for realtime fleet monitoring
+alter table public.trucks
+  add column if not exists current_latitude double precision,
+  add column if not exists current_longitude double precision,
+  add column if not exists current_location text;
+
+-- Enable RLS on the trucks table if not already enabled
+alter table public.trucks enable row level security;
+
+drop policy if exists "Authenticated users can view truck locations" on public.trucks;
+create policy "Authenticated users can view truck locations"
+  on public.trucks for select
+  to authenticated
+  using (true);
+
+drop policy if exists "Authenticated users can update truck locations" on public.trucks;
+create policy "Authenticated users can update truck locations"
+  on public.trucks for update
+  to authenticated
+  using (true)
+  with check (true);
+
+
+-- =====================================================================
+-- 21. 20250719100000_trucks_default_trailer.sql
+-- =====================================================================
+
+-- Migration: Adds the "default trailer" concept to the transport app.
+-- Each truck head (public.trucks) can reference a default trailer
+-- (public.trailers) via the new default_trailer_id column.
+-- The column is nullable: a truck may have no default trailer.
+-- The foreign key uses ON DELETE SET NULL so removing a trailer
+-- does not break the referencing truck.
+-- All statements are guarded to be safe to re-run.
+
+-- 1. Add the nullable default_trailer_id column to public.trucks.
+alter table public.trucks
+  add column if not exists default_trailer_id integer;
+
+-- 2. Add the foreign key constraint to public.trailers(id).
+--    Postgres has no "ADD CONSTRAINT IF NOT EXISTS", so guard it in PL/pgSQL.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.table_constraints
+    where constraint_name = 'trucks_default_trailer_fkey'
+      and table_schema = 'public'
+      and table_name = 'trucks'
+  ) then
+    alter table public.trucks
+      add constraint trucks_default_trailer_fkey
+      foreign key (default_trailer_id)
+      references public.trailers(id)
+      on delete set null;
+  end if;
+end $$;
+
+-- 3. Bump the cache (project convention).
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 22. 20250720100000_trucks_status_column.sql
+-- =====================================================================
+
+-- Add status column to trucks table if missing.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'trucks'
+      and column_name = 'status'
+  ) then
+    alter table public.trucks
+      add column status text not null default 'active';
+  end if;
+end $$;
+
+-- Bump cache.
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 23. 20250720100001_trailers_status_column.sql
+-- =====================================================================
+
+-- Add status column to trailers table if missing.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'trailers'
+      and column_name = 'status'
+  ) then
+    alter table public.trailers
+      add column status text not null default 'active';
+  end if;
+end $$;
+
+-- Bump cache.
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 24. 20250725000000_add_truck_purchase_weight_power.sql
+-- =====================================================================
+
+-- Migration: add purchase date, empty weight, and fiscal power to trucks
+-- Safe to re-run: all ALTERs are guarded with IF NOT EXISTS.
+
+alter table public.trucks
+  add column if not exists purchase_date date,
+  add column if not exists empty_weight numeric,
+  add column if not exists fiscal_power numeric;
+
+-- Bump cache
+update public.system_settings set updated_at = now() where id = 1;
+
+
+
+-- =====================================================================
+-- 20260724000001: Repair invoices and workshop payments tables
+-- =====================================================================
+-- جداول فواتير إصلاح الورش والدفعات الخاصة بها
+-- يُطبَّق مبدأ FIFO (أقدم فاتورة أولاً) لتسوية الديون
+
+-- 1) جدول فواتير الإصلاح (repair_invoices)
+create table if not exists public.repair_invoices (
+  id bigserial primary key,
+  workshop_id text not null,
+  vehicle_id text,
+  vehicle_type text check (vehicle_type in ('truck', 'trailer')),
+  invoice_number text not null,
+  total_amount numeric not null default 0,
+  paid_amount numeric not null default 0,
+  remaining_amount numeric generated always as (total_amount - paid_amount) stored,
+  status text not null default 'unpaid' check (status in ('unpaid', 'partially_paid', 'paid')),
+  date timestamp not null default now(),
+  description text,
+  payment_method text,
+  payment_ref text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_repair_invoices_workshop on public.repair_invoices(workshop_id);
+create index if not exists idx_repair_invoices_vehicle on public.repair_invoices(vehicle_id);
+create index if not exists idx_repair_invoices_status on public.repair_invoices(status);
+create index if not exists idx_repair_invoices_date on public.repair_invoices(date);
+create unique index if not exists idx_repair_invoices_number on public.repair_invoices(invoice_number);
+
+-- 2) جدول دفعات تسوية فواتير الورش (workshop_payments)
+create table if not exists public.workshop_payments (
+  id bigserial primary key,
+  workshop_id text not null,
+  amount numeric not null,
+  method text not null,
+  ref text,
+  vehicle_type text check (vehicle_type in ('truck', 'trailer')),
+  vehicle_id text,
+  payment_date timestamp not null default now(),
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_workshop_payments_workshop on public.workshop_payments(workshop_id);
+create index if not exists idx_workshop_payments_date on public.workshop_payments(payment_date);
+
+-- 3) جدول توزيع الدفعة على فواتير الإصلاح (workshop_payment_allocations)
+create table if not exists public.workshop_payment_allocations (
+  id bigserial primary key,
+  payment_id bigint not null references public.workshop_payments(id) on delete cascade,
+  repair_invoice_id bigint not null references public.repair_invoices(id) on delete cascade,
+  allocated_amount numeric not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_wpa_payment on public.workshop_payment_allocations(payment_id);
+create index if not exists idx_wpa_invoice on public.workshop_payment_allocations(repair_invoice_id);
+
+-- 4) تفعيل RLS
+alter table public.repair_invoices enable row level security;
+alter table public.workshop_payments enable row level security;
+alter table public.workshop_payment_allocations enable row level security;
+
+-- 5) سياسات RLS
+create policy "Authenticated read repair invoices" on public.repair_invoices for select to authenticated using (true);
+create policy "Authenticated insert repair invoices" on public.repair_invoices for insert to authenticated with check (true);
+create policy "Authenticated update repair invoices" on public.repair_invoices for update to authenticated using (true) with check (true);
+create policy "Authenticated delete repair invoices" on public.repair_invoices for delete to authenticated using (true);
+create policy "Authenticated read workshop payments" on public.workshop_payments for select to authenticated using (true);
+create policy "Authenticated insert workshop payments" on public.workshop_payments for insert to authenticated with check (true);
+create policy "Authenticated update workshop payments" on public.workshop_payments for update to authenticated using (true) with check (true);
+create policy "Authenticated delete workshop payments" on public.workshop_payments for delete to authenticated using (true);
+create policy "Authenticated read workshop allocations" on public.workshop_payment_allocations for select to authenticated using (true);
+create policy "Authenticated insert workshop allocations" on public.workshop_payment_allocations for insert to authenticated with check (true);
+create policy "Authenticated delete workshop allocations" on public.workshop_payment_allocations for delete to authenticated using (true);
+
+-- 6) Trigger لتحديث remaining_amount تلقائياً
+create or replace function public.update_repair_invoice_remaining() returns trigger as \$\$
+begin
+  new.remaining_amount := new.total_amount - new.paid_amount;
+  if new.remaining_amount <= 0 then
+    new.status := 'paid';
+    new.paid_amount := new.total_amount;
+    new.remaining_amount := 0;
+  elsif new.paid_amount > 0 and new.remaining_amount > 0 then
+    new.status := 'partially_paid';
+  else
+    new.status := 'unpaid';
+    new.paid_amount := 0;
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+\$\$ language plpgsql;
+
+drop trigger if exists trg_update_repair_invoice_remaining on public.repair_invoices;
+create trigger trg_update_repair_invoice_remaining before insert or update on public.repair_invoices for each row execute function public.update_repair_invoice_remaining();
 
 -- =====================================================================
 -- END OF CONSOLIDATED MIGRATION

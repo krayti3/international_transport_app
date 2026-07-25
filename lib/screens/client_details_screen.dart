@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
+import '../models/client.dart';
 import '../l10n/app_localizations.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -53,13 +54,14 @@ class _ClientDetailsScreenState extends State<ClientDetailsScreen> {
   }
 
   Future<void> _confirmDelete() async {
-    if (_hasLinkedRecords) {
+    final inUse = await _supabaseService.isClientInUse(widget.client['id'] as int);
+    if (inUse) {
       if (!mounted) return;
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: Text(context.tr('تأكيد الحذف')),
-          content: Text(context.tr('لا يمكن حذف الزبون لوجود فواتير أو رحلات مرتبطة')),
+          content: Text(context.tr('لا يمكن حذف الزبون لأنه مرتبط ببيانات أخرى')),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -170,18 +172,15 @@ class _ClientDetailsScreenState extends State<ClientDetailsScreen> {
                 );
                 return;
               }
-              final data = {
-                'name': name,
-                'phone': phoneController.text.trim(),
-                'address': addressController.text.trim(),
-                'city': cityController.text.trim(),
-                'nom_contact': nomContactController.text.trim(),
-                'adresse_facturation': adresseFactController.text.trim(),
-              };
-              await _supabaseService.updateClient(
-                widget.client['id'] as int,
-                data,
+              final updatedClient = Client.fromMap(widget.client).copyWith(
+                name: name,
+                phone: phoneController.text.trim(),
+                address: addressController.text.trim(),
+                city: cityController.text.trim(),
+                nomContact: nomContactController.text.trim(),
+                adresseFacturation: adresseFactController.text.trim(),
               );
+              await _supabaseService.updateClient(updatedClient);
               if (!context.mounted) return;
               Navigator.pop(context);
               widget.onUpdated();

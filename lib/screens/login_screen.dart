@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../l10n/app_localizations.dart';
+import '../providers/theme_provider.dart';
 
 import 'signup_screen.dart';
 
@@ -12,6 +15,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const String _lastEmailKey = 'lastEmail';
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -19,8 +23,37 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadLastEmail();
+  }
+
+  Future<void> _loadLastEmail() async {
+    try {
+      final box = await Hive.openBox('settings');
+      final lastEmail = box.get(_lastEmailKey);
+      if (lastEmail is String && lastEmail.isNotEmpty && mounted) {
+        setState(() => _emailController.text = lastEmail);
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _saveLastEmail(String email) async {
+    try {
+      final box = await Hive.openBox('settings');
+      await box.put(_lastEmailKey, email);
+    } catch (_) {
+      // ignore
+    }
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final email = _emailController.text.trim();
 
     setState(() {
       _isLoading = true;
@@ -28,16 +61,44 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
         password: _passwordController.text,
       );
+
+      await _saveLastEmail(email);
+
+      final userId = response.user?.id;
+      if (userId != null && mounted) {
+        final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+        await themeProvider.initialize(userId);
+        try {
+          final userRow = await Supabase.instance.client.from('users').select('theme_mode').eq('id', userId).maybeSingle();
+          final modeStr = userRow?['theme_mode']?.toString() ?? 'system';
+          ThemeMode mode;
+          switch (modeStr) {
+            case 'dark':
+              mode = ThemeMode.dark;
+              break;
+            case 'light':
+              mode = ThemeMode.light;
+              break;
+            default:
+              mode = ThemeMode.system;
+          }
+          if (mounted) {
+            await themeProvider.setThemeMode(mode, userId: userId);
+          }
+        } catch (e) {
+          debugPrint('Login theme sync error: $e');
+        }
+      }
     } on AuthException catch (e) {
       setState(() => _errorMessage = e.message);
     } catch (e) {
       setState(() => _errorMessage = context.tr('حدث خطأ غير متوقع'));
-    } finally {
-      setState(() => _isLoading = false);
+    }     finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -62,6 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
                   decoration: InputDecoration(
                     labelText: context.tr('البريد الإلكتروني'),
                     prefixIcon: Icon(Icons.email),
@@ -79,6 +141,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  autofillHints: const [AutofillHints.newPassword],
+                  keyboardType: TextInputType.visiblePassword,
                   decoration: InputDecoration(
                     labelText: context.tr('كلمة المرور'),
                     prefixIcon: const Icon(Icons.lock),

@@ -26,16 +26,47 @@ class _FleetAlertsScreenState extends State<FleetAlertsScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final docs = await _supabaseService.getDocuments();
-    final trucks = await _supabaseService.getTrucks();
-    final trailers = await _supabaseService.getTrailers();
-    if (mounted) {
-      setState(() {
-        _documents = docs;
-        _trucks = trucks;
-        _trailers = trailers;
-        _isLoading = false;
-      });
+    try {
+      final docs = await _supabaseService.getDocuments();
+      final truckDocs = await _supabaseService.getTruckDocuments();
+      final fleetDocs = await _supabaseService.getFleetDocuments();
+      final trucks = await _supabaseService.getTrucks();
+      final trailers = await _supabaseService.getTrailers();
+
+      final combined = <Map<String, dynamic>>[];
+      for (final row in docs) {
+        combined.add(Map<String, dynamic>.from(row));
+      }
+      for (final row in truckDocs) {
+        final normalized = Map<String, dynamic>.from(row);
+        normalized['vehicle_type'] = 'truck';
+        normalized['vehicle_id'] = row['truck_id'];
+        normalized['document_name'] = row['document_number']?.toString().isNotEmpty == true
+            ? '${row['type']} - ${row['document_number']}'
+            : (row['type']?.toString() ?? 'مستند');
+        combined.add(normalized);
+      }
+      for (final row in fleetDocs) {
+        final normalized = Map<String, dynamic>.from(row);
+        normalized['vehicle_type'] = row['entity_type']?.toString() ?? 'truck';
+        normalized['vehicle_id'] = (row['entity_id'] as num?)?.toInt();
+        normalized['document_name'] = row['doc_type']?.toString() ?? 'مستند';
+        combined.add(normalized);
+      }
+
+      if (mounted) {
+        setState(() {
+          _documents = combined;
+          _trucks = trucks;
+          _trailers = trailers;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading fleet alerts: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -106,7 +137,7 @@ class _FleetAlertsScreenState extends State<FleetAlertsScreen> {
         margin: const EdgeInsets.symmetric(vertical: 6),
         child: ListTile(
           leading: Icon(Icons.oil_barrel, color: color),
-          title: Text('تغيير الزيت — ${truck['plate']?.toString() ?? truck['plate_number']?.toString() ?? ''}'),
+          title: Text('تغيير الزيت — ${truck['plate']?.toString() ?? truck['plate_number']?.toString() ?? ''}', textDirection: TextDirection.ltr, textAlign: TextAlign.left),
           subtitle: Text(
             'العداد الحالي: ${currentKm.toStringAsFixed(0)} كم\n'
             'موعد تغيير الزيت عند: ${oilKm.toStringAsFixed(0)} كم',

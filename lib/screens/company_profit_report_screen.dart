@@ -35,7 +35,7 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
     final report = await _supabaseService.getCompanyProfitReport();
     if (!mounted) return;
     setState(() {
-      _report = report;
+      _report = report.map((k, v) => MapEntry(k, (v as num).toDouble()));
       _isLoading = false;
     });
   }
@@ -57,7 +57,9 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
     );
 
     try {
-      final bytes = await ExcelService.instance.exportFinancialReport(_report);
+      final bytes = await ExcelService.instance.exportFinancialReport(
+        _report.map((k, v) => MapEntry(k, v.toDouble())),
+      );
       await ExcelService.instance.shareExcel(bytes, 'تقرير_الأرباح');
     } catch (e) {
       if (mounted) {
@@ -81,16 +83,16 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
       );
     }
 
-    final revenueWithTva = _report['total_revenue_with_tva'] ?? 0.0;
-    final tvaAmount = _report['tva_amount'] ?? 0.0;
-    final revenue = _report['total_revenue'] ?? 0.0;
-    final tripExpense = _report['trip_expense'] ?? 0.0;
-    final officeExpense = _report['office_expense'] ?? 0.0;
-    final salary = _report['salary'] ?? 0.0;
-    final truckMaintenance = _report['truck_maintenance'] ?? 0.0;
-    final totalExpenses = _report['total_expenses'] ?? 0.0;
-    final grossProfit = _report['gross_profit'] ?? 0.0;
-    final netProfit = _report['net_profit'] ?? 0.0;
+      final revenueWithTva = _report['total_revenue_with_tva'] ?? 0.0;
+      final tvaAmount = _report['tva_amount'] ?? 0.0;
+      final revenue = _report['total_revenue'] ?? 0.0;
+      final tripExpense = _report['trip_expense'] ?? 0.0;
+      final officeExpense = _report['office_expense'] ?? 0.0;
+      final salary = _report['salary'] ?? 0.0;
+      final truckMaintenance = _report['truck_maintenance'] ?? 0.0;
+      final totalExpenses = _report['total_expenses'] ?? 0.0;
+      final grossProfit = _report['gross_profit'] ?? 0.0;
+      final netProfit = _report['net_profit'] ?? 0.0;
 
     final monthLabel = '${DateTime.now().month}/${DateTime.now().year}';
 
@@ -149,7 +151,7 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
               SummaryCard(
                 title: context.tr('صافي الأرباح'),
                 value: '${netProfit.toStringAsFixed(2)} DH',
-                color: netProfit >= 0 ? Colors.green : Colors.red,
+                color: netProfit >= 0.0 ? Colors.green : Colors.red,
                 isLarge: true,
               ),
               const SizedBox(height: 24),

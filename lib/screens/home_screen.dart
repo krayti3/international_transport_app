@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
+
+import '../providers/theme_provider.dart';
 
 import '../widgets/role_guard.dart';
 import 'admin_dashboard_screen.dart';
@@ -26,12 +29,22 @@ import 'secretary_ledger_screen.dart';
 import 'secretary_dashboard_screen.dart';
 import 'drivers_screen.dart';
 import 'trucks_screen.dart';
+import 'trailers_screen.dart';
 import 'truck_maintenance_screen.dart';
+import 'providers_screen.dart';
+import 'expense_workshop_report_screen.dart';
 import 'truck_documents_screen.dart';
+import 'oil_change_alerts_screen.dart';
 import 'fleet_alerts_screen.dart';
 import 'clients_screen.dart';
 import 'driver_tasks_screen.dart';
 import 'fleet_docs_screen.dart';
+import 'expense_categories_screen.dart';
+import 'document_categories_screen.dart';
+import 'workshop_repairs_screen.dart';
+import 'trailer_maintenance_screen.dart';
+
+import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -46,6 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentTabIndex = 0;
   String _userRole = 'Driver';
   String _userEmail = '';
+  String? _logoUrl;
+  Set<String> _expandedSections = {};
 
   bool _isLoadingAdvances = true;
   double _totalAdvancesGiven = 0.0;
@@ -66,6 +81,25 @@ class _HomeScreenState extends State<HomeScreen> {
     _fetchUserSessionAndRole();
     _loadExpiringVisasCount();
     _loadExpiringFleetDocsCount();
+    _loadLogo();
+    _expandedSections = {};
+  }
+
+  Future<void> _loadLogo() async {
+    try {
+      final response = await _supabase
+          .from('system_settings')
+          .select()
+          .eq('id', 1)
+          .maybeSingle();
+      if (mounted) {
+        setState(() {
+          _logoUrl = response?['logo_url']?.toString();
+        });
+      }
+    } catch (e) {
+      // Keep default icon on error
+    }
   }
 
   void _fetchUserSessionAndRole() {
@@ -171,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showAlertDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     final totalAlerts = _expiringVisasCount + _expiringFleetDocs.length;
     if (totalAlerts == 0) return;
 
@@ -182,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.warning_rounded, color: Colors.orange),
+              Icon(Icons.warning_rounded, color: colorScheme.tertiary),
               const SizedBox(width: 8),
               Text('تنبيهات الانتهاء ($totalAlerts)'),
             ],
@@ -204,9 +238,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      _buildVisaList(isDark),
-                      _buildFleetDocList(_expiringTruckDocs, 'truck', isDark),
-                      _buildFleetDocList(_expiringTrailerDocs, 'trailer', isDark),
+                      _buildVisaList(),
+                      _buildFleetDocList(_expiringTruckDocs, 'truck'),
+                      _buildFleetDocList(_expiringTrailerDocs, 'trailer'),
                     ],
                   ),
                 ),
@@ -221,9 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildVisaList(bool isDark) {
+  Widget _buildVisaList() {
+    final colorScheme = Theme.of(context).colorScheme;
     if (_expiringVisas.isEmpty) {
-      return Center(child: Text('لا توجد تأشيرات منتهية', style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600])));
+      return Center(child: Text('لا توجد تأشيرات منتهية', style: TextStyle(color: colorScheme.onSurfaceVariant)));
     }
     return ListView.builder(
       itemCount: _expiringVisas.length,
@@ -252,9 +287,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFleetDocList(List<Map<String, dynamic>> docs, String entityType, bool isDark) {
+  Widget _buildFleetDocList(List<Map<String, dynamic>> docs, String entityType) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (docs.isEmpty) {
-      return Center(child: Text('لا توجد وثائق منتهية', style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600])));
+      return Center(child: Text('لا توجد وثائق منتهية', style: TextStyle(color: colorScheme.onSurfaceVariant)));
     }
     return ListView.builder(
       itemCount: docs.length,
@@ -302,7 +338,24 @@ class _HomeScreenState extends State<HomeScreen> {
     await _supabase.auth.signOut();
   }
 
-  Widget _buildAdvancesDashboardCard(bool isDark) {
+  void _toggleTheme() {
+    String? userId;
+    final session = _supabase.auth.currentSession;
+    if (session != null) {
+      userId = session.user.id;
+    }
+    if (userId == null) {
+      final user = _supabase.auth.currentUser;
+      if (user != null) {
+        userId = user.id;
+      }
+    }
+    debugPrint('Theme toggle - userId: $userId, current mode: ${context.read<ThemeProvider>().themeMode}');
+    context.read<ThemeProvider>().toggleThemeForCurrentUser(userId);
+  }
+
+  Widget _buildAdvancesDashboardCard() {
+    final colorScheme = Theme.of(context).colorScheme;
     final numberFormat = NumberFormat('#,###.00');
     final bool isPositiveBalance = _remainingBalance >= 0;
 
@@ -310,11 +363,11 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+            color: colorScheme.shadow.withValues(alpha: 0.15),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -325,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.account_balance_wallet_rounded, color: Colors.teal[600], size: 22),
+              Icon(Icons.account_balance_wallet_rounded, color: colorScheme.primary, size: 22),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -333,12 +386,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: isDark ? Colors.white : Colors.blueGrey[900],
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.refresh_rounded, color: Colors.teal[600]),
+                icon: Icon(Icons.refresh_rounded, color: colorScheme.primary),
                 tooltip: 'تحديث',
                 onPressed: _isLoadingAdvances ? null : _loadAdvancesSummary,
               ),
@@ -358,8 +411,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: 'إجمالي العُهد المسلمة',
                     value: '${numberFormat.format(_totalAdvancesGiven)} DH',
                     icon: Icons.send_rounded,
-                    color: Colors.orange,
-                    isDark: isDark,
+                    color: Theme.of(context).colorScheme.secondary,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -368,8 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: 'إجمالي المصاريف المرجعة',
                     value: '${numberFormat.format(_totalExpensesReturned)} DH',
                     icon: Icons.receipt_long_rounded,
-                    color: Colors.blue,
-                    isDark: isDark,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -378,8 +429,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: 'الرصيد المتبقي',
                     value: '${numberFormat.format(_remainingBalance)} DH',
                     icon: isPositiveBalance ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                    color: isPositiveBalance ? Colors.green : Colors.red,
-                    isDark: isDark,
+                    color: isPositiveBalance ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error,
                   ),
                 ),
               ],
@@ -391,8 +441,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final bool isAdmin = _userRole == 'Admin';
     final bool isSecretary = _userRole == 'Secretary';
     final bool isDriver = _userRole == 'Driver';
@@ -433,8 +481,8 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text(appBarTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.blueGrey[900],
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         centerTitle: true,
         actions: [
           if (!isDriver)
@@ -473,6 +521,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           IconButton(
+            icon: Icon(
+              Theme.of(context).brightness == Brightness.dark
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+            ),
+            tooltip: Theme.of(context).brightness == Brightness.dark ? 'الوضع المضيء' : 'الوضع الداكن',
+            onPressed: _toggleTheme,
+          ),
+          IconButton(
             icon: const Icon(Icons.power_settings_new_rounded, color: Colors.orangeAccent),
             tooltip: 'تسجيل الخروج',
             onPressed: () {
@@ -483,24 +540,28 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       drawer: isDriver ? null : Drawer(
-        backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E1E) : Colors.blueGrey[900],
+                color: Theme.of(context).colorScheme.primaryContainer,
               ),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.teal[700],
-                child: const Icon(Icons.local_shipping_rounded, color: Colors.white, size: 36),
-              ),
+              currentAccountPicture: _logoUrl != null && _logoUrl!.isNotEmpty
+                  ? CircleAvatar(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      backgroundImage: NetworkImage(_logoUrl!),
+                    )
+                  : CircleAvatar(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      child: Icon(Icons.local_shipping_rounded, color: Theme.of(context).colorScheme.onPrimary, size: 36),
+                    ),
               accountName: Text(isAdmin ? 'صاحب العمل (إدارة عليا)' : isSecretary ? 'السكرتير' : 'السائق', style: const TextStyle(fontWeight: FontWeight.bold)),
-              accountEmail: Text(_userEmail, style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600], fontSize: 12)),
+              accountEmail: Text(_userEmail, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
             ),
 
-            if (isAdmin) ...[
-              _buildDrawerGroupHeader('لوحة التحكم والملخصات'),
+            _buildDrawerSection('لوحة التحكم والملخصات', isAdmin ? [
               _buildDrawerItem(Icons.business_rounded, 'لوحة المالك', () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const OwnerDashboardScreen())));
@@ -513,130 +574,186 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const CompanyProfitReportScreen())));
               }),
-              _buildDrawerItem(Icons.settings_rounded, 'إعدادات النظام', () {
+              _buildDrawerItem(Icons.settings_rounded, 'إعدادات الشركة', () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const SystemSettingsScreen())));
               }),
-              const Divider(height: 20),
-            ],
+            ] : []),
 
-            _buildDrawerGroupHeader('الرحلات والسفر الدولي'),
-            if (isAdmin) ...[
-              _buildDrawerItem(Icons.public_rounded, 'إنشاء رحلة دولية', () {
+            _buildDrawerSection('الرحلات والسفر الدولي', [
+              if (isAdmin) ...[
+                _buildDrawerItem(Icons.public_rounded, 'إنشاء رحلة دولية', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const InternationalTripScreen()));
+                }),
+                _buildDrawerItem(Icons.assignment_rounded, 'نموذج تسليم عهدة', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TripFormScreen()));
+                }),
+              ],
+              _buildDrawerItem(Icons.list_alt_rounded, 'أوامر الرحلات', () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const InternationalTripScreen()));
+                Navigator.push(context, MaterialPageRoute(builder: (_) => TripOrdersScreen(isAdmin: isAdmin)));
               }),
-              _buildDrawerItem(Icons.assignment_rounded, 'نموذج تسليم عهدة', () {
+              _buildDrawerItem(Icons.directions_car_rounded, 'الرحلات الحالية', () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const TripFormScreen()));
+                Navigator.push(context, MaterialPageRoute(builder: (_) => CurrentTripsScreen(isAdmin: isAdmin)));
               }),
-            ],
-            _buildDrawerItem(Icons.list_alt_rounded, 'أوامر الرحلات', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => TripOrdersScreen(isAdmin: isAdmin)));
-            }),
-            _buildDrawerItem(Icons.directions_car_rounded, 'الرحلات الحالية', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => CurrentTripsScreen(isAdmin: isAdmin)));
-            }),
+            ]),
 
-            const Divider(height: 20),
-
-            _buildDrawerGroupHeader('الفواتير والمدفوعات'),
-            _buildDrawerItem(Icons.receipt_long_rounded, 'الفواتير', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => InvoicesScreen(isAdmin: isAdmin)));
-            }),
-            _buildDrawerItem(Icons.money_off_rounded, 'الفواتير المتأخرة', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const OutstandingInvoicesScreen()));
-            }),
-            _buildDrawerItem(Icons.notification_important_rounded, 'تذكيرات التأخر', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const OverdueRemindersScreen()));
-            }),
-            _buildDrawerItem(Icons.timeline_rounded, 'تقرير العمر', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const AgingReportScreen()));
-            }),
-            _buildDrawerItem(Icons.analytics_rounded, 'تقارير العملاء', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientReportsScreen()));
-            }),
-
-            const Divider(height: 20),
-
-            _buildDrawerGroupHeader('الخزينة المالية'),
-            _buildDrawerItem(Icons.account_balance_rounded, 'الخزينة وحركات الصندوق', () {
-              Navigator.pop(context);
-              setState(() => _currentTabIndex = 1);
-            }),
-            _buildDrawerItem(Icons.menu_book_rounded, 'دفتر السكرتيرة الموحد', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => SecretaryLedgerScreen(userRole: _userRole.toLowerCase())));
-            }),
-            if (isAdmin) ...[
-              _buildDrawerItem(Icons.manage_accounts_rounded, 'إدارة الخزينة', () {
+            _buildDrawerSection('الفواتير والمدفوعات', [
+              _buildDrawerItem(Icons.receipt_long_rounded, 'الفواتير', () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const TreasuryManagementScreen())));
+                Navigator.push(context, MaterialPageRoute(builder: (_) => InvoicesScreen(isAdmin: isAdmin)));
               }),
-            ],
+              _buildDrawerItem(Icons.money_off_rounded, 'الفواتير المتأخرة', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const OutstandingInvoicesScreen()));
+              }),
+              _buildDrawerItem(Icons.notification_important_rounded, 'تذكيرات التأخر', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const OverdueRemindersScreen()));
+              }),
+              _buildDrawerItem(Icons.timeline_rounded, 'تقرير العمر', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AgingReportScreen()));
+              }),
+              _buildDrawerItem(Icons.analytics_rounded, 'تقارير العملاء', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientReportsScreen()));
+              }),
+              _buildDrawerItem(Icons.group_rounded, 'قائمة العملاء', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ClientsScreen(isAdmin: isAdmin)));
+              }),
+            ]),
+
+            _buildDrawerSection('الخزينة المالية', [
+              _buildDrawerItem(Icons.account_balance_rounded, 'الخزينة وحركات الصندوق', () {
+                Navigator.pop(context);
+                setState(() => _currentTabIndex = 1);
+              }),
+              _buildDrawerItem(Icons.menu_book_rounded, 'دفتر السكرتيرة الموحد', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => SecretaryLedgerScreen(userRole: _userRole.toLowerCase())));
+              }),
+              if (isAdmin)
+                _buildDrawerItem(Icons.manage_accounts_rounded, 'إدارة الخزينة', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const TreasuryManagementScreen())));
+                }),
+            ]),
+
+            _buildDrawerSection('الأسطول والمركبات', [
+              _buildNestedDrawerGroup('الشاحنات', [
+                _buildNestedDrawerItem(Icons.local_shipping_rounded, 'قائمة الشاحنات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => TrucksScreen(isAdmin: isAdmin)));
+                }),
+                _buildNestedDrawerItem(Icons.folder_rounded, 'وثائق الشاحنات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => TruckDocumentsScreen(isAdmin: isAdmin)));
+                }),
+                _buildNestedDrawerItem(Icons.category_rounded, 'أنواع وثائق الأسطول', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const DocumentCategoriesScreen()));
+                }),
+                _buildNestedDrawerItem(Icons.build_rounded, 'صيانة الشاحنات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => TruckMaintenanceScreen(isAdmin: isAdmin)));
+                }),
+                _buildNestedDrawerItem(Icons.category_rounded, 'أنواع مصروفات الإصلاحات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseCategoriesScreen()));
+                }),
+                _buildNestedDrawerItem(Icons.oil_barrel_rounded, 'سجلات تغيير الزيت', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const OilChangeAlertsScreen(isAdmin: true)));
+                }),
+                _buildNestedDrawerItem(Icons.warning_rounded, 'تنبيهات الأسطول', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const FleetAlertsScreen()));
+                }),
+              ]),
+              _buildNestedDrawerGroup('المقطورات', [
+                _buildNestedDrawerItem(Icons.directions_railway_rounded, 'قائمة المقطورات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => TrailersScreen(isAdmin: isAdmin)));
+                }),
+                _buildNestedDrawerItem(Icons.description_rounded, 'وثائق المقطورات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => FleetDocsScreen(isAdmin: isAdmin)));
+                }),
+                _buildNestedDrawerItem(Icons.build_rounded, 'صيانة المقطورات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => TrailerMaintenanceScreen(isAdmin: isAdmin)));
+                }),
+              ]),
+              _buildNestedDrawerGroup('السائقين', [
+                _buildNestedDrawerItem(Icons.people_rounded, 'قائمة السائقين', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => DriversScreen(isAdmin: isAdmin)));
+                }),
+              ]),
+              _buildNestedDrawerGroup('ورش الإصلاحات', [
+                _buildNestedDrawerItem(Icons.handyman_rounded, 'إدارة الورشات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ProvidersScreen()));
+                }),
+                _buildNestedDrawerItem(Icons.account_balance_rounded, 'تقرير المصاريف حسب الورشة', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin', 'secretary'], child: const ExpenseWorkshopReportScreen())));
+                }),
+                _buildNestedDrawerItem(Icons.category_rounded, 'أنواع مصروفات الإصلاحات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseCategoriesScreen()));
+                }),
+                _buildNestedDrawerItem(Icons.payment_rounded, 'تسوية الديون', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkshopRepairInvoicesScreen(
+                    workshopId: '',
+                    workshopName: 'جميع الورش',
+                  )));
+                }),
+              ]),
+              _buildDrawerItem(Icons.notifications_rounded, 'التنبيهات والمواعيد', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+              }),
+            ]),
+
+            _buildDrawerSection('التتبع والذكاء الاصطناعي', [
+              _buildDrawerItem(Icons.map_rounded, 'شاشة التتبع والخرائط الحية', () {
+                Navigator.pop(context);
+                setState(() => _currentTabIndex = 2);
+              }),
+              _buildDrawerItem(Icons.document_scanner_rounded, 'مسح تذاكر المازوت (AI OCR)', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => FuelReceiptScreen(isAdmin: isAdmin)));
+              }),
+              _buildDrawerItem(Icons.price_check_rounded, 'أجور وبونص السائقين الدوليين', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => DriverSalaryScreen(isAdmin: isAdmin)));
+              }),
+            ]),
 
             const Divider(height: 20),
 
-            _buildDrawerGroupHeader('الأسطول والمركبات'),
-            _buildDrawerItem(Icons.local_shipping_rounded, 'الشاحنات', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => TrucksScreen(isAdmin: isAdmin)));
-            }),
-            _buildDrawerItem(Icons.people_rounded, 'السائقين', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => DriversScreen(isAdmin: isAdmin)));
-            }),
-            _buildDrawerItem(Icons.build_rounded, 'صيانة الشاحنات', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => TruckMaintenanceScreen(isAdmin: isAdmin)));
-            }),
-            _buildDrawerItem(Icons.folder_rounded, 'وثائق الشاحنات', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => TruckDocumentsScreen(isAdmin: isAdmin)));
-            }),
-            _buildDrawerItem(Icons.description_rounded, 'وثائق الأسطول', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => FleetDocsScreen(isAdmin: isAdmin)));
-            }),
-            _buildDrawerItem(Icons.warning_rounded, 'تنبيهات الأسطول', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const FleetAlertsScreen()));
-            }),
-
-            const Divider(height: 20),
-
-            _buildDrawerGroupHeader('التتبع والذكاء الاصطناعي'),
-            _buildDrawerItem(Icons.map_rounded, 'شاشة التتبع والخرائط الحية', () {
-              Navigator.pop(context);
-              setState(() => _currentTabIndex = 2);
-            }),
-            _buildDrawerItem(Icons.document_scanner_rounded, 'مسح تذاكر المازوت (AI OCR)', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => FuelReceiptScreen(isAdmin: isAdmin)));
-            }),
-            _buildDrawerItem(Icons.price_check_rounded, 'أجور وبونص السائقين الدوليين', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => DriverSalaryScreen(isAdmin: isAdmin)));
-            }),
-
-            const Divider(height: 20),
-
-            _buildDrawerGroupHeader('العملاء'),
-            _buildDrawerItem(Icons.group_rounded, 'قائمة العملاء', () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => ClientsScreen(isAdmin: isAdmin)));
-            }),
+            _buildDrawerGroupHeader('الإعدادات'),
+            SwitchListTile(
+              secondary: Icon(
+                Theme.of(context).brightness == Brightness.dark
+                    ? Icons.light_mode_rounded
+                    : Icons.dark_mode_rounded,
+              ),
+              title: const Text('الوضع الداكن'),
+              value: Theme.of(context).brightness == Brightness.dark,
+              onChanged: (_) => _toggleTheme(),
+            ),
 
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Text('إصدار المنظومة v1.0.0+1', style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600], fontSize: 11)),
+              child: Text('إصدار المنظومة v1.0.0+1', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11)),
             ),
           ],
         ),
@@ -646,7 +763,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: showDashboard
             ? Column(
                 children: [
-                  _buildAdvancesDashboardCard(isDark),
+                  _buildAdvancesDashboardCard(),
                   Expanded(child: activeBody),
                 ],
               )
@@ -658,9 +775,9 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: (index) {
           setState(() => _currentTabIndex = index);
         },
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        selectedItemColor: Colors.teal[600],
-        unselectedItemColor: Colors.grey[500],
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
         elevation: 10,
         type: BottomNavigationBarType.fixed,
@@ -685,16 +802,117 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildDrawerSection(String title, List<Widget> children) {
+    final key = 'section_$title';
+    final isExpanded = _expandedSections.contains(key);
+    return Column(
+      children: [
+        InkWell(
+          onTap: () {
+            setState(() {
+              if (isExpanded) {
+                _expandedSections.remove(key);
+              } else {
+                _expandedSections.removeWhere((k) => k.startsWith('section_'));
+                _expandedSections.add(key);
+              }
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+            child: Row(
+              children: [
+                Text(title, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                const Spacer(),
+                Icon(
+                  isExpanded ? Icons.expand_more_rounded : Icons.chevron_right_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: isExpanded
+              ? Column(children: children)
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNestedDrawerGroup(String title, List<Widget> children) {
+    final key = 'nested_$title';
+    final isExpanded = _expandedSections.contains(key);
+    return Column(
+      children: [
+        InkWell(
+          onTap: () {
+            setState(() {
+              if (isExpanded) {
+                _expandedSections.remove(key);
+              } else {
+                _expandedSections.removeWhere((k) => k.startsWith('nested_'));
+                _expandedSections.add(key);
+              }
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(32, 10, 16, 4),
+            child: Row(
+              children: [
+                Icon(
+                  isExpanded ? Icons.expand_more_rounded : Icons.chevron_right_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 18,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: isExpanded
+              ? Column(children: children)
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNestedDrawerItem(IconData icon, String title, VoidCallback onTap) {
+    return ListTile(
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+      onTap: onTap,
+      dense: true,
+      contentPadding: const EdgeInsets.fromLTRB(48, 0, 16, 0),
+    );
+  }
+
   Widget _buildDrawerGroupHeader(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-      child: Text(title, style: TextStyle(color: Colors.teal[600], fontWeight: FontWeight.bold, fontSize: 12)),
+      child: Text(title, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
     );
   }
 
   Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
-      leading: Icon(icon, color: Colors.teal[400], size: 22),
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
       onTap: onTap,
       dense: true,
@@ -728,22 +946,21 @@ class _SummaryCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-  final bool isDark;
 
   const _SummaryCard({
     required this.label,
     required this.value,
     required this.icon,
     required this.color,
-    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.18 : 0.10),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
@@ -767,7 +984,7 @@ class _SummaryCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.grey[300] : Colors.blueGrey[700],
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 4),

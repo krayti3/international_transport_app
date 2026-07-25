@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' show DateFormat, NumberFormat;
 import 'package:file_picker/file_picker.dart';
+import 'package:collection/collection.dart';
 import '../services/supabase_service.dart';
+import '../widgets/date_wheel_picker.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -47,7 +49,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
     });
     setState(() {
       _tripOrders = tripOrders;
-      _clients = clients;
+      _clients = clients.map((c) => c.toMap()).toList();
       _drivers = drivers;
       _trucks = trucks;
       _isLoading = false;
@@ -57,7 +59,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
   String _clientName(dynamic clientId) {
     final c = _clients.firstWhere(
       (e) => e['id']?.toString() == clientId?.toString(),
-      orElse: () => const {},
+      orElse: () => const <String, dynamic>{},
     );
     return c['name']?.toString() ?? 'غير محدد';
   }
@@ -65,7 +67,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
   String _driverName(dynamic driverId) {
     final d = _drivers.firstWhere(
       (e) => e['id']?.toString() == driverId?.toString(),
-      orElse: () => const {},
+      orElse: () => const <String, dynamic>{},
     );
     return d['name']?.toString() ?? '—';
   }
@@ -73,7 +75,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
   String _truckPlate(dynamic truckId) {
     final t = _trucks.firstWhere(
       (e) => e['id']?.toString() == truckId?.toString(),
-      orElse: () => const {},
+      orElse: () => const <String, dynamic>{},
     );
     return t['plate']?.toString() ?? t['plate_number']?.toString() ?? '—';
   }
@@ -130,7 +132,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                                           ),
                                           ElevatedButton(
                                             onPressed: () => Navigator.pop(context, true),
-                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
                                             child: const Text('حذف'),
                                           ),
                                         ],
@@ -277,6 +279,8 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                   decoration: const InputDecoration(labelText: 'الزبون / الشركة الطالبة'),
                   initialValue: clientId,
                   items: _clients
+                      .toList()
+                      .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
                       .map((c) => DropdownMenuItem(
                             value: c['id']?.toString(),
                             child: Text(c['name']?.toString() ?? 'بدون اسم'),
@@ -288,6 +292,8 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                   decoration: const InputDecoration(labelText: 'السائق'),
                   initialValue: driverId,
                   items: _drivers
+                      .toList()
+                      .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
                       .map((d) => DropdownMenuItem(
                             value: d['id']?.toString(),
                             child: Text(d['name']?.toString() ?? 'بدون اسم'),
@@ -306,9 +312,15 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                   decoration: const InputDecoration(labelText: 'الشاحنة'),
                   initialValue: truckId,
                   items: _trucks
+                      .toList()
+                      .sorted((a, b) {
+                        final aPlate = (a['plate']?.toString() ?? a['plate_number']?.toString() ?? '').toLowerCase();
+                        final bPlate = (b['plate']?.toString() ?? b['plate_number']?.toString() ?? '').toLowerCase();
+                        return aPlate.compareTo(bPlate);
+                      })
                       .map((t) => DropdownMenuItem(
                             value: t['id']?.toString(),
-                              child: Text(t['plate']?.toString() ?? t['plate_number']?.toString() ?? 'بدون لوحة'),
+                            child: Text(t['plate']?.toString() ?? t['plate_number']?.toString() ?? 'بدون لوحة'),
                           ))
                       .toList(),
                   onChanged: (v) => setDialogState(() {
@@ -335,18 +347,19 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                 ),
                 TextFormField(
                   controller: dateController,
+                  textDirection: TextDirection.ltr,
                   decoration: const InputDecoration(labelText: 'تاريخ الانطلاق'),
                   readOnly: true,
                   onTap: () async {
-                    final picked = await showDatePicker(
+                    final picked = await showDateWheelPicker(
                       context: context,
                       initialDate: DateTime.now(),
                       firstDate: DateTime(2000),
                       lastDate: DateTime(2100),
                     );
-                    if (picked != null) {
-                      dateController.text = DateFormat('yyyy-MM-dd').format(picked);
-                    }
+                     if (picked != null) {
+                       dateController.text = DateFormat('yyyy-MM-dd').format(picked);
+                     }
                   },
                 ),
                 const SizedBox(height: 8),
@@ -457,8 +470,6 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final total = _tripOrders.length;
     final completed = _tripOrders
         .where((t) => (t['status']?.toString() ?? '') == kCompleted)
@@ -491,24 +502,21 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                         'رحلات قيد التنفيذ',
                         '$active',
                         Icons.local_shipping_rounded,
-                        Colors.orange,
-                        isDark,
+                        Theme.of(context).colorScheme.secondary,
                       ),
                       const SizedBox(width: 12),
                       _buildStatCard(
                         'إجمالي الطلبات',
                         '$total',
                         Icons.analytics_rounded,
-                        Colors.teal,
-                        isDark,
+                        Theme.of(context).colorScheme.tertiary,
                       ),
                       const SizedBox(width: 12),
                       _buildStatCard(
                         'إجمالي الأجور',
                         NumberFormat('#,###').format(totalValue),
                         Icons.payments_rounded,
-                        Colors.blue,
-                        isDark,
+                        Theme.of(context).colorScheme.primary,
                       ),
                     ],
                   ),
@@ -518,7 +526,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.blueGrey[900],
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -528,7 +536,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                         : ListView.builder(
                             itemCount: _tripOrders.length,
                             itemBuilder: (context, index) =>
-                                _buildTripCard(_tripOrders[index], isDark),
+                                _buildTripCard(_tripOrders[index]),
                           ),
                   ),
                 ],
@@ -538,13 +546,14 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
         onPressed: () => _openTripDialog(),
         icon: const Icon(Icons.add_road_rounded),
         label: const Text('تسجيل رحلة'),
-        backgroundColor: Colors.teal[700],
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
     );
   }
 
-  Widget _buildTripCard(Map<String, dynamic> order, bool isDark) {
+  Widget _buildTripCard(Map<String, dynamic> order) {
+    final colorScheme = Theme.of(context).colorScheme;
     final status = order['status']?.toString() ?? kActive;
     final price = _priceOf(order);
     final date = order['departure_date']?.toString() ?? '';
@@ -556,7 +565,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
       ),
-      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      color: colorScheme.surfaceContainer,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -568,7 +577,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                 Expanded(
                   child: Row(
                     children: [
-                      Icon(Icons.location_on, color: Colors.red[400], size: 20),
+                      Icon(Icons.location_on, color: Theme.of(context).colorScheme.error, size: 20),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -594,7 +603,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('الزبون / الشاحن',
-                          style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[500], fontSize: 12)),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
                       const SizedBox(height: 4),
                       Text(_clientName(order['client_id']),
                           style: const TextStyle(fontWeight: FontWeight.w600),
@@ -606,12 +615,12 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                      Text('الأجرة المتفق عليها',
-                         style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[500], fontSize: 12)),
+                         style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
                     const SizedBox(height: 4),
                     Text(
                       NumberFormat('#,###').format(price),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 15),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 15),
                     ),
                   ],
                 ),
@@ -621,20 +630,20 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
             // السائق + الشاحنة + التاريخ + قائمة الإجراءات.
             Row(
               children: [
-                Icon(Icons.person, size: 16, color: isDark ? Colors.grey[400] : Colors.grey[500]),
+                Icon(Icons.person, size: 16, color: colorScheme.onSurfaceVariant),
                 const SizedBox(width: 4),
                 Text(_driverName(order['driver_id']),
-                    style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600])),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                 const SizedBox(width: 12),
-                Icon(Icons.local_shipping, size: 16, color: isDark ? Colors.grey[400] : Colors.grey[500]),
+                Icon(Icons.local_shipping, size: 16, color: colorScheme.onSurfaceVariant),
                 const SizedBox(width: 4),
                  Text(_truckPlate(order['truck_id']),
-                    style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600])),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                 if (date.isNotEmpty) ...[
                   const SizedBox(width: 12),
-                  Icon(Icons.event, size: 16, color: isDark ? Colors.grey[400] : Colors.grey[500]),
+                  Icon(Icons.event, size: 16, color: colorScheme.onSurfaceVariant),
                   const SizedBox(width: 4),
-                  Text(date, style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600])),
+                   Text(date, textDirection: TextDirection.ltr, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                 ],
                 const Spacer(),
                 PopupMenuButton<String>(
@@ -646,6 +655,16 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                     } else if (value == 'documents') {
                       await _openDocumentsDialog(order);
                     } else if (value == 'delete') {
+                      final orderId = order['id'] as int?;
+                      if (orderId == null) return;
+                      final inUse = await _supabaseService.isTripOrderInUse(orderId);
+                      if (inUse) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('لا يمكن حذف هذه الرحلة لأنها مرتبطة بمدفوعات أو رحلات فرعية')),
+                        );
+                        return;
+                      }
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -666,7 +685,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                       );
                       if (confirm == true) {
                         try {
-                          await _supabaseService.deleteTripOrder(order['id'] as int);
+                          await _supabaseService.deleteTripOrder(orderId);
                           await _loadData();
                         } catch (e) {
                           if (!context.mounted) return;
@@ -724,12 +743,13 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
   }
 
   Widget _buildStatCard(
-      String title, String value, IconData icon, Color color, bool isDark) {
+      String title, String value, IconData icon, Color color) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          color: colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
         ),
@@ -745,7 +765,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                    Text(title,
-                       style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[500], fontSize: 13),
+                       style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
                        overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Text(value,

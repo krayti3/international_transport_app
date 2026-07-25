@@ -232,8 +232,6 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -280,22 +278,19 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                                     'رصيد الصندوق الحالي',
                                     '${NumberFormat('#,###.00').format(netBalance)} DH',
                                     Icons.account_balance_rounded,
-                                    netBalance >= 0 ? Colors.green : Colors.red,
-                                    isDark),
+                                    netBalance >= 0 ? Colors.green : Colors.red),
                                 const SizedBox(width: 12),
                                 _buildFinanceCard(
                                     'إجمالي الإيرادات (+)',
                                     '${NumberFormat('#,###.00').format(totalIncome)} DH',
                                     Icons.arrow_upward_rounded,
-                                    Colors.green,
-                                    isDark),
+                                    Colors.green),
                                 const SizedBox(width: 12),
                                 _buildFinanceCard(
                                     'إجمالي المصاريف (-)',
                                     '${NumberFormat('#,###.00').format(totalExpense)} DH',
                                     Icons.arrow_downward_rounded,
-                                    Colors.red,
-                                    isDark),
+                                    Colors.red),
                               ],
                             )
                           : Column(
@@ -305,7 +300,6 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                                     '${NumberFormat('#,###.00').format(netBalance)} DH',
                                     Icons.account_balance_rounded,
                                     netBalance >= 0 ? Colors.green : Colors.red,
-                                    isDark,
                                     fullWidth: true),
                                 const SizedBox(height: 10),
                                 Row(
@@ -314,15 +308,13 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                                         'الإيرادات',
                                         '${NumberFormat('#,###.00').format(totalIncome)} DH',
                                         Icons.arrow_upward_rounded,
-                                        Colors.green,
-                                        isDark),
+                                        Colors.green),
                                     const SizedBox(width: 10),
                                     _buildFinanceCard(
                                         'المصاريف',
                                         '${NumberFormat('#,###.00').format(totalExpense)} DH',
                                         Icons.arrow_downward_rounded,
-                                        Colors.red,
-                                        isDark),
+                                        Colors.red),
                                   ],
                                 ),
                               ],
@@ -334,9 +326,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                         style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: isDark
-                                ? Colors.white
-                                : Colors.blueGrey[900]),
+                             color: Theme.of(context).colorScheme.onSurface),
                       ),
                       const SizedBox(height: 12),
 
@@ -361,9 +351,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                                       color: Theme.of(context).dividerColor,
                                       width: 0.5),
                                 ),
-                                color: isDark
-                                    ? const Color(0xFF1E1E1E)
-                                    : Colors.white,
+                                color: Theme.of(context).colorScheme.surfaceContainer,
                                 child: ListView.separated(
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 8),
@@ -439,23 +427,24 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
         onPressed: _showAddTransactionDialog,
         icon: const Icon(Icons.account_balance_wallet_rounded),
         label: const Text('تسجيل حركة صندوق'),
-        backgroundColor: Colors.blueGrey[800],
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
     );
   }
 
   // بناء بطاقات المؤشرات المالية الاحترافية والمتطابقة
   Widget _buildFinanceCard(String title, String value, IconData icon,
-      Color color, bool isDark,
+      Color color,
       {bool fullWidth = false}) {
+    final colorScheme = Theme.of(context).colorScheme;
     final cardWidget = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.fromBorderSide(BorderSide(
-            color: Theme.of(context).dividerColor, width: 0.5)),
+          border: Border.fromBorderSide(BorderSide(
+              color: Theme.of(context).dividerColor, width: 0.5)),
       ),
       child: Row(
         children: [
@@ -469,7 +458,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
                 Text(value,

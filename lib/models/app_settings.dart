@@ -13,7 +13,7 @@ class AppSettings {
   factory AppSettings.fromMap(Map<String, dynamic> map) {
     return AppSettings(
       id: map['id'] as int?,
-      isEnabled: map['is_enabled'] as bool? ?? map['isEnabled'] as bool? ?? false,
+      isEnabled: map['is_enabled'] as bool? ?? map['isEnabled'] as bool? ?? true,
       percentage: (map['percentage'] as num?)?.toDouble() ?? 0.0,
     );
   }

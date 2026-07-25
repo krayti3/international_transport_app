@@ -28,16 +28,20 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
 
   static const Map<String, String> _typeLabels = {
     'capital_injection': 'تزويد رأس مال',
+    'trip_revenue': 'تحصيل فواتير الزبائن',
     'owner_withdrawal': 'سحب شخصي',
     'office_expense': 'مصروف مكتب',
     'salary': 'دفع راتب',
+    'trip_expense': 'مصروف رحلة / عهدة',
   };
 
   static const List<String> _dropdownTypes = [
     'capital_injection',
+    'trip_revenue',
     'owner_withdrawal',
     'office_expense',
     'salary',
+    'trip_expense',
   ];
 
   @override
@@ -85,6 +89,17 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
   String _formatAmount(double amount, String type) {
     final prefix = _isPositiveType(type) ? '+' : '-';
     return '$prefix${NumberFormat('#,###.00').format(amount)} DH';
+  }
+
+  String _formatDate(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    try {
+      final dt = DateTime.tryParse(raw);
+      if (dt == null) return raw;
+      return DateFormat('dd/MM/yyyy', 'ar_MA').format(dt);
+    } catch (_) {
+      return raw;
+    }
   }
 
   void _showReceipt(String url) {
@@ -184,6 +199,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                 children: [
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(labelText: 'نوع المعاملة'),
+                    initialValue: null,
                     items: _dropdownTypes
                         .map((t) => DropdownMenuItem(
                               value: t,
@@ -363,14 +379,14 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                         const Text('رصيد الخزينة الحالي',
                             style: TextStyle(fontSize: 16, color: Colors.grey)),
                         const SizedBox(height: 12),
-                        Text(
-                          '${NumberFormat('#,###.00').format(_balance)} DH',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: _balance >= 0 ? Colors.green : Colors.red,
-                          ),
-                        ),
+                         Text(
+                           '${NumberFormat('#,###.00').format(_balance)} DH',
+                           style: TextStyle(
+                             fontSize: 36,
+                             fontWeight: FontWeight.bold,
+                             color: _balance >= 0 ? Colors.green : Colors.red,
+                           ),
+                         ),
                         const SizedBox(height: 8),
                         Icon(
                           _balance >= 0 ? Icons.trending_up : Icons.trending_down,
@@ -394,7 +410,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                               final type = t['type']?.toString() ?? '';
                               final amount = (t['amount'] as num?)?.toDouble() ?? 0.0;
                               final description = t['description']?.toString() ?? '';
-                              final createdAt = t['created_at']?.toString() ?? '';
+                              final createdAt = _formatDate(t['created_at']?.toString());
                               final receiptUrl = t['receipt_url']?.toString();
                               final color = _getColor(type);
                               return Card(

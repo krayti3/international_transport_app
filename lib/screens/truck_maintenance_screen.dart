@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:collection/collection.dart';
 import '../services/supabase_service.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' show DateFormat;
+import 'expense_categories_screen.dart';
+import 'providers_screen.dart';
+import '../widgets/date_wheel_picker.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
 /// شاشة مصاريف صيانة الشاحنات — تعرض سجل المصاريف التشغيلية لكل شاحنة
-/// وتنبيهات ذكية (تغيير الزيت، انتهاء التأمين).
+/// مع إمكانية تصفية حسب حالة الدفع والتاريخ.
 class TruckMaintenanceScreen extends StatefulWidget {
-  const TruckMaintenanceScreen({super.key, required this.isAdmin});
+  const TruckMaintenanceScreen({super.key, required this.isAdmin, this.truckId});
   final bool isAdmin;
+  final int? truckId;
 
   @override
   State<TruckMaintenanceScreen> createState() => _TruckMaintenanceScreenState();
@@ -22,19 +27,8 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
   String? _filterPaymentStatus;
   DateTime? _filterFromDate;
   DateTime? _filterToDate;
-
-  // Smart-alert thresholds (configurable via future settings)
-  static const _oilNearKm = 1000; // km
-  static const _insuranceWindowDays = 15; // days
-
-  final _expenseTypeOptions = const {
-    'oil_change': 'تغيير الزيت',
-    'tires': 'إطارات',
-    'insurance': 'تأمين',
-    'technical_inspection': 'فحص تقني',
-    'depreciation': 'إهلاك',
-    'other': 'أخرى',
-  };
+  List<Map<String, dynamic>> _expenseTypes = [];
+  String? _selectedExpenseType;
 
   @override
   void initState() {
@@ -55,10 +49,24 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
       fromDate: _filterFromDate,
       toDate: _filterToDate,
     );
+    final expenseTypes = await _supabaseService.getExpenseCategories();
     if (mounted) {
       setState(() {
-        _trucks = trucks;
-        _maintenances = maintenances;
+        _trucks = widget.truckId != null
+            ? trucks.where((t) => (t['id'] as num?)?.toInt() == widget.truckId).toList()
+            : trucks;
+        _maintenances = (widget.truckId != null
+            ? maintenances.where((m) => (m['truck_id'] as num?)?.toInt() == widget.truckId).toList()
+            : maintenances)
+            .where((m) => m['expense_type']?.toString() != 'oil_change')
+            .toList();
+        final seen = <String>{};
+        _expenseTypes = expenseTypes.where((c) {
+          final name = c['name']?.toString() ?? '';
+          if (name.isEmpty || seen.contains(name)) return false;
+          seen.add(name);
+          return true;
+        }).toList();
         _isLoading = false;
       });
     }
@@ -81,110 +89,74 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
         0.0;
   }
 
-  Map<int, double> _lastOilKm() {
-    final map = <int, double>{};
-    for (final m in _maintenances) {
-      if (m['expense_type']?.toString() != 'oil_change') continue;
-      final truckId = (m['truck_id'] as num?)?.toInt() ?? 0;
-      final km = (m['km_at_time'] as num?)?.toDouble();
-      if (km == null) continue;
-      final existing = map[truckId];
-      if (existing == null || km > existing) map[truckId] = km;
-    }
-    return map;
-  }
+  Widget _buildExpenseCard(Map<String, dynamic> m, bool isDark) {
+    final actual = (m['amount'] as num?)?.toDouble() ?? 0.0;
+    final typeLabel = m['expense_type']?.toString() ?? 'أخرى';
+    final km = (m['km_at_time'] as num?)?.toDouble();
+    final due = m['due_date']?.toString();
+    final dateStr = m['created_at']?.toString() ?? '';
+    final dateFormatted = dateStr.isNotEmpty
+        ? DateFormat('yyyy/MM/dd').format(
+            DateTime.tryParse(dateStr) ?? DateTime.now(),
+          )
+        : '';
+    final paymentStatus = m['payment_status']?.toString() ?? 'paid_by_owner';
+    final isOnCredit = paymentStatus == 'on_credit';
 
-  List<Widget> _buildAlerts() {
-    final items = <Widget>[];
-    final now = DateTime.now();
-    final lastOil = _lastOilKm();
-
-    for (final truck in _trucks) {
-      final truckId = (truck['id'] as num?)?.toInt() ?? 0;
-      final plate =
-          truck['plate']?.toString() ??
-          truck['plate_number']?.toString() ??
-          'بدون لوحة';
-      final currentKm = (truck['current_km'] as num?)?.toDouble() ?? 0.0;
-      final nextOilKm = (truck['oil_change_km'] as num?)?.toDouble();
-
-      // Oil change alert
-      if (nextOilKm != null && nextOilKm > 0) {
-        final last = lastOil[truckId] ?? 0.0;
-        final effectiveKm = last > currentKm ? last : currentKm;
-        final diff = nextOilKm - effectiveKm;
-        final overdue = effectiveKm >= nextOilKm;
-        final near = !overdue && diff <= _oilNearKm;
-        if (overdue || near) {
-          final color = overdue ? Colors.red : Colors.orange;
-          items.add(
-            _alertTile(
-              Icons.oil_barrel,
-              color,
-              'تغيير الزيت — $plate',
-              'العداد الحالي: ${effectiveKm.toStringAsFixed(0)} كم\nالموعد القادم: ${nextOilKm.toStringAsFixed(0)} كم',
-              overdue ? 'تجاوز الموعد' : 'متبقٍ ${diff.toStringAsFixed(0)} كم',
-            ),
-          );
-        }
-      }
-
-      // Insurance alert
-      final truckMaints =
-          _maintenances.where((m) => m['truck_id'] == truckId).toList();
-      for (final m in truckMaints) {
-        if (m['expense_type']?.toString() != 'insurance') continue;
-        final dueStr = m['due_date']?.toString();
-        if (dueStr == null) continue;
-        final due = DateTime.tryParse(dueStr);
-        if (due == null) continue;
-        final daysLeft = due.difference(now).inDays;
-        if (daysLeft > _insuranceWindowDays) continue;
-        final expired = daysLeft <= 0;
-        final color = expired ? Colors.red : Colors.orange;
-        items.add(
-          _alertTile(
-            Icons.shield,
-            color,
-            'انتهاء تأمين $plate',
-            'تاريخ الانتهاء: $dueStr\n${expired ? "منتهي" : "متبقٍ $daysLeft يوم"}',
-            expired ? 'منتهي' : 'ينتهي خلال $daysLeft يوم',
-          ),
-        );
-      }
-    }
-
-    return items;
-  }
-
-  Widget _alertTile(
-    IconData icon,
-    Color color,
-    String title,
-    String subtitle,
-    String badge,
-  ) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      color: isOnCredit
+          ? Colors.red.withValues(alpha: 0.08)
+          : (isDark ? const Color(0xFF1E1E1E) : null),
       child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withValues(alpha: 0.5)),
-          ),
-          child: Text(
-            badge,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
+        leading: Icon(
+          _typeIcon(m['expense_type']?.toString() ?? 'other'),
+          color: isOnCredit ? Colors.red : Colors.blue,
+        ),
+        title: Text(typeLabel),
+        subtitle: Text(
+          '${actual.toStringAsFixed(2)} DH • $dateFormatted${km != null ? ' • ${km.toStringAsFixed(0)} كم' : ''}${due != null ? ' • $due' : ''}${m['description'] != null && m['description'].toString().isNotEmpty ? '\n${m['description']}' : ''}',
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _paymentStatusBadge(status: paymentStatus),
+            const SizedBox(width: 4),
+            if (widget.isAdmin)
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'edit') {
+                    await _openExpenseDialog(maintenance: m);
+                  } else if (value == 'delete') {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('حذف المصروف'),
+                        content: const Text('هل أنت متأكد؟'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                            child: const Text('حذف'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await _supabaseService.deleteTruckMaintenance(m['id'] as int);
+                      await _loadData();
+                    }
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                  PopupMenuItem(value: 'delete', child: Text('حذف')),
+                ],
+              )
+            else
+              const SizedBox.shrink(),
+          ],
         ),
       ),
     );
@@ -193,8 +165,6 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
   // Open bottom sheet showing trucks and their maintenance records
   Future<void> _openTruckDetail(int truckId) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final truckMaints =
-        _maintenances.where((m) => m['truck_id'] == truckId).toList();
     final truck = _trucks.firstWhere(
       (t) => t['id'] == truckId,
       orElse: () => {},
@@ -256,145 +226,12 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                         ),
                       ),
                       Expanded(
-                        child: ListView.builder(
+                        child: SingleChildScrollView(
                           padding: const EdgeInsets.all(12),
-                          itemCount:
-                              truckMaints.length + (widget.isAdmin ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == 0 && widget.isAdmin) {
-                              return ElevatedButton.icon(
-                                onPressed: () async {
-                                  Navigator.pop(context);
-                                  await _openExpenseDialog(truckId: truckId);
-                                },
-                                icon: const Icon(Icons.add),
-                                label: const Text('إضافة مصروف'),
-                              );
-                            }
-                            final m =
-                                truckMaints[index - (widget.isAdmin ? 1 : 0)];
-                            final actual =
-                                (m['amount'] as num?)?.toDouble() ?? 0.0;
-                            final typeLabel =
-                                _expenseTypeOptions[m['expense_type']
-                                    ?.toString()] ??
-                                m['expense_type'] ??
-                                'أخرى';
-                            final km = (m['km_at_time'] as num?)?.toDouble();
-                            final due = m['due_date']?.toString();
-                            final dateStr = m['created_at']?.toString() ?? '';
-                            final dateFormatted =
-                                dateStr.isNotEmpty
-                                    ? DateFormat('yyyy/MM/dd').format(
-                                      DateTime.tryParse(dateStr) ??
-                                          DateTime.now(),
-                                    )
-                                    : '';
-                            final paymentStatus =
-                                m['payment_status']?.toString() ??
-                                'paid_by_owner';
-                            final isOnCredit = paymentStatus == 'on_credit';
-                            return Card(
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              color:
-                                  isOnCredit
-                                      ? Colors.red.withValues(alpha: 0.08)
-                                      : (isDark
-                                          ? const Color(0xFF1E1E1E)
-                                          : null),
-                              child: ListTile(
-                                leading: Icon(
-                                  _typeIcon(
-                                    m['expense_type']?.toString() ?? 'other',
-                                  ),
-                                  color: isOnCredit ? Colors.red : Colors.blue,
-                                ),
-                                title: Text(typeLabel),
-                                subtitle: Text(
-                                  '${actual.toStringAsFixed(2)} DH • $dateFormatted${km != null ? ' • ${km.toStringAsFixed(0)} كم' : ''}${due != null ? ' • $due' : ''}${m['description'] != null && m['description'].toString().isNotEmpty ? '\n${m['description']}' : ''}',
-                                ),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _paymentStatusBadge(status: paymentStatus),
-                                    if (widget.isAdmin)
-                                      PopupMenuButton<String>(
-                                        onSelected: (value) async {
-                                          if (value == 'edit') {
-                                            Navigator.pop(context);
-                                            await _openExpenseDialog(
-                                              maintenance: m,
-                                            );
-                                          } else if (value == 'delete') {
-                                            final confirm = await showDialog<
-                                              bool
-                                            >(
-                                              context: context,
-                                              builder:
-                                                  (ctx) => AlertDialog(
-                                                    title: const Text(
-                                                      'حذف المصروف',
-                                                    ),
-                                                    content: const Text(
-                                                      'هل أنت متأكد؟',
-                                                    ),
-                                                    actions: [
-                                                      TextButton(
-                                                        onPressed:
-                                                            () => Navigator.pop(
-                                                              ctx,
-                                                              false,
-                                                            ),
-                                                        child: const Text(
-                                                          'إلغاء',
-                                                        ),
-                                                      ),
-                                                      ElevatedButton(
-                                                        onPressed:
-                                                            () => Navigator.pop(
-                                                              ctx,
-                                                              true,
-                                                            ),
-                                                        style:
-                                                            ElevatedButton.styleFrom(
-                                                              backgroundColor:
-                                                                  Colors.red,
-                                                            ),
-                                                        child: const Text(
-                                                          'حذف',
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                            );
-                                            if (confirm == true) {
-                                              await _supabaseService
-                                                  .deleteTruckMaintenance(
-                                                    m['id'] as int,
-                                                  );
-                                              await _loadData();
-                                            }
-                                          }
-                                        },
-                                        itemBuilder:
-                                            (_) => const [
-                                              PopupMenuItem(
-                                                value: 'edit',
-                                                child: Text('تعديل'),
-                                              ),
-                                              PopupMenuItem(
-                                                value: 'delete',
-                                                child: Text('حذف'),
-                                              ),
-                                            ],
-                                      )
-                                    else
-                                      const SizedBox.shrink(),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: _buildTruckDetailContent(truckId, isDark),
+                          ),
                         ),
                       ),
                     ],
@@ -403,6 +240,30 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
           ),
     );
     await _loadData();
+  }
+
+  List<Widget> _buildTruckDetailContent(int truckId, bool isDark) {
+    final truckMaints =
+        _maintenances.where((m) => m['truck_id'] == truckId).toList();
+
+    return [
+      if (widget.isAdmin)
+        ElevatedButton.icon(
+          onPressed: () async {
+            await _openExpenseDialog(truckId: truckId);
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('إضافة مصروف'),
+        ),
+      if (truckMaints.isEmpty)
+        const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Text('لا توجد مصاريف مسجلة'),
+          ),
+        ),
+      ...truckMaints.map((m) => _buildExpenseCard(m, isDark)),
+    ];
   }
 
   IconData _typeIcon(String type) {
@@ -418,7 +279,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
       case 'depreciation':
         return Icons.trending_down;
       default:
-        return Icons.build;
+        return Icons.receipt_long;
     }
   }
 
@@ -436,6 +297,17 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
         maintenance?['expense_type']?.toString() ?? 'oil_change';
     String paymentStatus =
         maintenance?['payment_status']?.toString() ?? 'paid_by_owner';
+
+    final cats = await _supabaseService.getExpenseCategories();
+    final seen = <String>{};
+    _expenseTypes = cats.where((c) {
+      final name = c['name']?.toString() ?? '';
+      if (name.isEmpty || seen.contains(name)) return false;
+      seen.add(name);
+      return true;
+    }).toList();
+    final providers = await _supabaseService.getProviders();
+    List<String> providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
     TextEditingController amountController = TextEditingController(
       text: maintenance?['amount']?.toString() ?? '',
     );
@@ -448,13 +320,12 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
     TextEditingController descController = TextEditingController(
       text: maintenance?['description']?.toString() ?? '',
     );
-    TextEditingController providerController = TextEditingController(
-      text: maintenance?['provider_name']?.toString() ?? '',
-    );
+    String? selectedProvider =
+        maintenance?['provider_name']?.toString() ?? '';
 
     // Pre-fill km with truck current km if available
     if (!isEdit && selectedTruckId != null) {
-      final truck = trucks.firstWhereOrNull((t) => t['id'] == selectedTruckId);
+      final truck = trucks.where((t) => t['id'] == selectedTruckId).firstOrNull;
       if (truck != null && kmController.text.isEmpty) {
         final currentKm = (truck['current_km'] as num?)?.toDouble();
         if (currentKm != null && currentKm > 0) {
@@ -462,6 +333,12 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
         }
       }
     }
+
+  DateTime? maintenanceDate = isEdit
+      ? (maintenance['maintenance_date'] != null
+          ? DateTime.tryParse(maintenance['maintenance_date'].toString())
+          : null)
+      : DateTime.now();
 
     await showDialog(
       context: context,
@@ -484,9 +361,16 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                           ),
                           items:
                               trucks
+                                  .where((t) => (t['id'] as num?)?.toInt() != null)
+                                  .toList()
+                                  .sorted((a, b) {
+                                    final aPlate = (a['plate']?.toString() ?? a['plate_number']?.toString() ?? '').toLowerCase();
+                                    final bPlate = (b['plate']?.toString() ?? b['plate_number']?.toString() ?? '').toLowerCase();
+                                    return aPlate.compareTo(bPlate);
+                                  })
                                   .map(
                                     (t) => DropdownMenuItem(
-                                      value: (t['id'] as num?)?.toInt(),
+                                      value: (t['id'] as num).toInt(),
                                       child: Text(
                                         '${t['plate']?.toString() ?? t['plate_number']?.toString() ?? ''} — ${t['model']?.toString() ?? ''}',
                                       ),
@@ -506,11 +390,15 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                         items: const [
                           DropdownMenuItem(
                             value: 'paid_by_owner',
-                            child: Text('صاحب الشركة (كاش)'),
+                            child: Text('الكاش من صاحب الشركة'),
                           ),
                           DropdownMenuItem(
                             value: 'bank_transfer',
-                            child: Text('تحويل بنكي'),
+                            child: Text('تحويل بنكي من صاحب الشركة'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'secretary_cash',
+                            child: Text('الكاش من خزينة السكرتيرة'),
                           ),
                           DropdownMenuItem(
                             value: 'on_credit',
@@ -524,22 +412,58 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                         },
                       ),
                       DropdownButtonFormField<String>(
-                        initialValue: expenseType,
-                        decoration: const InputDecoration(
+                        initialValue: _expenseTypes.any((c) => c['name']?.toString() == _selectedExpenseType)
+                            ? _selectedExpenseType
+                            : (expenseType.isEmpty ? null : (_expenseTypes.any((c) => c['name']?.toString() == expenseType) ? expenseType : null)),
+                        decoration: InputDecoration(
                           labelText: 'نوع المصروف',
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.manage_history, size: 20),
+                            tooltip: 'إدارة أنواع المصاريف',
+                            onPressed: () async {
+                              if (!widget.isAdmin) return;
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ExpenseCategoriesScreen()),
+                              );
+                              final cats = await _supabaseService.getExpenseCategories();
+                              if (mounted) {
+                                setDialogState(() {
+                                  final seen = <String>{};
+                                  _expenseTypes = cats.where((c) {
+                                    final name = c['name']?.toString() ?? '';
+                                    if (name.isEmpty || seen.contains(name)) return false;
+                                    seen.add(name);
+                                    return true;
+                                  }).toList();
+                                });
+                              }
+                            },
+                          ),
                         ),
-                        items:
-                            _expenseTypeOptions.entries
-                                .map(
-                                  (e) => DropdownMenuItem(
-                                    value: e.key,
-                                    child: Text(e.value),
-                                  ),
-                                )
-                                .toList(),
+                        items: [
+                          ..._expenseTypes.map((c) {
+                            final name = c['name']?.toString() ?? '';
+                            return DropdownMenuItem(
+                              value: name,
+                              child: Text(name),
+                            );
+                          }),
+                          if (_expenseTypes.map((c) => c['name']?.toString() ?? '').every((n) => n.isEmpty))
+                            const DropdownMenuItem(
+                              value: '',
+                              child: Text('لا توجد أنواع'),
+                            ),
+                        ],
                         onChanged: (v) {
-                          if (v != null) setDialogState(() => expenseType = v);
+                          if (v != null) {
+                            setDialogState(() {
+                              _selectedExpenseType = v;
+                              expenseType = v;
+                            });
+                          }
                         },
+                        validator: (v) => v == null || v.isEmpty ? 'يرجى اختيار نوع المصروف' : null,
                       ),
                       if (expenseType == 'insurance')
                         TextFormField(
@@ -566,16 +490,78 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                           labelText: 'عداد الكيلومترات',
                         ),
                       ),
-                      TextFormField(
-                        controller: providerController,
-                        decoration: const InputDecoration(
-                          labelText: 'اسم المزود / الورشة',
+                        DropdownButtonFormField<String>(
+                          initialValue: (selectedProvider == null || selectedProvider!.isEmpty) ? null : selectedProvider,
+                          decoration: InputDecoration(
+                            labelText: 'اسم المزود / الورشة',
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.manage_history, size: 20),
+                              tooltip: 'إدارة الورشات',
+                              onPressed: () async {
+                                if (!widget.isAdmin) return;
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const ProvidersScreen()),
+                                );
+                                final providers = await _supabaseService.getProviders();
+                                if (mounted) {
+                                  setDialogState(() {
+                                    providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
+                                    if ((selectedProvider == null || selectedProvider!.isEmpty) && providerNames.isNotEmpty) {
+                                      selectedProvider = providerNames.first;
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                          items: [
+                            ...providerNames.map((name) {
+                              return DropdownMenuItem(
+                                value: name,
+                                child: Text(name),
+                              );
+                            }),
+                            if (providerNames.isEmpty)
+                              const DropdownMenuItem(
+                                value: '',
+                                child: Text('لا توجد ورشات'),
+                              ),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) {
+                              setDialogState(() {
+                                selectedProvider = v;
+                              });
+                            }
+                          },
                         ),
-                      ),
-                      TextFormField(
-                        controller: descController,
-                        decoration: const InputDecoration(labelText: 'ملاحظات'),
-                      ),
+                       InkWell(
+                         onTap: () async {
+                            final picked = await showDateWheelPicker(
+                              context: context,
+                              initialDate: maintenanceDate ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2035),
+                            );
+                            if (picked != null) {
+                              setDialogState(() => maintenanceDate = picked);
+                            }
+                         },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(labelText: 'تاريخ إجراء الإصلاح'),
+                            child: Text(
+                              maintenanceDate == null
+                                  ? 'اختر التاريخ'
+                                  : DateFormat('yyyy/MM/dd').format(maintenanceDate!),
+                              textDirection: TextDirection.ltr,
+                            ),
+                          ),
+                       ),
+                       TextFormField(
+                         controller: descController,
+                         decoration: const InputDecoration(labelText: 'ملاحظات'),
+                       ),
                     ],
                   ),
                 ),
@@ -613,10 +599,10 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                                   : dueController.text.trim(),
                           'payment_status': paymentStatus,
                           'provider_name':
-                              providerController.text.trim().isEmpty
+                              (selectedProvider == null || selectedProvider!.isEmpty)
                                   ? null
-                                  : providerController.text.trim(),
-                          'maintenance_date': DateTime.now().toIso8601String(),
+                                  : selectedProvider,
+                           'maintenance_date': maintenanceDate?.toIso8601String() ?? DateTime.now().toIso8601String(),
                         };
                         if (isEdit) {
                           await _supabaseService.updateTruckMaintenance(
@@ -659,206 +645,215 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final alerts = _buildAlerts();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('مصاريف صيانة الشاحنات')),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                onRefresh: _loadData,
-                child: ListView(
-                  padding: const EdgeInsets.all(12),
-                  children: [
-                    // Smart Alerts section
-                    const Text(
-                      '🔔 تنبيهات ذكية',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (alerts.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('✅ لا توجد تنبيهات عاجلة حالياً'),
-                      )
-                    else
-                      ...alerts,
-                    const SizedBox(height: 20),
-                    // Filter section
-                    Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      color: isDark ? const Color(0xFF1E1E1E) : null,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(
+        title: Text(widget.truckId != null
+            ? 'مصاريف صيانة الشاحنة'
+            : 'مصاريف صيانة الشاحنات'),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // Filter section - always visible at top
+                Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  color: isDark ? const Color(0xFF1E1E1E) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'فلترة المصاريف',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
                           children: [
-                            const Text(
-                              'فلترة المصاريف',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                            Expanded(
+                              child: DropdownButtonFormField<String?>(
+                                initialValue: _filterPaymentStatus,
+                                decoration: const InputDecoration(
+                                  labelText: 'حالة الدفع',
+                                ),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: null,
+                                    child: Text('الكل'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'paid_by_owner',
+                                    child: Text('الكاش من صاحب الشركة'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'bank_transfer',
+                                    child: Text('تحويل بنكي من صاحب الشركة'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'secretary_cash',
+                                    child: Text('الكاش من خزينة السكرتيرة'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'on_credit',
+                                    child: Text('على الحساب (دَين)'),
+                                  ),
+                                ],
+                                onChanged: (v) {
+                                  setState(() => _filterPaymentStatus = v);
+                                  _loadData();
+                                },
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: DropdownButtonFormField<String?>(
-                                    initialValue: _filterPaymentStatus,
-                                    decoration: const InputDecoration(
-                                      labelText: 'حالة الدفع',
-                                    ),
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: null,
-                                        child: Text('الكل'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'paid_by_owner',
-                                        child: Text('صاحب الشركة (كاش)'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'bank_transfer',
-                                        child: Text('تحويل بنكي'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'on_credit',
-                                        child: Text('على الحساب (دَين)'),
-                                      ),
-                                    ],
-                                    onChanged: (v) {
-                                      setState(() => _filterPaymentStatus = v);
-                                      _loadData();
-                                    },
-                                  ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                decoration: const InputDecoration(
+                                  labelText: 'من تاريخ (YYYY-MM-DD)',
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    decoration: const InputDecoration(
-                                      labelText: 'من تاريخ (YYYY-MM-DD)',
-                                    ),
-                                    onChanged: (v) {
-                                      _filterFromDate =
-                                          v.isNotEmpty
-                                              ? DateTime.tryParse(v)
-                                              : null;
-                                    },
-                                    onFieldSubmitted: (_) => _loadData(),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    decoration: const InputDecoration(
-                                      labelText: 'إلى تاريخ (YYYY-MM-DD)',
-                                    ),
-                                    onChanged: (v) {
-                                      _filterToDate =
-                                          v.isNotEmpty
-                                              ? DateTime.tryParse(v)
-                                              : null;
-                                    },
-                                    onFieldSubmitted: (_) => _loadData(),
-                                  ),
-                                ),
-                              ],
+                                onChanged: (v) {
+                                  _filterFromDate =
+                                      v.isNotEmpty
+                                          ? DateTime.tryParse(v)
+                                          : null;
+                                },
+                                onFieldSubmitted: (_) => _loadData(),
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            ElevatedButton.icon(
-                              onPressed: _loadData,
-                              icon: const Icon(Icons.filter_alt),
-                              label: const Text('تطبيق الفلتر'),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                decoration: const InputDecoration(
+                                  labelText: 'إلى تاريخ (YYYY-MM-DD)',
+                                ),
+                                onChanged: (v) {
+                                  _filterToDate =
+                                      v.isNotEmpty
+                                          ? DateTime.tryParse(v)
+                                          : null;
+                                },
+                                onFieldSubmitted: (_) => _loadData(),
+                              ),
                             ),
                           ],
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: _loadData,
+                          icon: const Icon(Icons.filter_alt),
+                          label: const Text('تطبيق الفلتر'),
+                        ),
+                      ],
                     ),
-                    // Trucks summary
-                    const Text(
-                      '🚛 سجل مصاريف الشاحنات',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_trucks.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(child: Text('لا توجد شاحنات')),
-                      )
-                    else
-                      ..._trucks.map((truck) {
-                        final truckId = (truck['id'] as num?)?.toInt() ?? 0;
-                        final plate =
-                            truck['plate']?.toString() ??
-                            truck['plate_number']?.toString() ??
-                            '#$truckId';
-                        final model = truck['model']?.toString() ?? '';
-                        final total = _totalForTruck(truckId);
-                        final count = _byTruck()[truckId]?.length ?? 0;
-                        final status = truck['status']?.toString() ?? '';
-                        final hasOnCredit =
-                            _byTruck()[truckId]?.any(
-                              (m) =>
-                                  m['payment_status']?.toString() ==
-                                  'on_credit',
-                            ) ??
-                            false;
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          color:
-                              hasOnCredit
-                                  ? Colors.red.withValues(alpha: 0.08)
-                                  : (isDark ? const Color(0xFF1E1E1E) : null),
-                          child: ListTile(
-                            leading: const Icon(
-                              Icons.local_shipping,
-                              color: Colors.blue,
-                            ),
-                            title: Text('$plate — $model'),
-                            subtitle: Text(
-                              'الإجمالي: ${total.toStringAsFixed(2)} DH • السجلات: $count${status == 'maintenance' ? ' • (قيد الصيانة)' : ''}${hasOnCredit ? ' • ⚠️ على الحساب' : ''}',
-                            ),
-                            trailing:
-                                widget.isAdmin
-                                    ? ElevatedButton(
-                                      onPressed:
-                                          () => _openTruckDetail(truckId),
-                                      child: const Text('التفاصيل'),
-                                    )
-                                    : null,
-                          ),
-                        );
-                      }),
-                  ],
+                  ),
                 ),
-              ),
-      floatingActionButton:
-          widget.isAdmin
-              ? FloatingActionButton.extended(
-                onPressed: () => _openExpenseDialog(),
-                icon: const Icon(Icons.add),
-                label: const Text('إضافة مصروف'),
-              )
-              : null,
-    );
-  }
+                // Trucks summary list - scrollable
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: widget.truckId != null && _trucks.isNotEmpty
+                        ? ListView(
+                            padding: const EdgeInsets.all(12),
+                            children: [
+                              Card(
+                                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                color: isDark ? const Color(0xFF1E1E1E) : null,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.local_shipping, color: Colors.blue),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              _trucks.first['plate']?.toString() ?? _trucks.first['plate_number']?.toString() ?? '',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ..._buildTruckDetailContent(_trucks.first['id'] as int, isDark),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(12),
+                            itemCount: _trucks.length,
+                            itemBuilder: (context, index) {
+                              final truck = _trucks[index];
+                              final truckId = (truck['id'] as num?)?.toInt() ?? 0;
+                              final plate =
+                                  truck['plate']?.toString() ??
+                                  truck['plate_number']?.toString() ??
+                                  '#$truckId';
+                              final model = truck['model']?.toString() ?? '';
+                              final total = _totalForTruck(truckId);
+                              final count = _byTruck()[truckId]?.length ?? 0;
+                              final status = truck['status']?.toString() ?? '';
+                              final hasOnCredit =
+                                  _byTruck()[truckId]?.any(
+                                    (m) =>
+                                        m['payment_status']?.toString() ==
+                                        'on_credit',
+                                  ) ??
+                                  false;
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                color:
+                                    hasOnCredit
+                                        ? Colors.red.withValues(alpha: 0.08)
+                                        : (isDark ? const Color(0xFF1E1E1E) : null),
+                                child: ListTile(
+                                  leading: const Icon(
+                                    Icons.local_shipping,
+                                    color: Colors.blue,
+                                  ),
+                                   title: Text('$plate — $model', textDirection: TextDirection.ltr, textAlign: TextAlign.left),
+                                  subtitle: Text(
+                                    'الإجمالي: ${total.toStringAsFixed(2)} DH • السجلات: $count${status == 'maintenance' ? ' • (قيد الصيانة)' : ''}${hasOnCredit ? ' • ⚠️ على الحساب' : ''}',
+                                  ),
+                                  trailing:
+                                      widget.isAdmin
+                                          ? ElevatedButton(
+                                            onPressed:
+                                                () => _openTruckDetail(truckId),
+                                            child: const Text('التفاصيل'),
+                                          )
+                                          : null,
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          );
+    }
 
   Widget _paymentStatusBadge({required String status}) {
     Color color;
     String label;
     switch (status) {
-      case 'bank_transfer':
+      case 'owner_bank_transfer':
         color = Colors.blue;
         label = 'تحويل بنكي';
         break;
       case 'on_credit':
         color = Colors.red;
         label = 'على الحساب';
+        break;
+      case 'secretary_cash':
+        color = Colors.orange;
+        label = 'خزينة السكرتيرة';
         break;
       case 'paid_by_owner':
       default:
