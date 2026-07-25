@@ -144,7 +144,8 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
         }
         successCount++;
       } catch (e) {
-        debugPrint('Error settling debt for id $id: $e');
+        final debtId = debt['id'] as int?;
+        debugPrint('Error settling debt for id $debtId: $e');
       }
     }
 
