@@ -30,7 +30,10 @@ Future<Map<String, String>> _loadEnv() async {
       final eq = trimmed.indexOf('=');
       if (eq <= 0) continue;
       final key = trimmed.substring(0, eq).trim();
-      final value = trimmed.substring(eq + 1).trim();
+      var value = trimmed.substring(eq + 1).trim();
+      if (value.startsWith('"') && value.endsWith('"') && value.length > 1) {
+        value = value.substring(1, value.length - 1);
+      }
       if (key.isNotEmpty) {
         result[key] = value;
       }
