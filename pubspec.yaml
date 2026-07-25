@@ -15,7 +15,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  supabase_flutter: ^2.0.0 # للاتصال بقاعدة البيانات والـ Auth
+  supabase_flutter: ^2.16.0 # للاتصال بقاعدة البيانات والـ Auth
   provider: ^6.0.5         # لإدارة حالة التطبيق (State Management)
   pdf: ^3.10.8             # لتوليد فواتير وكشوفات الـ PDF للسكرتيرة
   printing: ^5.14.3        # لطباعة الفواتير مباشرة من التطبيق
