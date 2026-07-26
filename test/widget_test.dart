@@ -30,10 +30,7 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<ThemeProvider>(
         create: (_) => ThemeProvider(),
-        child: MyApp(
-          themeProvider: ThemeProvider(),
-          authStateStream: const Stream.empty(),
-        ),
+        child: const MyApp(),
       ),
     );
     await tester.pumpAndSettle();

@@ -4,11 +4,5 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-}
-
-model Todo {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  schemas  = ["auth", "public"]
 }
