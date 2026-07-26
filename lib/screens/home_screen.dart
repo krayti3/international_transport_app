@@ -35,7 +35,6 @@ import 'providers_screen.dart';
 import 'expense_workshop_report_screen.dart';
 import 'truck_documents_screen.dart';
 import 'oil_change_alerts_screen.dart';
-import 'fleet_alerts_screen.dart';
 import 'clients_screen.dart';
 import 'driver_tasks_screen.dart';
 import 'fleet_docs_screen.dart';
@@ -44,7 +43,6 @@ import 'document_categories_screen.dart';
 import 'workshop_repairs_screen.dart';
 import 'trailer_maintenance_screen.dart';
 
-import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -658,22 +656,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const DocumentCategoriesScreen()));
                 }),
-                _buildNestedDrawerItem(Icons.build_rounded, 'صيانة الشاحنات', () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => TruckMaintenanceScreen(isAdmin: isAdmin)));
-                }),
-                _buildNestedDrawerItem(Icons.category_rounded, 'أنواع مصروفات الإصلاحات', () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseCategoriesScreen()));
-                }),
-                _buildNestedDrawerItem(Icons.oil_barrel_rounded, 'سجلات تغيير الزيت', () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const OilChangeAlertsScreen(isAdmin: true)));
-                }),
-                _buildNestedDrawerItem(Icons.warning_rounded, 'تنبيهات الأسطول', () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const FleetAlertsScreen()));
-                }),
               ]),
               _buildNestedDrawerGroup('المقطورات', [
                 _buildNestedDrawerItem(Icons.directions_railway_rounded, 'قائمة المقطورات', () {
@@ -716,10 +698,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   )));
                 }),
               ]),
-              _buildDrawerItem(Icons.notifications_rounded, 'التنبيهات والمواعيد', () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
-              }),
             ]),
 
             _buildDrawerSection('التتبع والذكاء الاصطناعي', [
