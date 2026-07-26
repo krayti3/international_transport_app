@@ -31,6 +31,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   List<BankAccount> _bankAccounts = [];
   bool _isLoading = true;
   String _currentFilter = 'all'; // all, unpaid, partially_paid, paid
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   @override
   void initState() {
@@ -54,9 +55,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
       if (!mounted) return;
       final bankAccounts = await _supabaseService.getBankAccounts();
+      final cashBoxes = await _supabaseService.getCashBoxes();
       setState(() {
         _allInvoices = clientInvoices;
         _bankAccounts = bankAccounts;
+        _cashBoxes = cashBoxes;
         _isLoading = false;
       });
     } catch (e) {
@@ -306,9 +309,22 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: methodController,
+                DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'طريقة الدفع'),
+                  initialValue: methodController.text.trim().isEmpty ? null : methodController.text.trim(),
+                  items: _cashBoxes.isEmpty
+                      ? null
+                      : _cashBoxes.map((b) {
+                          return DropdownMenuItem(
+                            value: b['code']?.toString(),
+                            child: Text(b['label']?.toString() ?? ''),
+                          );
+                        }).toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      methodController.text = v;
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

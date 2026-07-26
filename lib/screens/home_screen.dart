@@ -641,7 +641,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const TreasuryManagementScreen())));
                 }),
               if (isAdmin)
-                _buildDrawerItem(Icons.account_balance_wallet_rounded, 'إدارة الصناديق', () {
+                _buildDrawerItem(Icons.account_balance_wallet_rounded, 'قائمة الخزائن', () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const CashBoxManagementScreen()));
                 }),
@@ -694,7 +694,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }),
               ]),
               _buildNestedDrawerGroup('ورش الإصلاحات', [
-                _buildNestedDrawerItem(Icons.handyman_rounded, 'إدارة الورشات', () {
+                _buildNestedDrawerItem(Icons.handyman_rounded, 'قائمة الورشات', () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const ProvidersScreen()));
                 }),

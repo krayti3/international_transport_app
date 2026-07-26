@@ -139,7 +139,7 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إدارة الورشات'),
+         title: const Text('قائمة الورشات'),
         actions: [
           IconButton(onPressed: _addProvider, icon: const Icon(Icons.add)),
         ],

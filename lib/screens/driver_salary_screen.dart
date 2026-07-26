@@ -27,11 +27,24 @@ class _DriverSalaryScreenState extends State<DriverSalaryScreen> {
   int _selectedYear = DateTime.now().year;
   List<Map<String, dynamic>> _drivers = [];
   Map<String, Map<String, dynamic>> _salaryCache = {};
+  List<Map<String, dynamic>> _cashBoxes = [];
+  int? _selectedCashBoxId;
 
   @override
   void initState() {
     super.initState();
     _loadDrivers();
+    _loadCashBoxes();
+  }
+
+  Future<void> _loadCashBoxes() async {
+    final boxes = await _supabaseService.getCashBoxes();
+    if (mounted) {
+      setState(() {
+        _cashBoxes = boxes;
+        _selectedCashBoxId = boxes.isNotEmpty ? boxes.first['id'] : null;
+      });
+    }
   }
 
   Future<void> _loadDrivers() async {
@@ -108,6 +121,7 @@ class _DriverSalaryScreenState extends State<DriverSalaryScreen> {
         netSalary,
         'salary',
         'صرف راتب وشهرية السائق: $driverName ($monthLabel)',
+        cashBoxId: _selectedCashBoxId,
       );
 
       _driverNameController.clear();
@@ -212,11 +226,27 @@ class _DriverSalaryScreenState extends State<DriverSalaryScreen> {
                   decoration: const InputDecoration(labelText: 'خصم السلفيات والعُهد المعلقة (€)', prefixIcon: Icon(Icons.remove_circle_outline_rounded)),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _notesController,
-                  decoration: const InputDecoration(labelText: 'ملاحظات تفصيلية (مثال: بونص رحلة فرنسا)', prefixIcon: Icon(Icons.comment_bank_rounded)),
-                ),
+                 const SizedBox(height: 12),
+                 DropdownButtonFormField<String?>(
+                   initialValue: _selectedCashBoxId?.toString(),
+                   decoration: const InputDecoration(labelText: 'الصندوق المصدر'),
+                   items: _cashBoxes.isEmpty
+                       ? null
+                       : _cashBoxes.map((b) {
+                           return DropdownMenuItem<String?>(
+                             value: b['id']?.toString(),
+                             child: Text(b['label']?.toString() ?? ''),
+                           );
+                         }).toList(),
+                   onChanged: (v) {
+                     setState(() => _selectedCashBoxId = v == null ? null : int.tryParse(v));
+                   },
+                 ),
+                 const SizedBox(height: 12),
+                 TextField(
+                   controller: _notesController,
+                   decoration: const InputDecoration(labelText: 'ملاحظات تفصيلية (مثال: بونص رحلة فرنسا)', prefixIcon: Icon(Icons.comment_bank_rounded)),
+                 ),
               ],
             ),
           ),

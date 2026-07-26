@@ -29,6 +29,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
   DateTime? _filterToDate;
   List<Map<String, dynamic>> _expenseTypes = [];
   String? _selectedExpenseType;
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   @override
   void initState() {
@@ -50,6 +51,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
       toDate: _filterToDate,
     );
     final expenseTypes = await _supabaseService.getExpenseCategories();
+    final cashBoxes = await _supabaseService.getCashBoxes();
     if (mounted) {
       setState(() {
         _trucks = widget.truckId != null
@@ -67,6 +69,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
           seen.add(name);
           return true;
         }).toList();
+        _cashBoxes = cashBoxes;
         _isLoading = false;
       });
     }
@@ -100,7 +103,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
             DateTime.tryParse(dateStr) ?? DateTime.now(),
           )
         : '';
-    final paymentStatus = m['payment_status']?.toString() ?? 'paid_by_owner';
+    final paymentStatus = m['payment_status']?.toString() ?? 'owner_cash';
     final isOnCredit = paymentStatus == 'on_credit';
 
     return Card(
@@ -296,7 +299,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
     String expenseType =
         maintenance?['expense_type']?.toString() ?? 'oil_change';
     String paymentStatus =
-        maintenance?['payment_status']?.toString() ?? 'paid_by_owner';
+        maintenance?['payment_status']?.toString() ?? 'owner_cash';
 
     final cats = await _supabaseService.getExpenseCategories();
     final seen = <String>{};
@@ -385,22 +388,14 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                       DropdownButtonFormField<String>(
                         initialValue: paymentStatus,
                         decoration: const InputDecoration(
-                          labelText: 'حالة الدفع',
+                          labelText: 'مصدر الدفع',
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'paid_by_owner',
-                            child: Text('الكاش من صاحب الشركة'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'bank_transfer',
-                            child: Text('تحويل بنكي من صاحب الشركة'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'secretary_cash',
-                            child: Text('الكاش من خزينة السكرتيرة'),
-                          ),
-                          DropdownMenuItem(
+                        items: [
+                          ..._cashBoxes.map((b) => DropdownMenuItem(
+                            value: b['code']?.toString(),
+                            child: Text(b['label']?.toString() ?? ''),
+                          )),
+                          const DropdownMenuItem(
                             value: 'on_credit',
                             child: Text('على الحساب (دَين)'),
                           ),
@@ -496,7 +491,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                             labelText: 'اسم المزود / الورشة',
                             suffixIcon: IconButton(
                               icon: const Icon(Icons.manage_history, size: 20),
-                              tooltip: 'إدارة الورشات',
+                               tooltip: 'قائمة الورشات',
                               onPressed: () async {
                                 if (!widget.isAdmin) return;
                                 await Navigator.push(
@@ -676,26 +671,18 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                               child: DropdownButtonFormField<String?>(
                                 initialValue: _filterPaymentStatus,
                                 decoration: const InputDecoration(
-                                  labelText: 'حالة الدفع',
+                                  labelText: 'مصدر الدفع',
                                 ),
-                                items: const [
-                                  DropdownMenuItem(
+                                items: [
+                                  const DropdownMenuItem(
                                     value: null,
                                     child: Text('الكل'),
                                   ),
-                                  DropdownMenuItem(
-                                    value: 'paid_by_owner',
-                                    child: Text('الكاش من صاحب الشركة'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'bank_transfer',
-                                    child: Text('تحويل بنكي من صاحب الشركة'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'secretary_cash',
-                                    child: Text('الكاش من خزينة السكرتيرة'),
-                                  ),
-                                  DropdownMenuItem(
+                                  ..._cashBoxes.map((b) => DropdownMenuItem(
+                                    value: b['code']?.toString(),
+                                    child: Text(b['label']?.toString() ?? ''),
+                                  )),
+                                  const DropdownMenuItem(
                                     value: 'on_credit',
                                     child: Text('على الحساب (دَين)'),
                                   ),
@@ -843,7 +830,8 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
     Color color;
     String label;
     switch (status) {
-      case 'owner_bank_transfer':
+      case 'bank_morocco':
+      case 'bank_europe':
         color = Colors.blue;
         label = 'تحويل بنكي';
         break;
@@ -855,6 +843,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
         color = Colors.orange;
         label = 'خزينة السكرتيرة';
         break;
+      case 'owner_cash':
       case 'paid_by_owner':
       default:
         color = Colors.green;

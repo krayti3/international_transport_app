@@ -22,6 +22,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
   List<Map<String, dynamic>> _trucks = [];
   List<Map<String, dynamic>> _oilRecords = [];
   bool _isLoading = true;
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   @override
   void initState() {
@@ -33,6 +34,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
     setState(() => _isLoading = true);
     final trucks = await _supabaseService.getTrucks();
     final records = await _supabaseService.getOilChangeRecords();
+    final cashBoxes = await _supabaseService.getCashBoxes();
     if (!mounted) return;
     setState(() {
       _trucks = widget.truckId != null
@@ -41,6 +43,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
       _oilRecords = widget.truckId != null
           ? records.where((r) => (r['truck_id'] as num?)?.toInt() == widget.truckId).toList()
           : records;
+      _cashBoxes = cashBoxes;
       _isLoading = false;
     });
   }
@@ -56,6 +59,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
     final amountController = TextEditingController();
     final descController = TextEditingController();
     String? selectedProvider;
+    String? selectedCashBox;
     final selectedDateController = TextEditingController(text: DateFormat('dd/MM/yyyy').format(DateTime.now()));
     double? selectedOilInterval;
     bool customOilInterval = false;
@@ -190,43 +194,60 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
                     readOnly: true,
                     decoration: const InputDecoration(labelText: 'المعدل اليومي للكيلومترات'),
                   ),
-                TextFormField(
-                  controller: nextDateController,
-                  textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(
-                    labelText: 'التاريخ القادم',
-                    suffixIcon: Icon(Icons.calendar_today),
-                  ),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: (selectedProvider == null || selectedProvider!.isEmpty) ? null : selectedProvider,
-                  decoration: const InputDecoration(labelText: 'اسم المزود / الورشة'),
-                  items: [
-                    ...providerNames.map((name) {
-                      return DropdownMenuItem(
-                        value: name,
-                        child: Text(name),
-                      );
-                    }),
-                    if (providerNames.isEmpty)
-                      const DropdownMenuItem(
-                        value: '',
-                        child: Text('لا توجد ورشات'),
-                      ),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) {
-                      setDialogState(() {
-                        selectedProvider = v;
-                      });
-                    }
-                  },
-                ),
-                TextFormField(
-                  controller: descController,
-                  decoration: const InputDecoration(labelText: 'ملاحظات'),
-                ),
-              ],
+                 TextFormField(
+                   controller: nextDateController,
+                   textDirection: TextDirection.ltr,
+                   decoration: const InputDecoration(
+                     labelText: 'التاريخ القادم',
+                     suffixIcon: Icon(Icons.calendar_today),
+                   ),
+                 ),
+                 DropdownButtonFormField<String>(
+                   initialValue: (selectedProvider == null || selectedProvider!.isEmpty) ? null : selectedProvider,
+                   decoration: const InputDecoration(labelText: 'اسم المزود / الورشة'),
+                   items: [
+                     ...providerNames.map((name) {
+                       return DropdownMenuItem(
+                         value: name,
+                         child: Text(name),
+                       );
+                     }),
+                     if (providerNames.isEmpty)
+                       const DropdownMenuItem(
+                         value: '',
+                         child: Text('لا توجد ورشات'),
+                       ),
+                   ],
+                   onChanged: (v) {
+                     if (v != null) {
+                       setDialogState(() {
+                         selectedProvider = v;
+                       });
+                     }
+                   },
+                 ),
+                 const SizedBox(height: 12),
+                 if (_cashBoxes.isNotEmpty)
+                   DropdownButtonFormField<String>(
+                     initialValue: selectedCashBox,
+                     decoration: const InputDecoration(labelText: 'الصندوق المصدر'),
+                     items: _cashBoxes.map((b) {
+                       return DropdownMenuItem(
+                         value: b['code']?.toString(),
+                         child: Text(b['label']?.toString() ?? ''),
+                       );
+                     }).toList(),
+                     onChanged: (v) {
+                       if (v != null) {
+                         setDialogState(() => selectedCashBox = v);
+                       }
+                     },
+                   ),
+                 TextFormField(
+                   controller: descController,
+                   decoration: const InputDecoration(labelText: 'ملاحظات'),
+                 ),
+               ],
             ),
           ),
           actions: [
@@ -258,6 +279,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
                     'oil_interval_km': interval,
                     'next_change_km': double.tryParse(nextKmController.text.trim()) ?? 0,
                     'next_change_date': nextDateParsed?.toIso8601String() ?? selectedDate.toIso8601String(),
+                    'payment_status': selectedCashBox ?? 'on_credit',
                   });
                   if (!mounted) return;
                   Navigator.pop(context);
@@ -283,7 +305,8 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
     final amountController = TextEditingController();
     final descController = TextEditingController();
     String? selectedProvider;
-    final selectedDateController = TextEditingController();
+    String? selectedCashBox;
+    final selectedDateController = TextEditingController(text: DateFormat('dd/MM/yyyy').format(DateTime.now()));
     double? selectedOilInterval;
     bool customOilInterval = false;
     final customOilController = TextEditingController();
@@ -311,6 +334,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
 
     amountController.text = (record['amount'] as num?)?.toDouble().toString() ?? '';
     selectedProvider = record['provider_name']?.toString() ?? '';
+    selectedCashBox = record['payment_status']?.toString();
     descController.text = record['description']?.toString() ?? '';
 
     final maintenanceDate = record['maintenance_date']?.toString() ?? record['created_at']?.toString();
@@ -467,6 +491,23 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
                   controller: descController,
                   decoration: const InputDecoration(labelText: 'ملاحظات'),
                 ),
+                const SizedBox(height: 12),
+                if (_cashBoxes.isNotEmpty)
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCashBox,
+                    decoration: const InputDecoration(labelText: 'الصندوق المصدر'),
+                    items: _cashBoxes.map((b) {
+                      return DropdownMenuItem(
+                        value: b['code']?.toString(),
+                        child: Text(b['label']?.toString() ?? ''),
+                      );
+                    }).toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setDialogState(() => selectedCashBox = v);
+                      }
+                    },
+                  ),
               ],
             ),
           ),
@@ -486,18 +527,19 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
                       ? double.tryParse(customOilController.text.trim())
                       : selectedOilInterval;
                   final nextDateParsed = DateFormat('dd/MM/yyyy').tryParse(nextDateController.text.trim());
-                  await _supabaseService.updateTruckMaintenance(record['id'] as int, {
-                    'truck_id': truckId,
-                    'expense_type': 'oil_change',
-                    'km_at_time': currentKm,
-                    'amount': double.tryParse(amountController.text.trim()) ?? 0.0,
-                    'provider_name': (selectedProvider == null || selectedProvider!.isEmpty) ? null : selectedProvider,
-                    'description': descController.text.trim().isEmpty ? null : descController.text.trim(),
-                    'maintenance_date': selectedDate.toIso8601String(),
-                    'oil_interval_km': interval,
-                    'next_change_km': double.tryParse(nextKmController.text.trim()) ?? 0,
-                    'next_change_date': nextDateParsed?.toIso8601String() ?? selectedDate.toIso8601String(),
-                  });
+                   await _supabaseService.updateTruckMaintenance(record['id'] as int, {
+                     'truck_id': truckId,
+                     'expense_type': 'oil_change',
+                     'km_at_time': currentKm,
+                     'amount': double.tryParse(amountController.text.trim()) ?? 0.0,
+                     'provider_name': (selectedProvider == null || selectedProvider!.isEmpty) ? null : selectedProvider,
+                     'description': descController.text.trim().isEmpty ? null : descController.text.trim(),
+                     'maintenance_date': selectedDate.toIso8601String(),
+                     'oil_interval_km': interval,
+                     'next_change_km': double.tryParse(nextKmController.text.trim()) ?? 0,
+                     'next_change_date': nextDateParsed?.toIso8601String() ?? selectedDate.toIso8601String(),
+                     'payment_status': selectedCashBox ?? 'on_credit',
+                   });
                   if (!mounted) return;
                   Navigator.pop(context);
                   await _loadAlerts();

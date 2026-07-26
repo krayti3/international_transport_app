@@ -19,11 +19,29 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
   File? _imageFile;
   bool _isScanning = false;
   bool _isLoading = false;
+  List<Map<String, dynamic>> _cashBoxes = [];
+  String? _selectedCashBox;
 
   final _stationController = TextEditingController();
   final _amountController = TextEditingController();
   final _litersController = TextEditingController();
   final _truckController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCashBoxes();
+  }
+
+  Future<void> _loadCashBoxes() async {
+    final boxes = await _supabaseService.getCashBoxes();
+    if (mounted) {
+      setState(() {
+        _cashBoxes = boxes;
+        _selectedCashBox = boxes.isNotEmpty ? boxes.first['code']?.toString() : null;
+      });
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -110,6 +128,9 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
         amount,
         'trip_expense',
         'تذكرة مازوت: $station$truck$liters',
+        cashBoxId: _selectedCashBox != null
+            ? _cashBoxes.firstWhere((b) => b['code']?.toString() == _selectedCashBox)['id']
+            : null,
       );
 
       setState(() {
@@ -254,14 +275,31 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: _truckController,
-                      decoration: const InputDecoration(labelText: 'رقم الشاحنة / المقطورة (اختياري)', prefixIcon: Icon(Icons.local_shipping)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                     TextField(
+                       controller: _truckController,
+                       decoration: const InputDecoration(labelText: 'رقم الشاحنة / المقطورة (اختياري)', prefixIcon: Icon(Icons.local_shipping)),
+                     ),
+                     const SizedBox(height: 12),
+                     if (_cashBoxes.isNotEmpty)
+                       DropdownButtonFormField<String>(
+                         initialValue: _selectedCashBox,
+                         decoration: const InputDecoration(labelText: 'الصندوق المصدر'),
+                         items: _cashBoxes.map((b) {
+                           return DropdownMenuItem(
+                             value: b['code']?.toString(),
+                             child: Text(b['label']?.toString() ?? ''),
+                           );
+                         }).toList(),
+                         onChanged: (v) {
+                           if (v != null) {
+                             setState(() => _selectedCashBox = v);
+                           }
+                         },
+                       ),
+                   ],
+                 ),
+               ),
+             ),
             const SizedBox(height: 24),
 
             SizedBox(

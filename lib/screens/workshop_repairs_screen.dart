@@ -37,12 +37,14 @@ class _WorkshopRepairInvoicesScreenState
   String? _selectedWorkshopId;
   List<Map<String, dynamic>> _workshopOptions = [];
   final Set<int> _selectedExpenseIds = {};
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   @override
   void initState() {
     super.initState();
     _loadInvoices();
     _loadExpensesOnCredit();
+    _loadCashBoxes();
     if (widget.workshopId.isEmpty) {
       _loadWorkshopOptions();
     }
@@ -52,6 +54,13 @@ class _WorkshopRepairInvoicesScreenState
     final providers = await _supabaseService.getProviders();
     if (mounted) {
       setState(() => _workshopOptions = providers);
+    }
+  }
+
+  Future<void> _loadCashBoxes() async {
+    final boxes = await _supabaseService.getCashBoxes();
+    if (mounted) {
+      setState(() => _cashBoxes = boxes);
     }
   }
 
@@ -443,9 +452,10 @@ class _WorkshopRepairInvoicesScreenState
           PopupMenuButton<String>(
             onSelected: (v) => Navigator.pop(ctx, v),
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'paid_by_owner', child: Text('دفع كاش من صاحب الشركة')),
-              const PopupMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
-              const PopupMenuItem(value: 'secretary_cash', child: Text('دفع من خزينة السكرتيرة')),
+              ..._cashBoxes.map((b) => PopupMenuItem(
+                value: b['code']?.toString(),
+                child: Text(b['label']?.toString() ?? ''),
+              )),
             ],
             child: const Icon(Icons.check_rounded, color: Colors.green),
           ),
@@ -453,9 +463,8 @@ class _WorkshopRepairInvoicesScreenState
       ),
     );
     if (newStatus == null || newStatus == 'cancel') return;
-
-    final id = expense['id'] as int?;
     final vehicleType = expense['vehicle_type']?.toString() ?? '';
+    final id = expense['id'] as int?;
     if (id == null) return;
     try {
       if (vehicleType == 'شاحنة') {
@@ -506,9 +515,10 @@ class _WorkshopRepairInvoicesScreenState
           PopupMenuButton<String>(
             onSelected: (v) => Navigator.pop(ctx, v),
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'paid_by_owner', child: Text('دفع كاش من صاحب الشركة')),
-              const PopupMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
-              const PopupMenuItem(value: 'secretary_cash', child: Text('دفع من خزينة السكرتيرة')),
+              ..._cashBoxes.map((b) => PopupMenuItem(
+                value: b['code']?.toString(),
+                child: Text(b['label']?.toString() ?? ''),
+              )),
             ],
             child: const Icon(Icons.check_rounded, color: Colors.green),
           ),
@@ -570,11 +580,17 @@ class _WorkshopRepairInvoicesScreenState
 
   String _paymentStatusLabel(String status) {
     switch (status) {
-      case 'bank_transfer': return 'تحويل بنكي';
-      case 'on_credit': return 'على الحساب (دَين)';
-      case 'secretary_cash': return 'الكاش من خزينة السكرتيرة';
-      case 'paid_by_owner': return 'الكاش من صاحب الشركة';
-      default: return status;
+      case 'bank_morocco':
+      case 'bank_europe':
+        return 'تحويل بنكي';
+      case 'on_credit':
+        return 'على الحساب (دَين)';
+      case 'secretary_cash':
+        return 'الكاش من خزينة السكرتيرة';
+      case 'owner_cash':
+      case 'paid_by_owner':
+      default:
+        return 'الكاش من صاحب الشركة';
     }
   }
 
@@ -880,17 +896,18 @@ class _WorkshopRepairInvoicesScreenState
                                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                                        ),
                                        const SizedBox(width: 4),
-                                       PopupMenuButton<String>(
-                                         onSelected: (value) {
-                                           _settleExpenseDebt(expense);
-                                         },
-                                         itemBuilder: (_) => [
-                                           const PopupMenuItem(value: 'paid_by_owner', child: Text('دفع كاش من صاحب الشركة')),
-                                           const PopupMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
-                                           const PopupMenuItem(value: 'secretary_cash', child: Text('دفع من خزينة السكرتيرة')),
-                                         ],
-                                         child: Icon(Icons.payment_rounded, color: Colors.green, size: 20),
-                                       ),
+                                        PopupMenuButton<String>(
+                                          onSelected: (value) {
+                                            _settleExpenseDebt(expense);
+                                          },
+                                          itemBuilder: (_) => [
+                                            ..._cashBoxes.map((b) => PopupMenuItem(
+                                              value: b['code']?.toString(),
+                                              child: Text(b['label']?.toString() ?? ''),
+                                            )),
+                                          ],
+                                          child: Icon(Icons.payment_rounded, color: Colors.green, size: 20),
+                                        ),
                                      ],
                                    ),
                                  ),

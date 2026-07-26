@@ -26,11 +26,10 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   List<Invoice> _allInvoices = [];
   bool _isLoading = true;
   String _currentFilter = 'all'; // all, unpaid, partially_paid, paid
-  // إعدادات الـ TVA العامة (من جدول app_settings). الفاتورة تخزّن الإجمالي شاملاً
-  // الضريبة (TTC)، والضريبة تُشتق ديناميكياً كما في تقرير الأرباح.
   bool _tvaEnabled = false;
   double _tvaPercentage = 0.0;
   Map<String, String> _clientNames = {};
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   @override
   void initState() {
@@ -43,11 +42,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     final invoices = await _supabaseService.getInvoices();
     final clients = await _supabaseService.getClients();
     final settings = await _supabaseService.getAppSettings();
+    final cashBoxes = await _supabaseService.getCashBoxes();
     setState(() {
       _allInvoices = invoices;
       _clientNames = {for (final c in clients) c.id.toString(): c.name};
       _tvaEnabled = settings?['is_enabled'] as bool? ?? true;
       _tvaPercentage = (settings?['percentage'] as num?)?.toDouble() ?? 0.0;
+      _cashBoxes = cashBoxes;
       _isLoading = false;
     });
   }
@@ -237,13 +238,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         decoration: const InputDecoration(labelText: 'طريقة الدفع'),
-                        initialValue: methodController.text.isEmpty ? null : methodController.text,
-                        items: const [
-                          DropdownMenuItem(value: 'تحويل بنكي', child: Text('تحويل بنكي')),
-                          DropdownMenuItem(value: 'شيك', child: Text('شيك')),
-                          DropdownMenuItem(value: 'نقداً', child: Text('نقداً')),
-                          DropdownMenuItem(value: 'كمبيالة', child: Text('كمبيالة')),
-                        ],
+                        initialValue: _cashBoxes.isNotEmpty ? _cashBoxes.first['code']?.toString() : null,
+                        items: _cashBoxes.isEmpty
+                            ? null
+                            : _cashBoxes.map((b) {
+                                return DropdownMenuItem(
+                                  value: b['code']?.toString(),
+                                  child: Text(b['label']?.toString() ?? ''),
+                                );
+                              }).toList(),
                         onChanged: (value) => methodController.text = value ?? '',
                         validator: (value) => value == null || value.isEmpty ? 'يرجى اختيار طريقة الدفع' : null,
                       ),
@@ -418,13 +421,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                       labelText: 'طريقة الدفع',
                       border: OutlineInputBorder(),
                     ),
-                    initialValue: methodController.text.isEmpty ? null : methodController.text,
-                    items: const [
-                      DropdownMenuItem(value: 'تحويل بنكي', child: Text('تحويل بنكي')),
-                      DropdownMenuItem(value: 'شيك', child: Text('شيك')),
-                      DropdownMenuItem(value: 'نقداً', child: Text('نقداً')),
-                      DropdownMenuItem(value: 'كمبيالة', child: Text('كمبيالة')),
-                    ],
+                    initialValue: _cashBoxes.isNotEmpty ? _cashBoxes.first['code']?.toString() : null,
+                    items: _cashBoxes.isEmpty
+                        ? null
+                        : _cashBoxes.map((b) {
+                            return DropdownMenuItem(
+                              value: b['code']?.toString(),
+                              child: Text(b['label']?.toString() ?? ''),
+                            );
+                          }).toList(),
                     onChanged: (value) => methodController.text = value ?? '',
                     validator: (value) => value == null || value.isEmpty ? 'يرجى اختيار طريقة الدفع' : null,
                   ),

@@ -19,6 +19,7 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
   String? _filterPaymentStatus;
   String? _filterWorkshop;
   List<String> _workshopNames = [];
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   @override
   void initState() {
@@ -30,6 +31,7 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
     setState(() => _isLoading = true);
     final truckMaintenances = await _supabaseService.getTruckMaintenances();
     final trailerMaintenances = await _supabaseService.getTrailerMaintenances();
+    final cashBoxes = await _supabaseService.getCashBoxes();
 
     final combined = <Map<String, dynamic>>[];
     for (final row in truckMaintenances) {
@@ -56,6 +58,7 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
         _allExpenses = combined;
         _debts = combined.where((e) => e['payment_status']?.toString() == 'on_credit').toList();
         _workshopNames = workshops;
+        _cashBoxes = cashBoxes;
         _isLoading = false;
       });
     }
@@ -198,27 +201,30 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
 
   String _paymentStatusLabel(String status) {
     switch (status) {
-      case 'bank_transfer':
-        return 'تحويل بنكي من صاحب الشركة';
+      case 'bank_morocco':
+      case 'bank_europe':
+        return 'تحويل بنكي';
       case 'on_credit':
         return 'على الحساب (دَين)';
       case 'secretary_cash':
         return 'الكاش من خزينة السكرتيرة';
+      case 'owner_cash':
       case 'paid_by_owner':
-        return 'الكاش من صاحب الشركة';
       default:
-        return status;
+        return 'الكاش من صاحب الشركة';
     }
   }
 
   Color _paymentStatusColor(String status) {
     switch (status) {
-      case 'bank_transfer':
+      case 'bank_morocco':
+      case 'bank_europe':
         return Colors.blue;
       case 'on_credit':
         return Colors.red;
       case 'secretary_cash':
         return Colors.orange;
+      case 'owner_cash':
       case 'paid_by_owner':
       default:
         return Colors.green;
@@ -268,15 +274,16 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
                         child: DropdownButtonFormField<String?>(
                           initialValue: _filterPaymentStatus,
                           decoration: const InputDecoration(
-                            labelText: 'حالة الدفع',
+                            labelText: 'مصدر الدفع',
                             border: OutlineInputBorder(),
                           ),
-                          items: const [
-                            DropdownMenuItem(value: null, child: Text('الكل')),
-                            DropdownMenuItem(value: 'paid_by_owner', child: Text('الكاش من صاحب الشركة')),
-                            DropdownMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
-                            DropdownMenuItem(value: 'secretary_cash', child: Text('الكاش من خزينة السكرتيرة')),
-                            DropdownMenuItem(value: 'on_credit', child: Text('على الحساب (دَين)')),
+                          items: [
+                            const DropdownMenuItem(value: null, child: Text('الكل')),
+                            ..._cashBoxes.map((b) => DropdownMenuItem(
+                              value: b['code']?.toString(),
+                              child: Text(b['label']?.toString() ?? ''),
+                            )),
+                            const DropdownMenuItem(value: 'on_credit', child: Text('على الحساب (دَين)')),
                           ],
                           onChanged: (v) => setState(() => _filterPaymentStatus = v),
                         ),
@@ -372,9 +379,10 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
                               _settleWorkshopDebt(workshop, debts, value);
                             },
                             itemBuilder: (_) => [
-                              const PopupMenuItem(value: 'paid_by_owner', child: Text('دفع كاش من صاحب الشركة')),
-                              const PopupMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
-                              const PopupMenuItem(value: 'secretary_cash', child: Text('دفع من خزينة السكرتيرة')),
+                              ..._cashBoxes.map((b) => PopupMenuItem(
+                                value: b['code']?.toString(),
+                                child: Text(b['label']?.toString() ?? ''),
+                              )),
                             ],
                             child: const Icon(Icons.payment_rounded, color: Colors.green),
                           ),
@@ -401,9 +409,10 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
                                       _settleDebt(debt, value);
                                     },
                                     itemBuilder: (_) => [
-                                      const PopupMenuItem(value: 'paid_by_owner', child: Text('دفع كاش من صاحب الشركة')),
-                                      const PopupMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
-                                      const PopupMenuItem(value: 'secretary_cash', child: Text('دفع من خزينة السكرتيرة')),
+                                      ..._cashBoxes.map((b) => PopupMenuItem(
+                                        value: b['code']?.toString(),
+                                        child: Text(b['label']?.toString() ?? ''),
+                                      )),
                                     ],
                                     child: const Icon(Icons.payments_rounded, color: Colors.green),
                                   ),

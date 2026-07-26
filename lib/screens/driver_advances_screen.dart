@@ -18,6 +18,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
   final SupabaseService _supabaseService = SupabaseService();
   List<Map<String, dynamic>> _advances = [];
   bool _isLoading = true;
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   static const _statusOptions = {
     'pending': 'معلق',
@@ -29,6 +30,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _loadCashBoxes();
   }
 
   Future<void> _loadData() async {
@@ -38,6 +40,14 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
     setState(() {
       _advances = advances;
       _isLoading = false;
+    });
+  }
+
+  Future<void> _loadCashBoxes() async {
+    final boxes = await _supabaseService.getCashBoxes();
+    if (!mounted) return;
+    setState(() {
+      _cashBoxes = boxes;
     });
   }
 
@@ -65,6 +75,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
     final notesController = TextEditingController(
       text: advance?['notes']?.toString() ?? '',
     );
+    String? sourceCashBox = advance?['source_cash_box']?.toString();
 
     await showDialog(
       context: context,
@@ -121,6 +132,24 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                   decoration: const InputDecoration(labelText: 'الملاحظات'),
                   maxLines: 3,
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: sourceCashBox,
+                  decoration: const InputDecoration(
+                    labelText: 'مصدر العهدة (الصندوق)',
+                  ),
+                  items: _cashBoxes.isEmpty
+                      ? null
+                      : _cashBoxes.map((b) {
+                          return DropdownMenuItem(
+                            value: b['code']?.toString(),
+                            child: Text(b['label']?.toString() ?? ''),
+                          );
+                        }).toList(),
+                  onChanged: (v) {
+                    setDialogState(() => sourceCashBox = v);
+                  },
+                ),
               ],
             ),
           ),
@@ -136,6 +165,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                   'amount_spent': double.tryParse(amountSpentController.text.trim()),
                   'date_return': dateReturnController.text.trim().isEmpty ? null : dateReturnController.text.trim(),
                   'notes': notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+                  'source_cash_box': sourceCashBox,
                 };
                 try {
                   if (isEdit) {

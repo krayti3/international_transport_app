@@ -25,6 +25,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
   DateTime? _filterToDate;
   List<String> _expenseTypes = [];
   String? _selectedExpenseType;
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   @override
   void initState() {
@@ -44,6 +45,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
         ? await _supabaseService.getTrailerMaintenancesByTrailer(widget.trailerId!)
         : await _supabaseService.getTrailerMaintenances();
     final expenseTypes = await _supabaseService.getExpenseTypes();
+    final cashBoxes = await _supabaseService.getCashBoxes();
     if (mounted) {
       setState(() {
         _trailers = widget.trailerId != null
@@ -70,6 +72,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
             })
             .toList();
         _expenseTypes = expenseTypes;
+        _cashBoxes = cashBoxes;
         _isLoading = false;
       });
     }
@@ -103,7 +106,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
             DateTime.tryParse(dateStr) ?? DateTime.now(),
           )
         : '';
-    final paymentStatus = m['payment_status']?.toString() ?? 'paid_by_owner';
+    final paymentStatus = m['payment_status']?.toString() ?? 'owner_cash';
     final isOnCredit = paymentStatus == 'on_credit';
 
     return Card(
@@ -296,7 +299,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
     String expenseType =
         maintenance?['expense_type']?.toString() ?? (_expenseTypes.isNotEmpty ? _expenseTypes.first : '');
     String paymentStatus =
-        maintenance?['payment_status']?.toString() ?? 'paid_by_owner';
+        maintenance?['payment_status']?.toString() ?? 'owner_cash';
     TextEditingController amountController = TextEditingController(
       text: maintenance?['amount']?.toString() ?? '',
     );
@@ -360,22 +363,14 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
                       DropdownButtonFormField<String>(
                         initialValue: paymentStatus,
                         decoration: const InputDecoration(
-                          labelText: 'حالة الدفع',
+                          labelText: 'مصدر الدفع',
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'paid_by_owner',
-                            child: Text('الكاش من صاحب الشركة'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'bank_transfer',
-                            child: Text('تحويل بنكي من صاحب الشركة'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'secretary_cash',
-                            child: Text('الكاش من خزينة السكرتيرة'),
-                          ),
-                          DropdownMenuItem(
+                        items: [
+                          ..._cashBoxes.map((b) => DropdownMenuItem(
+                            value: b['code']?.toString(),
+                            child: Text(b['label']?.toString() ?? ''),
+                          )),
+                          const DropdownMenuItem(
                             value: 'on_credit',
                             child: Text('على الحساب (دَين)'),
                           ),
@@ -470,7 +465,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
                           labelText: 'اسم المزود / الورشة',
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.manage_history, size: 20),
-                            tooltip: 'إدارة الورشات',
+                             tooltip: 'قائمة الورشات',
                             onPressed: () async {
                               if (!widget.isAdmin) return;
                               await Navigator.push(
@@ -642,26 +637,18 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
                               child: DropdownButtonFormField<String?>(
                                 initialValue: _filterPaymentStatus,
                                 decoration: const InputDecoration(
-                                  labelText: 'حالة الدفع',
+                                  labelText: 'مصدر الدفع',
                                 ),
-                                items: const [
-                                  DropdownMenuItem(
+                                items: [
+                                  const DropdownMenuItem(
                                     value: null,
                                     child: Text('الكل'),
                                   ),
-                                  DropdownMenuItem(
-                                    value: 'paid_by_owner',
-                                    child: Text('الكاش من صاحب الشركة'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'bank_transfer',
-                                    child: Text('تحويل بنكي من صاحب الشركة'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'secretary_cash',
-                                    child: Text('الكاش من خزينة السكرتيرة'),
-                                  ),
-                                  DropdownMenuItem(
+                                  ..._cashBoxes.map((b) => DropdownMenuItem(
+                                    value: b['code']?.toString(),
+                                    child: Text(b['label']?.toString() ?? ''),
+                                  )),
+                                  const DropdownMenuItem(
                                     value: 'on_credit',
                                     child: Text('على الحساب (دَين)'),
                                   ),
@@ -809,7 +796,8 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
     Color color;
     String label;
     switch (status) {
-      case 'bank_transfer':
+      case 'bank_morocco':
+      case 'bank_europe':
         color = Colors.blue;
         label = 'تحويل بنكي';
         break;
@@ -821,6 +809,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
         color = Colors.orange;
         label = 'خزينة السكرتيرة';
         break;
+      case 'owner_cash':
       case 'paid_by_owner':
       default:
         color = Colors.green;

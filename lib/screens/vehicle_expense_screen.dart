@@ -27,6 +27,7 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
   List<Map<String, dynamic>> _records = [];
   String? _vehicleLabel;
   bool _isLoading = true;
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   @override
   void initState() {
@@ -68,10 +69,13 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
         return bDate.compareTo(aDate);
       });
 
+      final cashBoxes = await _supabaseService.getCashBoxes();
+
       if (!mounted) return;
       setState(() {
         _records = records;
         _vehicleLabel = label;
+        _cashBoxes = cashBoxes;
         _isLoading = false;
       });
     } catch (e) {
@@ -86,7 +90,7 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
     final amountController = TextEditingController(text: record?['amount']?.toString() ?? '');
     final kmController = TextEditingController(text: (record?['km_at_time'] as num?)?.toDouble().toString() ?? '');
     final descController = TextEditingController(text: record?['description']?.toString() ?? '');
-    String paymentStatus = record?['payment_status']?.toString() ?? 'paid_by_owner';
+    String paymentStatus = record?['payment_status']?.toString() ?? 'owner_cash';
     DateTime? maintenanceDate = record != null && record['maintenance_date'] != null
         ? DateTime.tryParse(record['maintenance_date'].toString())
         : DateTime.now();
@@ -127,12 +131,13 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: paymentStatus,
-                  decoration: const InputDecoration(labelText: 'حالة الدفع'),
-                  items: const [
-                    DropdownMenuItem(value: 'paid_by_owner', child: Text('الكاش من صاحب الشركة')),
-                    DropdownMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
-                    DropdownMenuItem(value: 'secretary_cash', child: Text('الكاش من خزينة السكرتيرة')),
-                    DropdownMenuItem(value: 'on_credit', child: Text('على الحساب (دَين)')),
+                  decoration: const InputDecoration(labelText: 'مصدر الدفع'),
+                  items: [
+                    ..._cashBoxes.map((b) => DropdownMenuItem(
+                      value: b['code']?.toString(),
+                      child: Text(b['label']?.toString() ?? ''),
+                    )),
+                    const DropdownMenuItem(value: 'on_credit', child: Text('على الحساب (دَين)')),
                   ],
                   onChanged: (v) {
                     if (v != null) setDialogState(() => paymentStatus = v);
@@ -176,7 +181,7 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
                     labelText: 'اسم المزود / الورشة',
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.manage_history, size: 20),
-                      tooltip: 'إدارة الورشات',
+                       tooltip: 'قائمة الورشات',
                       onPressed: () async {
                         if (!widget.isAdmin) return;
                         await Navigator.push(

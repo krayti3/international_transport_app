@@ -256,7 +256,7 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إدارة الصناديق'),
+          title: const Text('قائمة الخزائن'),
         actions: [
           IconButton(
             icon: const Icon(Icons.swap_horiz),

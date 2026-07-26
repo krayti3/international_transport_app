@@ -21,6 +21,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
   final Map<int, String> _driverNames = {};
   bool _isLoading = true;
   String _currentFilter = 'all'; // all, pending, settled
+  List<Map<String, dynamic>> _cashBoxes = [];
 
   static const _statusOptions = {
     'pending': 'معلق',
@@ -38,6 +39,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
     setState(() => _isLoading = true);
     final advances = await _supabaseService.getAdvances();
     final drivers = await _supabaseService.getDrivers();
+    final cashBoxes = await _supabaseService.getCashBoxes();
     _driverNames.clear();
     for (final driver in drivers) {
       final id = driver['id'] as int?;
@@ -46,6 +48,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
     setState(() {
       _advances = advances;
       _drivers = drivers;
+      _cashBoxes = cashBoxes;
       _isLoading = false;
     });
   }
@@ -124,6 +127,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
     final notesController = TextEditingController(
       text: advance?['notes']?.toString() ?? '',
     );
+    String? sourceCashBox = advance?['source_cash_box']?.toString();
     final formKey = GlobalKey<FormState>();
 
     if (!mounted) return;
@@ -218,12 +222,32 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                      textDirection: TextDirection.ltr,
                      decoration: const InputDecoration(labelText: 'تاريخ العودة'),
                    ),
-                   const SizedBox(height: 12),
-                   TextFormField(
-                     controller: notesController,
-                    decoration: const InputDecoration(labelText: 'الملاحظات'),
-                    maxLines: 3,
-                  ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: sourceCashBox,
+                      decoration: const InputDecoration(
+                        labelText: 'مصدر العهدة (الصندوق)',
+                      ),
+                      items: _cashBoxes.isEmpty
+                          ? null
+                          : _cashBoxes.map((b) {
+                              return DropdownMenuItem(
+                                value: b['code']?.toString(),
+                                child: Text(b['label']?.toString() ?? ''),
+                              );
+                            }).toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setDialogState(() => sourceCashBox = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesController,
+                     decoration: const InputDecoration(labelText: 'الملاحظات'),
+                      maxLines: 3,
+                    ),
                   const SizedBox(height: 16),
                   const Align(
                     alignment: Alignment.centerRight,
@@ -292,6 +316,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                       ? null
                       : dateReturnController.text.trim(),
                   'notes': notesController.text.trim(),
+                  'source_cash_box': sourceCashBox,
                 };
                 try {
                   if (isEdit) {

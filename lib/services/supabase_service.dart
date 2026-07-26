@@ -3011,7 +3011,7 @@ class SupabaseService {
       final adv = await supabase
           .from('advances')
           .select(
-              'id, driver_id, amount_given, amount_spent, status, treasury_tx_id, treasury_tx_extra_id')
+              'id, driver_id, amount_given, amount_spent, status, treasury_tx_id, treasury_tx_extra_id, source_cash_box')
           .eq('id', advanceId)
           .maybeSingle();
       if (adv == null) return;
@@ -3021,6 +3021,19 @@ class SupabaseService {
       final spent = (adv['amount_spent'] as num?)?.toDouble();
       final status = adv['status']?.toString() ?? 'pending';
       final driverName = driverId != null ? await _driverNameById(driverId) : 'بدون سائق';
+      final sourceCashBoxCode = adv['source_cash_box']?.toString();
+
+      int? cashBoxId;
+      if (sourceCashBoxCode != null && sourceCashBoxCode.isNotEmpty) {
+        final cb = await supabase
+            .from('cash_boxes')
+            .select('id')
+            .eq('code', sourceCashBoxCode)
+            .maybeSingle();
+        if (cb != null) {
+          cashBoxId = cb['id'] as int?;
+        }
+      }
 
       double base;
       double extra;
@@ -3047,6 +3060,7 @@ class SupabaseService {
               'type': 'trip_expense',
               'amount': base,
               'description': 'عهدة السائق $driverName — تسليم عهدة (معرّف #$advanceId)',
+              if (cashBoxId != null) 'cash_box_id': cashBoxId,
             })
             .select('id')
             .single();
@@ -3067,6 +3081,7 @@ class SupabaseService {
                 'type': 'trip_expense',
                 'amount': extra,
                 'description': 'تكملة عهدة السائق $driverName — فرق صرف (معرّف #$advanceId)',
+                if (cashBoxId != null) 'cash_box_id': cashBoxId,
               })
               .select('id')
               .single();
