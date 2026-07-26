@@ -1117,7 +1117,7 @@ class SupabaseService {
 
       for (final tx in transactions) {
         final amount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
-        final type = (tx['type'] ?? '').toString();
+        final type = _normalizeTreasuryType(tx);
         final cashBoxId = tx['cash_box_id'] as int?;
         final relatedId = tx['related_cash_box_id'] as int?;
         if (cashBoxId == null) continue;

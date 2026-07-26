@@ -38,6 +38,7 @@ dependencies:
   decimal: ^2.3.0
   collection: ^1.19.0
   flutter_dotenv: ^5.1.0
+  google_fonts: ^8.2.0
 
 dev_dependencies:
   flutter_test:

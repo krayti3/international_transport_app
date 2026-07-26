@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,11 +29,19 @@ class MyApp extends StatelessWidget {
       create: (_) => ThemeProvider()..initialize(null),
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
+          final cairoTextTheme = GoogleFonts.cairoTextTheme();
           return MaterialApp(
             title: 'النقل الدولي',
             debugShowCheckedModeBanner: false,
-            theme: ThemeData.light(useMaterial3: true),
-            darkTheme: ThemeData.dark(useMaterial3: true),
+            theme: ThemeData.light(useMaterial3: true).copyWith(
+              textTheme: cairoTextTheme,
+            ),
+            darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
+              textTheme: cairoTextTheme.apply(
+                bodyColor: Colors.white,
+                displayColor: Colors.white,
+              ),
+            ),
             themeMode: themeProvider.themeMode,
             locale: const Locale('ar'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
