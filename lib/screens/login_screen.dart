@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/theme_provider.dart';
 
+import 'main_screen.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -91,6 +92,11 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         } catch (e) {
           debugPrint('Login theme sync error: $e');
+        }
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const MainScreen()),
+          );
         }
       }
     } on AuthException catch (e) {

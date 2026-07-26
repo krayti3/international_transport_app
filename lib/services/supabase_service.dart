@@ -1820,13 +1820,12 @@ class SupabaseService {
       final response = await supabase
           .from('truck_maintenance')
           .select()
-          .eq('truck_id', truckId)
           .order('created_at', ascending: false);
       final maintenances = List<Map<String, dynamic>>.from(response);
       await _cacheRows('truck_maintenance', maintenances);
       return maintenances;
     } catch (e) {
-      debugPrint('Error fetching truck maintenances by truck: $e');
+      debugPrint('Error fetching truck maintenances: $e');
       return [];
     }
   }
@@ -3689,7 +3688,63 @@ class SupabaseService {
     try {
       await supabase.from('repair_invoices').delete().eq('id', id);
     } catch (e) {
-      debugPrint('Error deleting repair invoice $id: $e');
+      debugPrint('Error deleting repair invoice: $e');
+      rethrow;
+    }
+  }
+
+  Future<int?> insertDebtInvoice({
+    required String workshopId,
+    required String vehicleType,
+    required String vehicleId,
+    required String expenseType,
+    required double amount,
+    String? description,
+    DateTime? date,
+    String? invoiceNumber,
+  }) async {
+    try {
+      final now = date ?? DateTime.now();
+      final number = invoiceNumber ??
+          'INV-DEBT-${now.millisecondsSinceEpoch % 10000}';
+      final invoiceData = {
+        'workshop_id': workshopId,
+        'invoice_number': number,
+        'vehicle_type': vehicleType,
+        'vehicle_id': vehicleId,
+        'total_amount': amount,
+        'paid_amount': 0.0,
+        'remaining_amount': amount,
+        'status': 'unpaid',
+        'date': now.toIso8601String(),
+        'description': description,
+      };
+      final response = await supabase
+          .from('repair_invoices')
+          .insert(invoiceData)
+          .select()
+          .single();
+      final invoiceId = response['id'] as int?;
+
+      final expenseData = {
+        if (vehicleType == 'truck') 'truck_id': int.tryParse(vehicleId) ?? 0
+        else 'trailer_id': int.tryParse(vehicleId) ?? 0,
+        'expense_type': expenseType,
+        'amount': amount,
+        'description': description,
+        'payment_status': 'on_credit',
+        'maintenance_date': now.toIso8601String(),
+        'provider_name': workshopId,
+      };
+      if (vehicleType == 'truck') {
+        await supabase.from('truck_maintenance').insert(expenseData);
+      } else {
+        await supabase.from('trailer_maintenance').insert(expenseData);
+      }
+
+      return invoiceId;
+    } catch (e) {
+      debugPrint('Error inserting debt invoice: $e');
       rethrow;
     }
   }

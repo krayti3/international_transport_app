@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:decimal/decimal.dart';
 import 'package:international_transport_app/models/repair_invoice.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 import '../services/workshop_payment_service.dart';
 import 'repair_invoice_form_screen.dart';
 import 'workshop_payment_preview_screen.dart';
+import 'debt_invoice_form_screen.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -34,6 +36,7 @@ class _WorkshopRepairInvoicesScreenState
   String _filterStatus = 'all';
   String? _selectedWorkshopId;
   List<Map<String, dynamic>> _workshopOptions = [];
+  final Set<int> _selectedExpenseIds = {};
 
   @override
   void initState() {
@@ -77,15 +80,16 @@ class _WorkshopRepairInvoicesScreenState
       paymentStatus: 'on_credit',
     );
     for (final row in trailerExpenses) {
-      final doc = Map<String, dynamic>.from(row);
-      doc['vehicle_type'] = 'مقطورة';
-      doc['vehicle_id'] = doc['trailer_id'];
-      combined.add(doc);
+        final doc = Map<String, dynamic>.from(row);
+        doc['vehicle_type'] = 'مقطورة';
+        doc['vehicle_id'] = doc['trailer_id'];
+        combined.add(doc);
     }
     // Filter to selected workshop only
-    if (_effectiveWorkshopName.isNotEmpty) {
+    final effectiveName = _effectiveWorkshopName;
+    if (effectiveName.isNotEmpty && effectiveName != 'جميع الورش') {
       combined.removeWhere(
-        (e) => (e['provider_name']?.toString() ?? '') != _effectiveWorkshopName,
+        (e) => (e['provider_name']?.toString() ?? '') != effectiveName,
       );
     }
     combined.sort((a, b) {
@@ -415,6 +419,17 @@ class _WorkshopRepairInvoicesScreenState
     }
   }
 
+  void _toggleExpenseSelection(int? id) {
+    if (id == null) return;
+    setState(() {
+      if (_selectedExpenseIds.contains(id)) {
+        _selectedExpenseIds.remove(id);
+      } else {
+        _selectedExpenseIds.add(id);
+      }
+    });
+  }
+
   Future<void> _settleExpenseDebt(Map<String, dynamic> expense) async {
     final status = expense['payment_status']?.toString() ?? '';
     final newStatus = await showDialog<String>(
@@ -459,6 +474,100 @@ class _WorkshopRepairInvoicesScreenState
     }
   }
 
+  Future<void> _createSettlementInvoice() async {
+    if (_selectedExpenseIds.isEmpty) return;
+
+    final selectedExpenses = _expensesOnCredit.where((e) {
+      final id = e['id'] as int?;
+      return id != null && _selectedExpenseIds.contains(id);
+    }).toList();
+
+    if (selectedExpenses.isEmpty) return;
+
+    final total = selectedExpenses.fold<double>(0.0, (s, e) => s + ((e['amount'] as num?)?.toDouble() ?? 0.0));
+
+    final newStatus = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إنشاء فاتورة تسوية الدين'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('عدد المصاريف المحددة: ${selectedExpenses.length}'),
+            const SizedBox(height: 8),
+            Text('إجمالي المبلغ: ${total.toStringAsFixed(2)} DH'),
+            const SizedBox(height: 16),
+            const Text('اختر طريقة الدفع:', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: const Text('إلغاء')),
+          PopupMenuButton<String>(
+            onSelected: (v) => Navigator.pop(ctx, v),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'paid_by_owner', child: Text('دفع كاش من صاحب الشركة')),
+              const PopupMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
+              const PopupMenuItem(value: 'secretary_cash', child: Text('دفع من خزينة السكرتيرة')),
+            ],
+            child: const Icon(Icons.check_rounded, color: Colors.green),
+          ),
+        ],
+      ),
+    );
+
+    if (newStatus == null || newStatus == 'cancel') return;
+
+    final workshopId = _effectiveWorkshopId ?? '';
+    if (workshopId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى اختيار الورشة أولاً')),
+      );
+      return;
+    }
+
+    try {
+      final supabase = Supabase.instance.client;
+      final now = DateTime.now();
+      final invoiceNumber = 'INV-SETTLEMENT-${now.millisecondsSinceEpoch % 10000}';
+      final invoiceData = {
+        'workshop_id': workshopId,
+        'invoice_number': invoiceNumber,
+        'total_amount': total,
+        'paid_amount': total,
+        'remaining_amount': 0.0,
+        'status': 'paid',
+        'issue_date': now.toIso8601String(),
+        'due_date': now.add(const Duration(days: 30)).toIso8601String(),
+        'created_at': now.toIso8601String(),
+      };
+      await supabase.from('repair_invoices').insert(invoiceData).select().single();
+
+      for (final expense in selectedExpenses) {
+        final id = expense['id'] as int?;
+        final vehicleType = expense['vehicle_type']?.toString() ?? '';
+        if (id == null) continue;
+        if (vehicleType == 'شاحنة') {
+          await _supabaseService.updateTruckMaintenance(id, {'payment_status': newStatus});
+        } else {
+          await _supabaseService.updateTrailerMaintenance(id, {'payment_status': newStatus});
+        }
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم إنشاء فاتورة تسوية الدين بقيمة ${total.toStringAsFixed(2)} DH بنجاح')),
+      );
+      setState(() => _selectedExpenseIds.clear());
+      _loadInvoices();
+      _loadExpensesOnCredit();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+    }
+  }
+
   String _paymentStatusLabel(String status) {
     switch (status) {
       case 'bank_transfer': return 'تحويل بنكي';
@@ -478,6 +587,12 @@ class _WorkshopRepairInvoicesScreenState
       appBar: AppBar(
         title: Text('فواتير $_effectiveWorkshopName'),
         actions: [
+          if (_selectedExpenseIds.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.receipt_rounded),
+              onPressed: _createSettlementInvoice,
+              tooltip: 'إنشاء فاتورة تسوية للديون المحددة',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
@@ -485,6 +600,42 @@ class _WorkshopRepairInvoicesScreenState
               _loadExpensesOnCredit();
             },
             tooltip: 'تحديث',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'repair') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (ctx) => RepairInvoiceFormScreen(
+                      workshopId: _effectiveWorkshopId ?? widget.workshopId,
+                      workshopName: _effectiveWorkshopName,
+                    ),
+                  ),
+                );
+              } else if (value == 'debt') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (ctx) => DebtInvoiceFormScreen(
+                      workshopId: _effectiveWorkshopId ?? widget.workshopId,
+                      workshopName: _effectiveWorkshopName,
+                    ),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'repair',
+                child: Text('فاتورة إصلاح جديدة'),
+              ),
+              const PopupMenuItem(
+                value: 'debt',
+                child: Text('فاتورة دين جديدة'),
+              ),
+            ],
+            child: const Icon(Icons.add_rounded),
           ),
         ],
       ),
@@ -577,6 +728,7 @@ class _WorkshopRepairInvoicesScreenState
                             onChanged: (v) {
                               setState(() => _selectedWorkshopId = v);
                               _loadInvoices();
+                              _loadExpensesOnCredit();
                             },
                           ),
                         ),
@@ -693,65 +845,66 @@ class _WorkshopRepairInvoicesScreenState
                        ],
                      ),
                    ),
-                   ..._expensesOnCredit.map((expense) {
-                     final amount = (expense['amount'] as num?)?.toDouble() ?? 0.0;
-                     final expenseType = expense['expense_type']?.toString() ?? '';
-                     final vehicleType = expense['vehicle_type']?.toString() ?? '';
-                     final vehicleId = expense['vehicle_id'];
-                     final dateStr = expense['maintenance_date']?.toString() ?? '';
-                     final desc = expense['description']?.toString() ?? '';
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        color: Colors.red.withValues(alpha: 0.05),
-                        child: ListTile(
-                         leading: const Icon(Icons.build_rounded, color: Colors.red),
-                         title: Text(expenseType),
-                         subtitle: Text(
-                            '$vehicleType #$vehicleId\n$dateStr${desc.isNotEmpty ? " • $desc" : ""}',
-                         ),
-                         trailing: Row(
-                           mainAxisSize: MainAxisSize.min,
+                    ..._expensesOnCredit.map((expense) {
+                      final amount = (expense['amount'] as num?)?.toDouble() ?? 0.0;
+                      final expenseType = expense['expense_type']?.toString() ?? '';
+                      final vehicleType = expense['vehicle_type']?.toString() ?? '';
+                      final vehicleId = expense['vehicle_id'];
+                      final dateStr = expense['maintenance_date']?.toString() ?? '';
+                      final desc = expense['description']?.toString() ?? '';
+                      final expenseId = expense['id'] as int?;
+                      final isSelected = expenseId != null && _selectedExpenseIds.contains(expenseId);
+                       return Padding(
+                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                         child: Row(
                            children: [
-                             Text(
-                               '${amount.toStringAsFixed(2)} DH',
-                               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                             Checkbox(
+                               value: isSelected,
+                               onChanged: expenseId == null ? null : (v) => _toggleExpenseSelection(expenseId),
                              ),
-                             const SizedBox(width: 4),
-                             PopupMenuButton<String>(
-                               onSelected: (value) {
-                                 _settleExpenseDebt(expense);
-                               },
-                               itemBuilder: (_) => [
-                                 const PopupMenuItem(value: 'paid_by_owner', child: Text('دفع كاش من صاحب الشركة')),
-                                 const PopupMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
-                                 const PopupMenuItem(value: 'secretary_cash', child: Text('دفع من خزينة السكرتيرة')),
-                               ],
-                               child: Icon(Icons.payment_rounded, color: Colors.green, size: 20),
+                             Expanded(
+                               child: Card(
+                                 margin: EdgeInsets.zero,
+                                 color: Colors.red.withValues(alpha: 0.05),
+                                 child: ListTile(
+                                   leading: const Icon(Icons.build_rounded, color: Colors.red),
+                                   title: Text(expenseType),
+                                   subtitle: Text(
+                                      '$vehicleType #$vehicleId\n$dateStr${desc.isNotEmpty ? " • $desc" : ""}',
+                                   ),
+                                   trailing: Row(
+                                     mainAxisSize: MainAxisSize.min,
+                                     children: [
+                                       Text(
+                                         '${amount.toStringAsFixed(2)} DH',
+                                         style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                                       ),
+                                       const SizedBox(width: 4),
+                                       PopupMenuButton<String>(
+                                         onSelected: (value) {
+                                           _settleExpenseDebt(expense);
+                                         },
+                                         itemBuilder: (_) => [
+                                           const PopupMenuItem(value: 'paid_by_owner', child: Text('دفع كاش من صاحب الشركة')),
+                                           const PopupMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي من صاحب الشركة')),
+                                           const PopupMenuItem(value: 'secretary_cash', child: Text('دفع من خزينة السكرتيرة')),
+                                         ],
+                                         child: Icon(Icons.payment_rounded, color: Colors.green, size: 20),
+                                       ),
+                                     ],
+                                   ),
+                                 ),
+                               ),
                              ),
                            ],
                          ),
-                       ),
-                     );
-                   }),
-                   const SizedBox(height: 12),
-                 ],
-               ],
-             ),
-       floatingActionButton: FloatingActionButton.extended(
-         icon: const Icon(Icons.add_rounded),
-         label: const Text('فاتورة جديدة'),
-         onPressed: () {
-           Navigator.push(
-             context,
-             MaterialPageRoute(
-                   builder: (ctx) => RepairInvoiceFormScreen(
-                     workshopId: _effectiveWorkshopId ?? widget.workshopId,
-                     workshopName: _effectiveWorkshopName,
-                   ),
-             ),
-           );
-         },
-       ),
-     );
-   }
- }
+                       );
+                    }),
+                    const SizedBox(height: 12),
+                  ],
+                ],
+              ),
+        );
+      }
+    }
+

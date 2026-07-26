@@ -39,10 +39,10 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
       combined.add(doc);
     }
     for (final row in trailerMaintenances) {
-      final doc = Map<String, dynamic>.from(row);
-      doc['vehicle_type'] = 'مقطورة';
-      doc['vehicle_id'] = doc['trailer_id'];
-      combined.add(doc);
+        final doc = Map<String, dynamic>.from(row);
+        doc['vehicle_type'] = 'مقطورة';
+        doc['vehicle_id'] = doc['trailer_id'];
+        combined.add(doc);
     }
 
     final workshops = combined

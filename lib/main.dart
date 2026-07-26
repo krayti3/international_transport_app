@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:international_transport_app/l10n/app_localizations.dart';
+import 'package:international_transport_app/providers/theme_provider.dart';
+import 'package:international_transport_app/screens/login_screen.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
   await Supabase.initialize(
     url: 'https://jgehdsmrmcpnvcnfrjai.supabase.co',
     publishableKey: 'sb_publishable_2XqW30G2W9f5ayTuLAZUJw_2zLpWG_G',
   );
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -14,43 +21,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      title: 'Todos',
-      home: HomePage(),
-    );
-  }
-}
-
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  final _future = Supabase.instance.client
-      .from('todos')
-      .select();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: FutureBuilder(
-        future: _future,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final todos = snapshot.data!;
-          return ListView.builder(
-            itemCount: todos.length,
-            itemBuilder: ((context, index) {
-              final todo = todos[index];
-              return ListTile(
-                title: Text(todo['name']),
-              );
-            }),
+    return ChangeNotifierProvider(
+      create: (_) => ThemeProvider()..initialize(null),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          return MaterialApp(
+            title: 'النقل الدولي',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData.light(useMaterial3: true),
+            darkTheme: ThemeData.dark(useMaterial3: true),
+            themeMode: themeProvider.themeMode,
+            locale: const Locale('ar'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const LoginScreen(),
           );
         },
       ),
