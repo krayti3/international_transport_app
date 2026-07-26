@@ -223,6 +223,14 @@ class _DriversScreenState extends State<DriversScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr('السائقين')),
+        actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _openDriverDialog(),
+              tooltip: 'إضافة سائق',
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -293,12 +301,6 @@ class _DriversScreenState extends State<DriversScreen> {
                 ),
               ],
             ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton(
-              onPressed: () => _openDriverDialog(),
-              child: const Icon(Icons.add),
-            )
-          : null,
     );
   }
 }

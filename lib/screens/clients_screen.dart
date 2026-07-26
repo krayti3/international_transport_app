@@ -758,7 +758,13 @@ class _ClientsScreenState extends State<ClientsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr('إدارة الزبائن')),
-        actions: const [],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _openAddClientDialog,
+            tooltip: 'إضافة زبون',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -881,10 +887,6 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAddClientDialog,
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }

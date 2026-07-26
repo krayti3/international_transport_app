@@ -331,6 +331,14 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.expenseType} - ${_vehicleLabel ?? ''}'),
+        actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _openExpenseDialog(),
+              tooltip: 'إضافة مصروف',
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -390,13 +398,6 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
                     );
                   },
                 ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton.extended(
-              onPressed: () => _openExpenseDialog(),
-              icon: const Icon(Icons.add),
-              label: const Text('إضافة مصروف'),
-            )
-          : null,
     );
   }
 }

@@ -773,13 +773,23 @@ class SupabaseService {
   }
 
   // Treasury Transactions
-  Future<List<Map<String, dynamic>>> getTreasuryTransactions() async {
+  Future<List<Map<String, dynamic>>> getTreasuryTransactions({int? cashBoxId}) async {
     try {
-      final response = await supabase
-          .from('treasury_transactions')
-          .select()
-          .order('created_at', ascending: false);
-      final transactions = List<Map<String, dynamic>>.from(response);
+      final List<Map<String, dynamic>> transactions;
+      if (cashBoxId != null) {
+        final response = await supabase
+            .from('treasury_transactions')
+            .select()
+            .or('cash_box_id.eq.$cashBoxId,related_cash_box_id.eq.$cashBoxId')
+            .order('created_at', ascending: false);
+        transactions = List<Map<String, dynamic>>.from(response);
+      } else {
+        final response = await supabase
+            .from('treasury_transactions')
+            .select()
+            .order('created_at', ascending: false);
+        transactions = List<Map<String, dynamic>>.from(response);
+      }
       for (final transaction in transactions) {
         transaction['type'] = _normalizeTreasuryType(transaction);
       }
@@ -807,6 +817,7 @@ class SupabaseService {
     String type,
     String description, {
     String? receiptUrl,
+    int? cashBoxId,
   }) async {
     try {
       await _requireAdmin();
@@ -817,6 +828,7 @@ class SupabaseService {
           'type': type,
           if (description.trim().isNotEmpty) 'description': description,
           if (receiptUrl != null) 'receipt_url': receiptUrl,
+          if (cashBoxId != null) 'cash_box_id': cashBoxId,
         },
       );
     } catch (e) {
@@ -826,32 +838,57 @@ class SupabaseService {
     }
   }
 
-  Future<double> getTreasuryBalance() async {
+  Future<double> getTreasuryBalance({int? cashBoxId}) async {
     try {
-      final response = await supabase
-          .from('treasury_transactions')
-          .select();
+      final List<Map<String, dynamic>> transactions;
+      if (cashBoxId != null) {
+        final response = await supabase
+            .from('treasury_transactions')
+            .select()
+            .or('cash_box_id.eq.$cashBoxId,related_cash_box_id.eq.$cashBoxId');
+        transactions = List<Map<String, dynamic>>.from(response);
+      } else {
+        final response = await supabase.from('treasury_transactions').select();
+        transactions = List<Map<String, dynamic>>.from(response);
+      }
 
-      final transactions = List<Map<String, dynamic>>.from(response);
       double balance = 0.0;
 
       for (final transaction in transactions) {
         final amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
         final type = _normalizeTreasuryType(transaction);
+        final txCashBoxId = transaction['cash_box_id'] as int?;
+        final relatedCashBoxId = transaction['related_cash_box_id'] as int?;
 
-        switch (type) {
-          case 'capital_injection':
-          case 'trip_revenue':
-            balance += amount;
-            break;
-          case 'owner_withdrawal':
-          case 'office_expense':
-          case 'salary':
-          case 'trip_expense':
-            balance -= amount;
-            break;
-          default:
-            break;
+        if (cashBoxId == null) {
+          switch (type) {
+            case 'capital_injection':
+            case 'trip_revenue':
+              balance += amount;
+              break;
+            case 'owner_withdrawal':
+            case 'office_expense':
+            case 'salary':
+            case 'trip_expense':
+              balance -= amount;
+              break;
+            default:
+              break;
+          }
+        } else {
+          if (txCashBoxId == cashBoxId) {
+            if (type == 'capital_injection' ||
+                type == 'trip_revenue' ||
+                type == 'transfer') {
+              balance += amount;
+            } else {
+              balance -= amount;
+            }
+          } else if (relatedCashBoxId == cashBoxId) {
+            if (type == 'transfer') {
+              balance += amount;
+            }
+          }
         }
       }
 
@@ -869,31 +906,64 @@ class SupabaseService {
   ///         'secretary' يرى فقط العمليات غير المؤرشفة.
   /// [period]: 'day' | 'month' | 'year' | 'all'
   /// [searchQuery]: نص بحث في الوصف والمستفيد
+  /// [cashBoxId]: اختياري لتقييد السجل بصندوق معين
   Future<List<Map<String, dynamic>>> getUnifiedLedger({
     String role = 'secretary',
     String period = 'all',
     String? searchQuery,
+    int? cashBoxId,
   }) async {
     try {
       final List<Map<String, dynamic>> unified = [];
 
       // 1) عمليات الخزينة
-      final treasury = await getTreasuryTransactions();
+      final treasury = cashBoxId != null
+          ? await getTreasuryTransactions(cashBoxId: cashBoxId)
+          : await getTreasuryTransactions();
       for (final t in treasury) {
         final amount = (t['amount'] is Decimal ? (t['amount'] as Decimal).toDouble() : (t['amount'] as num?)?.toDouble()) ?? 0.0;
         final type = t['type']?.toString() ?? '';
-        final isRevenue = type == 'trip_revenue' || type == 'capital_injection';
-        unified.add({
-          'date': t['created_at'] ?? '',
-          'description': t['description'] ?? 'معاملة خزينة',
-          'beneficiary': '-',
-          'currency': 'DH',
-          'amount_entree': isRevenue ? amount : 0.0,
-          'amount_sortie': isRevenue ? 0.0 : amount,
-          'type': 'treasury',
-          'raw_type': type,
-          'is_archived': false,
-        });
+        if (type == 'transfer') {
+          final relatedId = t['related_cash_box_id'] as int?;
+          if (cashBoxId != null && relatedId == cashBoxId) {
+            unified.add({
+              'date': t['created_at'] ?? '',
+              'description': t['description'] ?? 'تحويل',
+              'beneficiary': '-',
+              'currency': 'DH',
+              'amount_entree': amount,
+              'amount_sortie': 0.0,
+              'type': 'treasury',
+              'raw_type': type,
+              'is_archived': false,
+            });
+          } else if (cashBoxId == null || t['cash_box_id'] == cashBoxId) {
+            unified.add({
+              'date': t['created_at'] ?? '',
+              'description': t['description'] ?? 'تحويل',
+              'beneficiary': '-',
+              'currency': 'DH',
+              'amount_entree': 0.0,
+              'amount_sortie': amount,
+              'type': 'treasury',
+              'raw_type': type,
+              'is_archived': false,
+            });
+          }
+        } else {
+          final isRevenue = type == 'trip_revenue' || type == 'capital_injection';
+          unified.add({
+            'date': t['created_at'] ?? '',
+            'description': t['description'] ?? 'معاملة خزينة',
+            'beneficiary': '-',
+            'currency': 'DH',
+            'amount_entree': isRevenue ? amount : 0.0,
+            'amount_sortie': isRevenue ? 0.0 : amount,
+            'type': 'treasury',
+            'raw_type': type,
+            'is_archived': false,
+          });
+        }
       }
 
       // 2) العهد — حسب الدور
@@ -1018,6 +1088,126 @@ class SupabaseService {
     } catch (e) {
       debugPrint('Error building unified ledger: $e');
       return [];
+    }
+  }
+
+  // Cash Boxes
+  Future<List<Map<String, dynamic>>> getCashBoxes() async {
+    try {
+      final response = await supabase
+          .from('cash_boxes')
+          .select()
+          .order('id', ascending: true);
+      final boxes = List<Map<String, dynamic>>.from(response);
+      await _cacheRows('cash_boxes', boxes);
+      return boxes;
+    } catch (e) {
+      debugPrint('Error fetching cash boxes: $e');
+      return [];
+    }
+  }
+
+  Future<Map<int, double>> getCashBoxBalances() async {
+    try {
+      final response = await supabase
+          .from('treasury_transactions')
+          .select('amount, type, cash_box_id, related_cash_box_id');
+      final transactions = List<Map<String, dynamic>>.from(response);
+      final Map<int, double> balances = {};
+
+      for (final tx in transactions) {
+        final amount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
+        final type = (tx['type'] ?? '').toString();
+        final cashBoxId = tx['cash_box_id'] as int?;
+        final relatedId = tx['related_cash_box_id'] as int?;
+        if (cashBoxId == null) continue;
+
+        final current = balances[cashBoxId] ?? 0.0;
+        if (type == 'transfer') {
+          balances[cashBoxId] = current - amount;
+          if (relatedId != null) {
+            balances[relatedId] = (balances[relatedId] ?? 0.0) + amount;
+          }
+        } else if (type == 'capital_injection' ||
+            type == 'trip_revenue') {
+          balances[cashBoxId] = current + amount;
+        } else {
+          balances[cashBoxId] = current - amount;
+        }
+      }
+
+      return balances;
+    } catch (e) {
+      debugPrint('Error calculating cash box balances: $e');
+      return {};
+    }
+  }
+
+  Future<void> addCashBox(Map<String, dynamic> data) async {
+    try {
+      await _requireAdmin();
+      await _writeRow(
+        (d) => supabase.from('cash_boxes').insert(d),
+        data,
+      );
+    } catch (e) {
+      if (e is Exception) rethrow;
+      debugPrint('Error adding cash box: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateCashBox(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
+    try {
+      await _requireAdmin();
+      updateOp() => supabase.from('cash_boxes').update(data).eq('id', id);
+      if (localRow == null) {
+        await updateOp();
+      } else {
+        await _updateWithLww(updateOp, 'cash_boxes', localRow);
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      debugPrint('Error updating cash box: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteCashBox(int id) async {
+    try {
+      await _requireAdmin();
+      await supabase.from('cash_boxes').delete().eq('id', id);
+    } catch (e) {
+      if (e is Exception) rethrow;
+      debugPrint('Error deleting cash box: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> addTransfer({
+    required double amount,
+    required int fromCashBoxId,
+    required int toCashBoxId,
+    String description = 'تحويل بين الصناديق',
+    String? receiptUrl,
+  }) async {
+    try {
+      await _requireAdmin();
+      await _writeRow(
+        (d) => supabase.from('treasury_transactions').insert(d),
+        {
+          'amount': amount,
+          'type': 'transfer',
+          'description': description,
+          'cash_box_id': fromCashBoxId,
+          'related_cash_box_id': toCashBoxId,
+          if (receiptUrl != null) 'receipt_url': receiptUrl,
+        },
+      );
+    } catch (e) {
+      if (e is Exception) rethrow;
+      debugPrint('Error adding transfer: $e');
+      rethrow;
     }
   }
 

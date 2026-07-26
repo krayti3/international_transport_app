@@ -526,6 +526,12 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
       appBar: AppBar(
         title: Text(widget.truckId != null ? 'سجل تغيير الزيت' : 'سجلات تغيير الزيت'),
         actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: _addOilChangeRecord,
+              tooltip: 'تسجيل تغيير زيت',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadAlerts,
@@ -699,14 +705,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
                           ),
                         );
                       },
-                    ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton.extended(
-              onPressed: _addOilChangeRecord,
-              icon: const Icon(Icons.add),
-              label: const Text('تسجيل تغيير زيت'),
-            )
-          : null,
+                      ),
     );
   }
 

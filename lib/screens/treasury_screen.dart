@@ -36,6 +36,10 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
   String _selectedType = 'office_expense';
 
   bool _isLoading = false;
+  List<Map<String, dynamic>> _cashBoxes = [];
+  Map<int, double> _boxBalances = {};
+  bool _isBoxesLoading = false;
+  String? _selectedCashBox;
 
   // خرائط التصنيف: تربط الواجهة العربية بأنواع المخطط الحقيقي (6 قيم فقط)
   static const Map<String, String> _incomeTypes = {
@@ -61,6 +65,50 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
   bool _isIncomeType(String type) =>
       type == 'capital_injection' || type == 'trip_revenue';
 
+  Future<void> _loadCashBoxes() async {
+    if (!mounted) return;
+    setState(() => _isBoxesLoading = true);
+    final boxes = await _supabaseService.getCashBoxes();
+    final balances = await _supabaseService.getCashBoxBalances();
+    if (!mounted) return;
+    setState(() {
+      _cashBoxes = boxes;
+      _boxBalances = balances;
+      _isBoxesLoading = false;
+    });
+  }
+
+  Widget _buildCashBoxSelector() {
+    if (_cashBoxes.isEmpty) return const SizedBox.shrink();
+    return DropdownButtonFormField<String>(
+      decoration: const InputDecoration(
+        labelText: 'الصندوق الفرعي',
+      ),
+      initialValue: _selectedCashBox,
+      items: [
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text('كل الصناديق'),
+        ),
+        ..._cashBoxes.map((b) {
+          final id = b['id'] as int?;
+          final label = b['label']?.toString() ?? b['code']?.toString() ?? '';
+          final balance = _boxBalances[id] ?? 0.0;
+          return DropdownMenuItem<String>(
+            value: id?.toString(),
+            child: Text('$label : ${NumberFormat('#,###.00').format(balance)} DH'),
+          );
+        }),
+      ],
+      onChanged: (val) {
+        setState(() {
+          _selectedCashBox = val;
+        });
+        _loadCashBoxes();
+      },
+    );
+  }
+
   // جلب دفق البيانات الحي (Realtime Stream) لعمليات الخزينة
   Stream<List<Map<String, dynamic>>> _getTreasuryStream() {
     return Supabase.instance.client
@@ -79,7 +127,8 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await _supabaseService.addTreasuryTransaction(amount, _selectedType, title);
+      final int? cashBoxId = _selectedCashBox != null ? int.tryParse(_selectedCashBox!) : null;
+      await _supabaseService.addTreasuryTransaction(amount, _selectedType, title, cashBoxId: cashBoxId);
 
       _titleController.clear();
       _amountController.clear();
@@ -127,6 +176,20 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (_cashBoxes.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'الصندوق'),
+                        initialValue: _selectedCashBox,
+                        items: _cashBoxes.map((b) {
+                          final id = b['id'] as int?;
+                          return DropdownMenuItem<String>(
+                            value: id?.toString(),
+                            child: Text(b['label']?.toString() ?? ''),
+                          );
+                        }).toList(),
+                        onChanged: (val) => setDialogState(() => _selectedCashBox = val),
+                      ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: _selectedDirection,
                       decoration:
@@ -230,6 +293,127 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     );
   }
 
+  Future<void> _showTransferDialog() async {
+    if (_cashBoxes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد صناديق متاحة للتحويل')),
+      );
+      return;
+    }
+
+    final amountController = TextEditingController();
+    String? fromBoxId;
+    String? toBoxId;
+    String description = 'تحويل بين الصناديق';
+
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('تحويل بين الصناديق', textAlign: TextAlign.right),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'من صندوق'),
+                    initialValue: fromBoxId,
+                    items: _cashBoxes.map((b) {
+                      final id = b['id'] as int?;
+                      return DropdownMenuItem<String>(
+                        value: id?.toString(),
+                        child: Text(b['label']?.toString() ?? ''),
+                      );
+                    }).toList(),
+                    onChanged: (v) => setDialog(() => fromBoxId = v),
+                    validator: (v) => v == null ? 'يرجى اختيار الصندوق المصدر' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'إلى صندوق'),
+                    initialValue: toBoxId,
+                    items: _cashBoxes.map((b) {
+                      final id = b['id'] as int?;
+                      return DropdownMenuItem<String>(
+                        value: id?.toString(),
+                        child: Text(b['label']?.toString() ?? ''),
+                      );
+                    }).toList(),
+                    onChanged: (v) => setDialog(() => toBoxId = v),
+                    validator: (v) => v == null ? 'يرجى اختيار الصندوق المستهدف' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'المبلغ (DH)',
+                      suffixText: 'DH',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                    ],
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'يرجى إدخال المبلغ';
+                      final p = double.tryParse(v.trim());
+                      if (p == null) return 'أرقام فقط';
+                      if (p <= 0) return 'المبلغ يجب أن يكون أكبر من صفر';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'البيان'),
+                    onChanged: (v) => description = v,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final amount = double.tryParse(amountController.text.trim()) ?? 0;
+                try {
+                  await _supabaseService.addTransfer(
+                    amount: amount,
+                    fromCashBoxId: int.parse(fromBoxId!),
+                    toCashBoxId: int.parse(toBoxId!),
+                    description: description,
+                  );
+                  if (!mounted) return;
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم التحويل بنجاح'), backgroundColor: Colors.green),
+                  );
+                  await _loadCashBoxes();
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('فشل التحويل: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('تأكيد'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCashBoxes();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -238,6 +422,8 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (!_isBoxesLoading) _buildCashBoxSelector(),
+            const SizedBox(height: 12),
             // 🔄 دفق الحسابات المباشر لاستخراج الإحصائيات في نفس اللحظة
             StreamBuilder<List<Map<String, dynamic>>>(
               stream: _getTreasuryStream(),
@@ -422,13 +608,26 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
         ),
       ),
 
-      // ➕ زر تسجيل حركة يدوي عائم
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddTransactionDialog,
-        icon: const Icon(Icons.account_balance_wallet_rounded),
-        label: const Text('تسجيل حركة صندوق'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      // ➕ أزرار تسجيل الحركات والتحويل
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            onPressed: _showAddTransactionDialog,
+            icon: const Icon(Icons.account_balance_wallet_rounded),
+            label: const Text('تسجيل حركة صندوق'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            onPressed: _showTransferDialog,
+            icon: const Icon(Icons.swap_horiz_rounded),
+            label: const Text('تحويل بين صناديق'),
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+          ),
+        ],
       ),
     );
   }

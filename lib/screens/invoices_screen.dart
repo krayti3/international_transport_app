@@ -616,6 +616,16 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         title: const Text('إدارة الفواتير'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const InvoiceFormScreen()),
+              ).then((_) => _loadInvoices());
+            },
+            tooltip: 'إنشاء فاتورة',
+          ),
+          IconButton(
             icon: const Icon(Icons.table_chart),
             onPressed: _exportInvoicesExcel,
             tooltip: 'تصدير Excel',
@@ -818,16 +828,6 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                       ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const InvoiceFormScreen()),
-          ).then((_) => _loadInvoices());
-        },
-        tooltip: 'إنشاء فاتورة',
-        child: const Icon(Icons.add),
       ),
     );
   }

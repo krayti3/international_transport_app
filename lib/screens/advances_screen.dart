@@ -586,7 +586,16 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
     final currencyFmt = NumberFormat('#,###.00');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('العُهد (الرحلات)')),
+      appBar: AppBar(
+        title: const Text('العُهد (الرحلات)'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => _openAdvanceDialog(),
+            tooltip: 'تسليم عهدة',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // Summary cards
@@ -773,13 +782,6 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
           ),
         ],
       ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton.extended(
-              onPressed: () => _openAdvanceDialog(),
-              icon: const Icon(Icons.add),
-              label: const Text('تسليم عهدة'),
-            )
-          : null,
     );
   }
 

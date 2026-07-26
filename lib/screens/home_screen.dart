@@ -40,6 +40,8 @@ import 'expense_categories_screen.dart';
 import 'document_categories_screen.dart';
 import 'workshop_repairs_screen.dart';
 import 'trailer_maintenance_screen.dart';
+import 'driver_cash_screen.dart';
+import 'cash_box_management_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -638,6 +640,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const TreasuryManagementScreen())));
                 }),
+              if (isAdmin)
+                _buildDrawerItem(Icons.account_balance_wallet_rounded, 'إدارة الصناديق', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const CashBoxManagementScreen()));
+                }),
+            ]),
+
+            _buildDrawerSection('السائقين', [
+              _buildDrawerItem(Icons.people_rounded, 'قائمة السائقين', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => DriversScreen(isAdmin: isAdmin)));
+              }),
+              _buildDrawerItem(Icons.price_check_rounded, 'أجور وبونص السائقين الدوليين', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => DriverSalaryScreen(isAdmin: isAdmin)));
+              }),
+              _buildDrawerItem(Icons.account_balance_wallet_rounded, 'شاشة العهدة الخاصة بي', () {
+                Navigator.pop(context);
+                final driverId = Supabase.instance.client.auth.currentUser?.id;
+                if (driverId == null) return;
+                Navigator.push(context, MaterialPageRoute(builder: (_) => DriverCashScreen(driverId: int.tryParse(driverId) ?? 0, driverName: _userRole == 'driver' ? 'السائق' : 'سائق')));
+              }),
             ]),
 
             _buildDrawerSection('الأسطول والمركبات', [
@@ -667,12 +691,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildNestedDrawerItem(Icons.build_rounded, 'صيانة المقطورات', () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => TrailerMaintenanceScreen(isAdmin: isAdmin)));
-                }),
-              ]),
-              _buildNestedDrawerGroup('السائقين', [
-                _buildNestedDrawerItem(Icons.people_rounded, 'قائمة السائقين', () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => DriversScreen(isAdmin: isAdmin)));
                 }),
               ]),
               _buildNestedDrawerGroup('ورش الإصلاحات', [
@@ -706,10 +724,6 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildDrawerItem(Icons.document_scanner_rounded, 'مسح تذاكر المازوت (AI OCR)', () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => FuelReceiptScreen(isAdmin: isAdmin)));
-              }),
-              _buildDrawerItem(Icons.price_check_rounded, 'أجور وبونص السائقين الدوليين', () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => DriverSalaryScreen(isAdmin: isAdmin)));
               }),
             ]),
 

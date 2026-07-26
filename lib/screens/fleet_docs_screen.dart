@@ -385,6 +385,12 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
         appBar: AppBar(
           title: const Text('وثائق المقطورات'),
           actions: [
+            if (widget.isAdmin)
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () => _openDocDialog(),
+                tooltip: 'إضافة وثيقة',
+              ),
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
               tooltip: 'تحديث',
@@ -561,13 +567,6 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
                       ),
                     ],
                   ),
-        floatingActionButton: widget.isAdmin
-            ? FloatingActionButton(
-                onPressed: () => _openDocDialog(),
-                tooltip: 'إضافة وثيقة',
-                child: const Icon(Icons.add),
-              )
-            : null,
     );
   }
 

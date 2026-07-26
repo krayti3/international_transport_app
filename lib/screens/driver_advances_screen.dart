@@ -210,6 +210,14 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
               Tab(text: 'تم التسوية'),
             ],
           ),
+          actions: [
+            if (widget.isAdmin)
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () => _openAdvanceDialog(),
+                tooltip: 'تسجيل عهدة',
+              ),
+          ],
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -219,13 +227,6 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                   _buildList(settled, isDark),
                 ],
               ),
-        floatingActionButton: widget.isAdmin
-            ? FloatingActionButton.extended(
-                onPressed: () => _openAdvanceDialog(),
-                icon: const Icon(Icons.add),
-                label: const Text('تسجيل عهدة'),
-              )
-            : null,
       ),
     );
   }
@@ -246,6 +247,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
         final status = advance['status']?.toString() ?? 'pending';
         final notes = advance['notes']?.toString() ?? '';
         final returned = advance['amount_returned'] as num?;
+        final remaining = given - spent - (returned ?? 0.0);
 
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 4),
@@ -312,6 +314,16 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                       Icon(Icons.money, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[600]),
                       const SizedBox(width: 4),
                       Text('مرتجع: ${returned.toDouble().toStringAsFixed(2)} DH', style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[300] : Colors.grey[700])),
+                    ],
+                  ),
+                ],
+                if (remaining != 0) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.account_balance_wallet_rounded, size: 14, color: remaining > 0 ? Colors.green : Colors.red),
+                      const SizedBox(width: 4),
+                      Text('الباقي: ${remaining.toStringAsFixed(2)} DH', style: TextStyle(fontSize: 13, color: remaining > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ],

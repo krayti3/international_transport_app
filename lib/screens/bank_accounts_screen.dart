@@ -298,11 +298,13 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
           title: Text(
             _t('إدارة الحسابات البنكية', 'Gestion des comptes bancaires'),
           ),
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _openAccountDialog(),
-          tooltip: _t('إضافة حساب بنكي', 'Ajouter un compte bancaire'),
-          child: const Icon(Icons.add),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _openAccountDialog(),
+              tooltip: _t('إضافة حساب بنكي', 'Ajouter un compte bancaire'),
+            ),
+          ],
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())

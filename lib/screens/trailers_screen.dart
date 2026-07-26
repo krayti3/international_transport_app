@@ -234,6 +234,12 @@ class _TrailersScreenState extends State<TrailersScreen> {
       appBar: AppBar(
         title: Text(context.tr('المقطورات')),
         actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _openTrailerDialog(),
+              tooltip: 'إضافة مقطورة',
+            ),
           IconButton(
             icon: const Icon(Icons.search_rounded),
             tooltip: 'بحث',
@@ -326,12 +332,6 @@ class _TrailersScreenState extends State<TrailersScreen> {
                 ),
               ],
             ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton(
-              onPressed: () => _openTrailerDialog(),
-              child: const Icon(Icons.add),
-            )
-          : null,
     );
   }
 }

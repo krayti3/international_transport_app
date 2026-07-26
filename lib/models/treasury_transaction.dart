@@ -1,10 +1,11 @@
-
 class TreasuryTransaction {
   final int? id;
   final double amount;
   final String type;
   final String description;
   final DateTime? createdAt;
+  final int? cashBoxId;
+  final int? relatedCashBoxId;
 
   const TreasuryTransaction({
     this.id,
@@ -12,6 +13,8 @@ class TreasuryTransaction {
     required this.type,
     required this.description,
     this.createdAt,
+    this.cashBoxId,
+    this.relatedCashBoxId,
   });
 
   factory TreasuryTransaction.fromMap(Map<String, dynamic> map) {
@@ -21,6 +24,8 @@ class TreasuryTransaction {
       type: map['type']?.toString() ?? map['category']?.toString() ?? map['transaction_type']?.toString() ?? '',
       description: map['description']?.toString() ?? '',
       createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'].toString()) : null,
+      cashBoxId: map['cash_box_id'] as int?,
+      relatedCashBoxId: map['related_cash_box_id'] as int?,
     );
   }
 
@@ -31,6 +36,8 @@ class TreasuryTransaction {
       'type': type,
       'description': description,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (cashBoxId != null) 'cash_box_id': cashBoxId,
+      if (relatedCashBoxId != null) 'related_cash_box_id': relatedCashBoxId,
     };
   }
 
@@ -40,6 +47,8 @@ class TreasuryTransaction {
     String? type,
     String? description,
     DateTime? createdAt,
+    int? cashBoxId,
+    int? relatedCashBoxId,
   }) {
     return TreasuryTransaction(
       id: id ?? this.id,
@@ -47,6 +56,8 @@ class TreasuryTransaction {
       type: type ?? this.type,
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
+      cashBoxId: cashBoxId ?? this.cashBoxId,
+      relatedCashBoxId: relatedCashBoxId ?? this.relatedCashBoxId,
     );
   }
 
@@ -60,5 +71,5 @@ class TreasuryTransaction {
 
   @override
   String toString() =>
-      'TreasuryTransaction(id: $id, amount: $amount, type: $type, description: $description)';
+      'TreasuryTransaction(id: $id, amount: $amount, type: $type, description: $description, cashBoxId: $cashBoxId, relatedCashBoxId: $relatedCashBoxId)';
 }

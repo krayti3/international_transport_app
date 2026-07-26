@@ -23,6 +23,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
   final ImagePicker _picker = ImagePicker();
 
   List<Map<String, dynamic>> _transactions = [];
+  List<Map<String, dynamic>> _cashBoxes = [];
   double _balance = 0.0;
   bool _isLoading = true;
 
@@ -42,6 +43,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
     'office_expense',
     'salary',
     'trip_expense',
+    'transfer',
   ];
 
   @override
@@ -54,10 +56,12 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
     setState(() => _isLoading = true);
     final transactions = await _supabaseService.getTreasuryTransactions();
     final balance = await _supabaseService.getTreasuryBalance();
+    final cashBoxes = await _supabaseService.getCashBoxes();
     if (!mounted) return;
     setState(() {
       _transactions = transactions;
       _balance = balance;
+      _cashBoxes = cashBoxes;
       _isLoading = false;
     });
   }
@@ -349,12 +353,127 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
     );
   }
 
+  Future<void> _openTransferDialog() async {
+    final amountController = TextEditingController();
+    String? fromBoxId;
+    String? toBoxId;
+    String description = 'تحويل بين الصناديق';
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('تحويل بين الصناديق'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'من صندوق'),
+                  initialValue: fromBoxId,
+                  items: _cashBoxes.map((b) {
+                    final id = b['id'] as int?;
+                    return DropdownMenuItem<String>(
+                      value: id?.toString(),
+                      child: Text(b['label']?.toString() ?? ''),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setDialog(() => fromBoxId = v),
+                  validator: (v) => v == null ? 'يرجى اختيار الصندوق المصدر' : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'إلى صندوق'),
+                  initialValue: toBoxId,
+                  items: _cashBoxes.map((b) {
+                    final id = b['id'] as int?;
+                    return DropdownMenuItem<String>(
+                      value: id?.toString(),
+                      child: Text(b['label']?.toString() ?? ''),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setDialog(() => toBoxId = v),
+                  validator: (v) => v == null ? 'يرجى اختيار الصندوق المستهدف' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: amountController,
+                  decoration: const InputDecoration(
+                    labelText: 'المبلغ (DH)',
+                    suffixText: 'DH',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'يرجى إدخال المبلغ';
+                    final p = double.tryParse(v.trim());
+                    if (p == null) return 'أرقام فقط';
+                    if (p <= 0) return 'المبلغ يجب أن يكون أكبر من صفر';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  decoration: const InputDecoration(labelText: 'البيان'),
+                  onChanged: (v) => description = v,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final amount = double.tryParse(amountController.text.trim()) ?? 0;
+                try {
+                  await _supabaseService.addTransfer(
+                    amount: amount,
+                    fromCashBoxId: int.parse(fromBoxId!),
+                    toCashBoxId: int.parse(toBoxId!),
+                    description: description,
+                  );
+                  if (!mounted) return;
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم التحويل بنجاح'), backgroundColor: Colors.green),
+                  );
+                  await _loadData();
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('فشل التحويل: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('تأكيد'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('إدارة الخزينة'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _openAddDialog,
+            tooltip: 'معاملة جديدة',
+          ),
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            onPressed: _cashBoxes.length > 1 ? _openTransferDialog : null,
+            tooltip: 'تحويل بين صناديق',
+          ),
           IconButton(
             icon: const Icon(Icons.table_chart),
             tooltip: 'تصدير Excel',
@@ -465,11 +584,6 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAddDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('معاملة جديدة'),
-      ),
     );
   }
 }

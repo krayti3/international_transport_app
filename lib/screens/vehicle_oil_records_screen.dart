@@ -503,7 +503,17 @@ class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: Text('سجل الزيت - $_truckPlate')),
+      appBar: AppBar(
+        title: Text('سجل الزيت - $_truckPlate'),
+        actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: _addOilChangeRecord,
+              tooltip: 'تسجيل تغيير زيت',
+            ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _records.isEmpty
@@ -581,13 +591,6 @@ class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
                     );
                   },
                 ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton.extended(
-              onPressed: _addOilChangeRecord,
-              icon: const Icon(Icons.add),
-              label: const Text('تسجيل تغيير زيت'),
-            )
-          : null,
     );
   }
 }

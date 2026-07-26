@@ -391,6 +391,14 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.docType} - $_entityLabel'),
+        actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _openDocDialog(),
+              tooltip: 'إضافة وثيقة',
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -516,13 +524,6 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
                 ),
               ],
             ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton(
-              onPressed: () => _openDocDialog(),
-              tooltip: 'إضافة وثيقة',
-              child: const Icon(Icons.add),
-            )
-          : null,
     );
   }
 }

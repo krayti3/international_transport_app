@@ -369,6 +369,12 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
       appBar: AppBar(
         title: const Text('وثائق الشاحنات'),
         actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _openDocumentDialog(),
+              tooltip: 'إضافة وثيقة',
+            ),
           IconButton(
             icon: const Icon(Icons.notifications_rounded),
             tooltip: 'جدولة تذكيرات الانتهاء',
@@ -558,13 +564,6 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                       ),
                     ],
                   ),
-        floatingActionButton: widget.isAdmin
-          ? FloatingActionButton(
-              onPressed: () => _openDocumentDialog(),
-              tooltip: 'إضافة وثيقة',
-              child: const Icon(Icons.add),
-            )
-          : null,
     );
   }
 

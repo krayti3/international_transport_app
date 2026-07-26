@@ -609,6 +609,14 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
         title: Text(widget.trailerId != null
             ? 'مصاريف صيانة المقطورة'
             : 'مصاريف صيانة المقطورات'),
+        actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _openExpenseDialog(),
+              tooltip: 'إضافة مصروف',
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -794,14 +802,6 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
                 ),
               ],
             ),
-      floatingActionButton:
-          widget.isAdmin
-              ? FloatingActionButton.extended(
-                onPressed: () => _openExpenseDialog(),
-                icon: const Icon(Icons.add),
-                label: const Text('إضافة مصروف'),
-              )
-              : null,
     );
   }
 

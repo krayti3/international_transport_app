@@ -720,6 +720,12 @@ class _TrucksScreenState extends State<TrucksScreen> {
       appBar: AppBar(
         title: Text(context.tr('الشاحنات')),
         actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _openTruckDialog(),
+              tooltip: 'إضافة شاحنة',
+            ),
           IconButton(
             icon: const Icon(Icons.search_rounded),
             tooltip: 'بحث',
@@ -827,12 +833,6 @@ class _TrucksScreenState extends State<TrucksScreen> {
                 ),
               ],
             ),
-      floatingActionButton: widget.isAdmin
-          ? FloatingActionButton(
-              onPressed: () => _openTruckDialog(),
-              child: const Icon(Icons.add),
-            )
-          : null,
     );
   }
 }
