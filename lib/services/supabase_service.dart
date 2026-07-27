@@ -2506,9 +2506,14 @@ class SupabaseService {
     }
   }
 
-  Future<void> addTruckDocument(Map<String, dynamic> data) async {
+  Future<int> addTruckDocument(Map<String, dynamic> data) async {
     try {
-      await _writeRow((d) => supabase.from('truck_documents').insert(d), data);
+      final response = await supabase
+          .from('truck_documents')
+          .insert(data)
+          .select('id')
+          .single();
+      return response['id'] as int;
     } catch (e) {
       debugPrint('Error adding truck document: $e');
       rethrow;
@@ -3582,7 +3587,33 @@ class SupabaseService {
   }
 
   Future<void> updateDocumentCategory(int id, Map<String, dynamic> data) async {
-    await supabase.from('document_categories').update(data).eq('id', id);
+    try {
+      final newName = data['name']?.toString();
+      if (newName == null) {
+        await supabase.from('document_categories').update(data).eq('id', id);
+        return;
+      }
+      final current = await supabase
+          .from('document_categories')
+          .select('name')
+          .eq('id', id)
+          .maybeSingle();
+      final oldName = current?['name']?.toString();
+      if (oldName != null && oldName != newName) {
+        await supabase
+            .from('truck_documents')
+            .update({'type': newName})
+            .eq('type', oldName);
+        await supabase
+            .from('fleet_documents')
+            .update({'doc_type': newName})
+            .eq('doc_type', oldName);
+      }
+      await supabase.from('document_categories').update(data).eq('id', id);
+    } catch (e) {
+      debugPrint('Error updating document category: $e');
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> getExpenseCategories() async {
@@ -4199,6 +4230,134 @@ class SupabaseService {
     } catch (e) {
       debugPrint('Error fetching workshop debt summary: $e');
       return [];
+    }
+  }
+
+  // ─── Maintenance Schedule CRUD ────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getMaintenanceSchedules({
+    String? vehicleType,
+    int? vehicleId,
+    String? status,
+  }) async {
+    try {
+      var query = supabase.from('maintenance_schedule').select();
+      if (vehicleType != null) query = query.eq('vehicle_type', vehicleType);
+      if (vehicleId != null) query = query.eq('vehicle_id', vehicleId);
+      if (status != null) query = query.eq('status', status);
+      final response = await query
+          .eq('is_deleted', false)
+          .order('scheduled_date', ascending: true);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching maintenance schedules: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUpcomingMaintenances({int? daysAhead}) async {
+    try {
+      final now = DateTime.now();
+      final until = daysAhead != null ? now.add(Duration(days: daysAhead)) : null;
+      var query = supabase
+          .from('maintenance_schedule')
+          .select()
+          .eq('is_deleted', false)
+          .neq('status', 'completed')
+          .gte('scheduled_date', now.toIso8601String().split('T').first);
+      if (until != null) {
+        query = query.lte('scheduled_date', until.toIso8601String().split('T').first);
+      }
+      final response = await query.order('scheduled_date', ascending: true);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching upcoming maintenances: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getMaintenanceSchedule(int id) async {
+    try {
+      final response = await supabase
+          .from('maintenance_schedule')
+          .select()
+          .eq('id', id)
+          .eq('is_deleted', false)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      debugPrint('Error fetching maintenance schedule: $e');
+      return null;
+    }
+  }
+
+  Future<int?> insertMaintenanceSchedule(Map<String, dynamic> data) async {
+    try {
+      final payload = Map<String, dynamic>.from(data);
+      payload.remove('id');
+      payload.remove('created_at');
+      payload.remove('updated_at');
+      payload['notification_sent'] = false;
+      final response = await supabase
+          .from('maintenance_schedule')
+          .insert(payload)
+          .select()
+          .single();
+      return response['id'] as int?;
+    } catch (e) {
+      debugPrint('Error inserting maintenance schedule: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateMaintenanceSchedule(int id, Map<String, dynamic> data) async {
+    try {
+      final payload = Map<String, dynamic>.from(data);
+      payload.remove('created_at');
+      await supabase.from('maintenance_schedule').update(payload).eq('id', id);
+    } catch (e) {
+      debugPrint('Error updating maintenance schedule: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteMaintenanceSchedule(int id) async {
+    try {
+      await supabase.from('maintenance_schedule').update({'is_deleted': true}).eq('id', id);
+    } catch (e) {
+      debugPrint('Error deleting maintenance schedule: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> completeMaintenanceSchedule(int id, {double? completedKm, double? actualCost, String? notes}) async {
+    try {
+      final updates = <String, dynamic>{
+        'status': 'completed',
+        'completed_at': DateTime.now().toIso8601String(),
+      };
+      if (completedKm != null) updates['completed_km'] = completedKm;
+      if (actualCost != null) updates['actual_cost'] = actualCost;
+      if (notes != null && notes.isNotEmpty) updates['notes'] = notes;
+      await supabase.from('maintenance_schedule').update(updates).eq('id', id);
+    } catch (e) {
+      debugPrint('Error completing maintenance schedule: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> markOverdueMaintenances() async {
+    try {
+      final today = DateTime.now().toIso8601String().split('T').first;
+      await supabase
+          .from('maintenance_schedule')
+          .update({'status': 'overdue'})
+          .eq('is_deleted', false)
+          .neq('status', 'completed')
+          .neq('status', 'skipped')
+          .lt('scheduled_date', today);
+    } catch (e) {
+      debugPrint('Error marking overdue maintenances: $e');
     }
   }
 

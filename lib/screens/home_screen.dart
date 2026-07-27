@@ -40,6 +40,7 @@ import 'expense_categories_screen.dart';
 import 'document_categories_screen.dart';
 import 'workshop_repairs_screen.dart';
 import 'trailer_maintenance_screen.dart';
+import 'maintenance_schedule_screen.dart';
 import 'driver_cash_screen.dart';
 import 'cash_box_management_screen.dart';
 
@@ -678,6 +679,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const DocumentCategoriesScreen()));
                 }),
+                _buildNestedDrawerItem(Icons.calendar_month_rounded, 'جدول الصيانة الدورية', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const MaintenanceScheduleScreen(isAdmin: true)));
+                }),
               ]),
               _buildNestedDrawerGroup('المقطورات', [
                 _buildNestedDrawerItem(Icons.directions_railway_rounded, 'قائمة المقطورات', () {
@@ -691,6 +696,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildNestedDrawerItem(Icons.build_rounded, 'صيانة المقطورات', () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => TrailerMaintenanceScreen(isAdmin: isAdmin)));
+                }),
+                _buildNestedDrawerItem(Icons.calendar_month_rounded, 'جدول صيانة المقطورات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const MaintenanceScheduleScreen(isAdmin: true, vehicleType: 'trailer')));
                 }),
               ]),
               _buildNestedDrawerGroup('ورش الإصلاحات', [

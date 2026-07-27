@@ -15,7 +15,7 @@ for /f "usebackq tokens=1,2 delims==" %%A in ("%ENV_FILE%") do (
     set "KEY_NAME=%%A"
     set "VALUE=%%B"
     if "!KEY_NAME!"=="SUPABASE_URL" set "URL=!VALUE!"
-    if "!KEY_NAME!"=="SUPABASE_ANON_KEY" set "KEY=!VALUE!"
+    if "!KEY_NAME!"=="SUPABASE_PUBLISHABLE_KEY" set "KEY=!VALUE!"
 )
 
 set "URL=!URL:"=!"
@@ -27,10 +27,10 @@ if "!URL!"=="" (
 )
 
 if "!KEY!"=="" (
-    echo Error: SUPABASE_ANON_KEY is not set in .env
+    echo Error: SUPABASE_PUBLISHABLE_KEY is not set in .env
     exit /b 1
 )
 
 echo Running with SUPABASE_URL=!URL!
-flutter run -d edge --dart-define=SUPABASE_URL=!URL! --dart-define=SUPABASE_ANON_KEY=!KEY!
+flutter run -d edge --dart-define=SUPABASE_URL=!URL! --dart-define=SUPABASE_PUBLISHABLE_KEY=!KEY!
 exit /b %errorlevel%

@@ -30,6 +30,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
   Map<int, Map<String, double>> _boxBalances = {};
   bool _isBoxesLoading = false;
   String? _selectedCashBox;
+  Stream<List<Map<String, dynamic>>>? _treasuryStream;
 
   static const _incomeTypes = <String, String>{
     'trip_revenue': 'تحصيل فواتير الزبائن',
@@ -497,6 +498,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
   @override
   void initState() {
     super.initState();
+    _treasuryStream = _getTreasuryStream();
     _loadCashBoxes();
   }
 
@@ -512,7 +514,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
             const SizedBox(height: 12),
             // 🔄 دفق الحسابات المباشر لاستخراج الإحصائيات في نفس اللحظة
             StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _getTreasuryStream(),
+              stream: _treasuryStream,
               builder: (context, snapshot) {
                 double totalIncomeMad = 0.0;
                 double totalExpenseMad = 0.0;
@@ -548,8 +550,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                     transactions.isEmpty;
 
                 return Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: ListView(
                     children: [
                       // 📊 لوحة المؤشرات المالية
                       Row(
@@ -656,78 +657,80 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                         Card(
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                                color: Theme.of(context).dividerColor,
-                                width: 0.5),
-                          ),
-                          color: Theme.of(context).colorScheme.surfaceContainer,
-                          child: ListView.separated(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 8),
-                            itemCount: transactions.length,
-                            separatorBuilder: (context, index) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final tx = transactions[index];
-                              final String type =
-                                  (tx['type'] ?? '').toString();
-                              final bool isIncome = _isIncomeType(type);
-                              final double amt =
-                                  (tx['amount'] ?? 0.0).toDouble();
-                              final String desc =
-                                  (tx['description'] ?? '')
-                                      .toString()
-                                      .trim();
-                              final String currency =
-                                  (tx['currency']?.toString() ?? 'DH').toUpperCase();
-                              final String symbol = _currencySymbol(currency);
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(
+                                  color: Theme.of(context).dividerColor,
+                                  width: 0.5),
+                            ),
+                            color: Theme.of(context).colorScheme.surfaceContainer,
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: transactions.length,
+                              separatorBuilder: (context, index) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final tx = transactions[index];
+                                final String type =
+                                    (tx['type'] ?? '').toString();
+                                final bool isIncome = _isIncomeType(type);
+                                final double amt =
+                                    (tx['amount'] ?? 0.0).toDouble();
+                                final String desc =
+                                    (tx['description'] ?? '')
+                                        .toString()
+                                        .trim();
+                                final String currency =
+                                    (tx['currency']?.toString() ?? 'DH').toUpperCase();
+                                final String symbol = _currencySymbol(currency);
 
-                              final DateTime? dt = DateTime.tryParse(tx['created_at']?.toString() ?? '');
-                              final String dateStr = dt != null
-                                  ? DateFormat('dd/MM/yyyy').format(dt)
-                                  : (tx['created_at']?.toString() ?? '');
+                                final DateTime? dt = DateTime.tryParse(tx['created_at']?.toString() ?? '');
+                                final String dateStr = dt != null
+                                    ? DateFormat('dd/MM/yyyy').format(dt)
+                                    : (tx['created_at']?.toString() ?? '');
 
-                              return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: (isIncome
-                                          ? Colors.green
-                                          : Colors.red)
-                                      .withValues(alpha: 0.12),
-                                  child: Icon(
-                                    isIncome
-                                        ? Icons.arrow_upward_rounded
-                                        : Icons.arrow_downward_rounded,
-                                    color: isIncome
-                                        ? Colors.green[700]
-                                        : Colors.red[700],
-                                    size: 18,
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: (isIncome
+                                            ? Colors.green
+                                            : Colors.red)
+                                        .withValues(alpha: 0.12),
+                                    child: Icon(
+                                      isIncome
+                                          ? Icons.arrow_upward_rounded
+                                          : Icons.arrow_downward_rounded,
+                                      color: isIncome
+                                          ? Colors.green[700]
+                                          : Colors.red[700],
+                                      size: 18,
+                                    ),
                                   ),
-                                ),
-                                title: Text(
-                                    desc.isEmpty
-                                        ? 'عملية بدون بيان'
-                                        : desc,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600)),
-                                subtitle: Text(
-                                  '${_typeLabels[type] ?? type} | $dateStr',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[500]),
-                                ),
-                                trailing: Text(
-                                  '${isIncome ? '+' : '-'} ${NumberFormat('#,###.00').format(amt)} $symbol',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                    color: isIncome
-                                        ? Colors.green[600]
-                                        : Colors.red[600],
+                                  title: Text(
+                                      desc.isEmpty
+                                          ? 'عملية بدون بيان'
+                                          : desc,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600)),
+                                  subtitle: Text(
+                                    '${_typeLabels[type] ?? type} | $dateStr',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[500]),
                                   ),
-                                ),
-                              );
-                            },
+                                  trailing: Text(
+                                    '${isIncome ? '+' : '-'} ${NumberFormat('#,###.00').format(amt)} $symbol',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: isIncome
+                                          ? Colors.green[600]
+                                          : Colors.red[600],
+                                    ),
+                                  ),
+                                );
+                              },
                           ),
                         ),
                     ],
@@ -743,6 +746,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           FloatingActionButton.extended(
+            heroTag: 'add_treasury_tx',
             onPressed: _showAddTransactionDialog,
             icon: const Icon(Icons.account_balance_wallet_rounded),
             label: const Text('تسجيل حركة صندوق'),
@@ -751,6 +755,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
           ),
           const SizedBox(height: 10),
           FloatingActionButton.extended(
+            heroTag: 'transfer_cash_box',
             onPressed: _showTransferDialog,
             icon: const Icon(Icons.swap_horiz_rounded),
             label: const Text('تحويل بين صناديق'),
@@ -764,10 +769,11 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
 
   Widget _buildFinanceCard(String title, String value, IconData icon,
       Color color,
-      {bool fullWidth = false}) {
+      {bool fullWidth = false, double height = 50}) {
     final colorScheme = Theme.of(context).colorScheme;
     final cardWidget = Container(
-      padding: const EdgeInsets.all(16),
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(12),
@@ -804,7 +810,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
 
     return fullWidth
         ? SizedBox(width: double.infinity, child: cardWidget)
-        : Expanded(child: cardWidget);
+        : cardWidget;
   }
 
   @override

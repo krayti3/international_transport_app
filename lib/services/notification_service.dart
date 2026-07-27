@@ -64,42 +64,100 @@ class NotificationService {
   }
 
   /// جدولة تذكير بانتهاء صلاحية وثيقة الشاحنة أو المقطورة.
+  ///
+  /// استخدم [documentId] إذا كان متوفراً لضمان معرف إشعار ثابت يسمح
+  /// بالإلغاء لاحقاً عند تجديد الوثيقة.
   Future<void> scheduleDocumentExpiryNotification(
     String documentName,
-    DateTime expiryDate,
-  ) async {
+    DateTime expiryDate, {
+    int? documentId,
+  }) async {
     try {
-      if (kIsWeb) return; // zonedSchedule not supported on web
+      if (kIsWeb) return;
       final now = tz.TZDateTime.now(tz.local);
       final expiry = tz.TZDateTime.from(expiryDate, tz.local);
-
-      // تذكير قبل 7 أيام من تاريخ الانتهاء إن أمكن.
       final reminderDate = expiry.subtract(const Duration(days: 7));
       final scheduledDate = reminderDate.isAfter(now) ? reminderDate : expiry;
-
-      const androidDetails = AndroidNotificationDetails(
-        'document_expiry_channel',
-        'انتهاء صلاحية الوثائق',
-        channelDescription: 'تذكيرات بانتهاء صلاحية وثائق الشاحنة والمقطورة',
-        importance: Importance.high,
-        priority: Priority.high,
-      );
-      const iosDetails = DarwinNotificationDetails();
-      const notificationDetails = NotificationDetails(
-        android: androidDetails,
-        iOS: iosDetails,
-      );
-
-      await _flutterLocalNotificationsPlugin.zonedSchedule(
-        id: expiryDate.hashCode,
+      await _scheduleNotification(
+        id: documentId ?? expiryDate.hashCode,
         title: 'تنبيه انتهاء صلاحية وثيقة',
         body: 'ستنتهي صلاحية $documentName بتاريخ ${expiryDate.toLocal().toString().split(' ').first}',
         scheduledDate: scheduledDate,
-        notificationDetails: notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        channelId: 'document_expiry_channel',
+        channelName: 'انتهاء صلاحية الوثائق',
+        channelDescription: 'تذكيرات بانتهاء صلاحية وثائق الشاحنة والمقطورة',
       );
     } catch (e) {
       debugPrint('Error scheduling document expiry notification: $e');
     }
+  }
+
+  /// إلغاء تذكير انتهاء صلاحية وثيقة حسب معرف الوثيقة.
+  Future<void> cancelDocumentExpiryNotification(int documentId) async {
+    try {
+      if (kIsWeb) return;
+      await _flutterLocalNotificationsPlugin.cancel(id: documentId);
+    } catch (e) {
+      debugPrint('Error canceling document expiry notification: $e');
+    }
+  }
+
+  /// جدولة تذكير بصيانة دورية.
+  Future<void> scheduleMaintenanceNotification(
+    String taskType,
+    DateTime scheduledDate,
+    int vehicleId,
+    String vehicleType,
+  ) async {
+    try {
+      if (kIsWeb) return;
+      final now = tz.TZDateTime.now(tz.local);
+      final scheduled = tz.TZDateTime.from(scheduledDate, tz.local);
+      final reminderDate = scheduled.subtract(const Duration(days: 2));
+      final effectiveDate = reminderDate.isAfter(now) ? reminderDate : scheduled;
+      final vehicleLabel = vehicleType == 'truck' ? 'شاحنة' : 'مقطورة';
+      await _scheduleNotification(
+        id: scheduledDate.hashCode + vehicleId,
+        title: 'تذكير صيانة دورية',
+        body: 'صيانة "$taskType" لـ$vehicleLabel #$vehicleId بتاريخ ${scheduledDate.toLocal().toString().split(' ').first}',
+        scheduledDate: effectiveDate,
+        channelId: 'maintenance_channel',
+        channelName: 'الصيانة الدورية',
+        channelDescription: 'تذكيرات بمواعيد الصيانة الدورية للشاحنات والمقطورات',
+      );
+    } catch (e) {
+      debugPrint('Error scheduling maintenance notification: $e');
+    }
+  }
+
+  Future<void> _scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime scheduledDate,
+    required String channelId,
+    required String channelName,
+    required String channelDescription,
+  }) async {
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const iosDetails = DarwinNotificationDetails();
+    final notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+    await _flutterLocalNotificationsPlugin.zonedSchedule(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: scheduledDate,
+      notificationDetails: notificationDetails,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+    );
   }
 }

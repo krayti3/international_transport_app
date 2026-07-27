@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:collection/collection.dart';
-import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import '../services/supabase_service.dart';
 import '../services/notification_service.dart';
@@ -105,13 +105,15 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
   Future<void> _scheduleReminder(Map<String, dynamic> doc) async {
     final expiry = DateTime.tryParse(doc['expiry_date']?.toString() ?? '');
     if (expiry == null) return;
+    final docId = doc['id'] as int?;
     await _notificationService.scheduleDocumentExpiryNotification(
       'وثيقة ${doc['type']?.toString() ?? 'غير معروف'} للشاحنة ${_truckLabel(doc['truck_id'])}',
       expiry,
+      documentId: docId,
     );
   }
 
-  Future<void> _openDocumentDialog({Map<String, dynamic>? doc}) async {
+  Future<void> _openDocumentDialog({Map<String, dynamic>? doc, DateTime? prefillExpiryDate}) async {
     final isEdit = doc != null;
     int? selectedTruckId = doc != null
         ? int.tryParse(doc['truck_id'].toString())
@@ -122,10 +124,12 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
         TextEditingController(text: doc?['attachment_url']?.toString() ?? '');
     final ImagePicker picker = ImagePicker();
     String? attachmentUrl = doc != null ? doc['attachment_url']?.toString() : null;
-    Uint8List? pickedImageBytes;
+    List<int>? pickedImageBytes;
     String? pickedImageName;
     String? selectedDocType;
-    DateTime? expiryDate = DateTime.tryParse(doc?['expiry_date']?.toString() ?? '');
+    DateTime? expiryDate = prefillExpiryDate ?? DateTime.tryParse(doc?['expiry_date']?.toString() ?? '');
+    double? renewalCost;
+    String renewalCurrency = 'MAD';
 
     List<Map<String, dynamic>> docTypes = [];
     await _supabaseService.getDocumentCategories().then((cats) {
@@ -216,17 +220,44 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                       ? 'اختر تاريخ الانتهاء'
                       : _formatDate(expiryDate!.toIso8601String()), textDirection: TextDirection.ltr),
                   trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    final picked = await showDateWheelPicker(
-                      context: context,
-                      initialDate: expiryDate ?? DateTime.now(),
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
-                    );
-                     if (picked != null) setDialogState(() => expiryDate = picked);
-                  },
-                ),
-                TextFormField(
+                   onTap: () async {
+                     final picked = await showDateWheelPicker(
+                       context: context,
+                       initialDate: expiryDate ?? DateTime.now(),
+                       firstDate: DateTime(2000),
+                       lastDate: DateTime(2100),
+                     );
+                      if (picked != null) setDialogState(() => expiryDate = picked);
+                   },
+                 ),
+                 if (isEdit) ...[
+                   const SizedBox(height: 12),
+                   TextFormField(
+                     decoration: InputDecoration(
+                       labelText: 'تكلفة التجديد (اختياري)',
+                       suffixText: renewalCurrency == 'EUR' ? '€' : 'DH',
+                     ),
+                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                     inputFormatters: [
+                       FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                     ],
+                     onChanged: (v) {
+                       renewalCost = double.tryParse(v.trim());
+                     },
+                   ),
+                   DropdownButtonFormField<String>(
+                     initialValue: renewalCurrency,
+                     decoration: const InputDecoration(labelText: 'عملة التكلفة'),
+                     items: const [
+                       DropdownMenuItem(value: 'MAD', child: Text('درهم (DH)')),
+                       DropdownMenuItem(value: 'EUR', child: Text('يورو (€)')),
+                     ],
+                     onChanged: (v) {
+                       if (v != null) setDialogState(() => renewalCurrency = v);
+                     },
+                   ),
+                 ],
+                 TextFormField(
                   controller: urlController,
                   decoration: const InputDecoration(labelText: 'رابط المرفق'),
                 ),
@@ -246,7 +277,7 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                 ),
                 if (pickedImageBytes != null) ...[
                   const SizedBox(height: 8),
-                  Image.memory(pickedImageBytes!, height: 140, fit: BoxFit.cover),
+                  Image.memory(Uint8List.fromList(pickedImageBytes!), height: 140, fit: BoxFit.cover),
                   const SizedBox(height: 4),
                   const Text('تم اختيار الصورة', style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ] else if (attachmentUrl != null && attachmentUrl!.isNotEmpty && attachmentUrl!.startsWith('http')) ...[
@@ -310,17 +341,53 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                     'expiry_date': expiryDate!.toIso8601String().split('T').first,
                     'attachment_url': attachmentUrl ?? '',
                   };
+
                   if (isEdit) {
+                    data['previous_expiry_date'] = doc['expiry_date']?.toString();
+                    if (renewalCost != null && renewalCost! > 0) {
+                      data['renewal_cost'] = renewalCost;
+                      data['renewal_currency'] = renewalCurrency;
+                    }
+                    await _notificationService.cancelDocumentExpiryNotification(doc['id'] as int);
                     await _supabaseService.updateTruckDocument(doc['id'], data);
                   } else {
-                    await _supabaseService.addTruckDocument(data);
+                    final newDocId = await _supabaseService.addTruckDocument(data);
+                    data['id'] = newDocId;
                   }
+
+                  if (!context.mounted) return;
+                  await _loadData();
+
+                  final savedDoc = {
+                    ...data,
+                    'id': isEdit ? (doc['id'] as int) : (data['id'] as int),
+                    'truck_id': selectedTruckId,
+                  };
+                  await _scheduleReminder(savedDoc);
+
+                  if (isEdit && renewalCost != null && renewalCost! > 0) {
+                    try {
+                      await _supabaseService.addTreasuryTransaction(
+                        renewalCost!,
+                        'office_expense',
+                        'تجديد ${selectedDocType ?? 'وثيقة'} - ${_truckLabel(selectedTruckId ?? doc['truck_id'])}',
+                        currency: renewalCurrency,
+                      );
+                    } catch (e) {
+                      debugPrint('Error recording renewal expense: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('تم حفظ الوثيقة، لكن تعذّر تسجيل المصروف في الخزينة: $e'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    }
+                  }
+
                   if (!context.mounted) return;
                   Navigator.pop(context);
-                  await _loadData();
-                  if (isEdit) {
-                    await _scheduleReminder({...data, 'id': doc['id']});
-                  }
                 } catch (e) {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -334,6 +401,14 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _quickRenew(Map<String, dynamic> doc) async {
+    final currentExpiry = DateTime.tryParse(doc['expiry_date']?.toString() ?? '');
+    final newExpiry = currentExpiry != null && currentExpiry.isAfter(DateTime.now())
+        ? currentExpiry.add(const Duration(days: 365))
+        : DateTime.now().add(const Duration(days: 365));
+    await _openDocumentDialog(doc: doc, prefillExpiryDate: newExpiry);
   }
 
   Future<void> _confirmDelete(Map<String, dynamic> doc) async {
@@ -517,11 +592,18 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                                             style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[300] : Colors.grey[700]),
                                           ),
                                           const SizedBox(height: 2),
-                                          Text(
-                                            statusText,
-                                            style: TextStyle(fontSize: 12, color: borderColor, fontWeight: FontWeight.w600),
-                                          ),
-                                          if ((doc['attachment_url']?.toString() ?? '').startsWith('http')) ...[
+                                           Text(
+                                             statusText,
+                                             style: TextStyle(fontSize: 12, color: borderColor, fontWeight: FontWeight.w600),
+                                           ),
+                                           if ((doc['previous_expiry_date']?.toString() ?? '').isNotEmpty) ...[
+                                             const SizedBox(height: 2),
+                                             Text(
+                                               'آخر تجديد: ${doc['previous_expiry_date']}${(doc['renewal_cost']?.toString() ?? '').isNotEmpty ? ' | ${doc['renewal_cost']} ${(doc['renewal_currency']?.toString() ?? 'DH')}' : ''}',
+                                               style: TextStyle(fontSize: 11, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                                             ),
+                                           ],
+                                           if ((doc['attachment_url']?.toString() ?? '').startsWith('http')) ...[
                                             const SizedBox(height: 6),
                                             GestureDetector(
                                               onTap: () => showDialog(
@@ -537,20 +619,23 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                                         ],
                                       ),
                                     ),
-                                    if (widget.isAdmin)
-                                      PopupMenuButton<String>(
-                                        onSelected: (value) {
-                                          if (value == 'edit') {
-                                            _openDocumentDialog(doc: doc);
-                                          } else if (value == 'delete') {
-                                            _confirmDelete(doc);
-                                          }
-                                        },
-                                        itemBuilder: (_) => const [
-                                          PopupMenuItem(value: 'edit', child: Text('تعديل')),
-                                          PopupMenuItem(value: 'delete', child: Text('حذف')),
-                                        ],
-                                      ),
+                                     if (widget.isAdmin)
+                                       PopupMenuButton<String>(
+                                         onSelected: (value) {
+                                           if (value == 'edit') {
+                                             _openDocumentDialog(doc: doc);
+                                           } else if (value == 'quick_renew') {
+                                             _quickRenew(doc);
+                                           } else if (value == 'delete') {
+                                             _confirmDelete(doc);
+                                           }
+                                         },
+                                         itemBuilder: (_) => const [
+                                           PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                                           PopupMenuItem(value: 'quick_renew', child: Text('تجديد سريع')),
+                                           PopupMenuItem(value: 'delete', child: Text('حذف')),
+                                         ],
+                                       ),
                                   ],
                                 ),
                               );

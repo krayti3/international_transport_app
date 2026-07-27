@@ -17,7 +17,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$key_name" == "SUPABASE_URL" ]]; then
         URL="${value#\"}"
         URL="${URL%\"}"
-    elif [[ "$key_name" == "SUPABASE_ANON_KEY" ]]; then
+    elif [[ "$key_name" == "SUPABASE_PUBLISHABLE_KEY" ]]; then
         KEY="${value#\"}"
         KEY="${KEY%\"}"
     fi
@@ -29,10 +29,10 @@ if [[ -z "$URL" ]]; then
 fi
 
 if [[ -z "$KEY" ]]; then
-    echo "Error: SUPABASE_ANON_KEY is not set in .env"
+    echo "Error: SUPABASE_PUBLISHABLE_KEY is not set in .env"
     exit 1
 fi
 
 echo "Running with SUPABASE_URL=$URL"
-flutter run -d chrome --dart-define=SUPABASE_URL="$URL" --dart-define=SUPABASE_ANON_KEY="$KEY"
+flutter run -d chrome --dart-define=SUPABASE_URL="$URL" --dart-define=SUPABASE_PUBLISHABLE_KEY="$KEY"
 exit $?
