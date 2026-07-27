@@ -158,7 +158,7 @@ class _AgingReportScreenState extends State<AgingReportScreen> {
                         final remaining = inv['remaining'] as double;
                         final dueDate = inv['dueDate'] as DateTime?;
                         final formattedDue = dueDate != null
-                            ? DateFormat('yyyy-MM-dd').format(dueDate)
+                             ? DateFormat('dd/MM/yyyy').format(dueDate)
                             : 'غير محدد';
 
                         return Card(

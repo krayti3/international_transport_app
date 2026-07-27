@@ -168,7 +168,7 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final todayFormatted = DateFormat.yMMMMd('ar').format(DateTime.now());
+    final todayFormatted = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     return Scaffold(
       appBar: AppBar(

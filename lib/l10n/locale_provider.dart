@@ -11,7 +11,7 @@ class LocaleProvider extends ChangeNotifier {
   Locale _locale;
 
   LocaleProvider({Locale? initialLocale})
-      : _locale = initialLocale ?? const Locale('ar') {
+       : _locale = initialLocale ?? const Locale('ar', 'MA') {
     _loadFromStorage();
   }
 
@@ -30,7 +30,7 @@ class LocaleProvider extends ChangeNotifier {
         }
       }
     } catch (_) {
-      _locale = const Locale('ar');
+      _locale = const Locale('ar', 'MA');
     }
     Intl.defaultLocale = _locale.toString();
     notifyListeners();

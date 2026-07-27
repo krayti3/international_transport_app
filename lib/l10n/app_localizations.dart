@@ -39,6 +39,7 @@ class AppLocalizations {
   ];
 
   static const supportedLocales = <Locale>[
+    Locale('ar', 'MA'),
     Locale('ar'),
     Locale('fr'),
     Locale('en'),
@@ -53,6 +54,7 @@ class AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   @override
   bool isSupported(Locale locale) =>
       locale.languageCode == 'ar' ||
+      locale == const Locale('ar', 'MA') ||
       locale.languageCode == 'fr' ||
       locale.languageCode == 'en';
 

@@ -146,7 +146,7 @@ class _MaintenanceScheduleScreenState extends State<MaintenanceScheduleScreen> {
                     child: InputDecorator(
                       decoration: const InputDecoration(labelText: 'تاريخ الصيانة المجدول'),
                       child: Text(
-                        DateFormat('yyyy/MM/dd').format(scheduledDate),
+                        DateFormat('dd/MM/yyyy').format(scheduledDate),
                         textDirection: TextDirection.ltr,
                       ),
                     ),
@@ -205,7 +205,7 @@ class _MaintenanceScheduleScreenState extends State<MaintenanceScheduleScreen> {
                     'vehicle_id': selectedVehicleId,
                     'task_type': taskType.trim(),
                     'description': description.trim().isEmpty ? null : description.trim(),
-                    'scheduled_date': DateFormat('yyyy-MM-dd').format(scheduledDate),
+                    'scheduled_date': DateFormat('dd/MM/yyyy').format(scheduledDate),
                     'due_km': dueKm,
                     'status': status,
                     'assigned_to': (assignedTo?.trim().isEmpty ?? true) ? null : assignedTo?.trim(),

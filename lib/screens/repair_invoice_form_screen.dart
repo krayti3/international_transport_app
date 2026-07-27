@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:decimal/decimal.dart';
 import 'package:international_transport_app/models/repair_invoice.dart';
 import '../services/supabase_service.dart';
+import '../widgets/date_wheel_picker.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -52,7 +53,7 @@ class _RepairInvoiceFormScreenState
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showDateWheelPicker(
       context: context,
       initialDate: _date ?? DateTime.now(),
       firstDate: DateTime(2020),

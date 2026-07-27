@@ -63,7 +63,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
       text: advance != null ? (advance['amount_given'] as num?)?.toString() ?? '' : '',
     );
     final dateOutController = TextEditingController(
-      text: advance?['date_out']?.toString() ?? DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      text: advance?['date_out']?.toString() ?? DateFormat('dd/MM/yyyy').format(DateTime.now()),
     );
     String status = advance?['status']?.toString() ?? 'en_route';
     final amountSpentController = TextEditingController(

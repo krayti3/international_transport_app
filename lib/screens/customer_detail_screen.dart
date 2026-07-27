@@ -169,16 +169,55 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                       .toList(),
                   onChanged: (value) => setDialogState(() => selectedBankAccountId = value),
                 ),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'نوع الحساب البنكي', border: OutlineInputBorder()),
-                  initialValue: selectedBankAccountType,
-                  items: const [
-                    DropdownMenuItem(value: 'moroccan', child: Text('🇲🇦 الحساب المغربي (MAD)')),
-                    DropdownMenuItem(value: 'european', child: Text('🇪🇺 الحساب الأوروبي (EUR)')),
-                  ],
-                  onChanged: (value) => setDialogState(() => selectedBankAccountType = value),
-                ),
-                const SizedBox(height: 12),
+                 DropdownButtonFormField<String>(
+                   decoration: const InputDecoration(labelText: 'نوع الحساب البنكي', border: OutlineInputBorder()),
+                   initialValue: selectedBankAccountType,
+                   items: const [
+                     DropdownMenuItem(value: 'moroccan', child: Text('🇲🇦 الحساب المغربي (MAD)')),
+                     DropdownMenuItem(value: 'european', child: Text('🇪🇺 الحساب الأوروبي (EUR)')),
+                   ],
+                   onChanged: (value) => setDialogState(() => selectedBankAccountType = value),
+                 ),
+                 const SizedBox(height: 12),
+                 Builder(
+                   builder: (context) {
+                     final selectedAccount = selectedBankAccountId != null
+                         ? bankAccounts.firstWhereOrNull((ba) => ba.id == selectedBankAccountId)
+                         : null;
+                     final typeLabel = selectedBankAccountType == 'moroccan'
+                         ? 'الحساب المغربي (MAD)'
+                         : selectedBankAccountType == 'european'
+                             ? 'الحساب الأوروبي (EUR)'
+                             : null;
+                     final displayText = selectedAccount != null
+                         ? 'الحساب البنكي المحدد: ${selectedAccount.displayName}'
+                         : typeLabel != null
+                             ? 'نوع الحساب: $typeLabel'
+                             : null;
+                     if (displayText == null) return const SizedBox.shrink();
+                     return Container(
+                       padding: const EdgeInsets.all(10),
+                       decoration: BoxDecoration(
+                         color: Colors.green.withValues(alpha: 0.1),
+                         borderRadius: BorderRadius.circular(8),
+                         border: Border.all(color: Colors.green),
+                       ),
+                       child: Row(
+                         children: [
+                           const Icon(Icons.payment, color: Colors.green, size: 18),
+                           const SizedBox(width: 8),
+                           Expanded(
+                             child: Text(
+                               displayText,
+                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                             ),
+                           ),
+                         ],
+                       ),
+                     );
+                   },
+                 ),
+                 const SizedBox(height: 12),
                 SegmentedButton<String>(
                   segments: const [
                     ButtonSegment(value: 'HT', label: Text('HT')),

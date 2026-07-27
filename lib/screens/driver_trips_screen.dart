@@ -167,7 +167,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                       lastDate: DateTime(2100),
                     );
                      if (picked != null) {
-                       setDialogState(() => dateController.text = DateFormat('yyyy-MM-dd').format(picked));
+                       setDialogState(() => dateController.text = DateFormat('dd/MM/yyyy').format(picked));
                      }
                   },
                 ),

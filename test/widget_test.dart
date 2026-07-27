@@ -5,6 +5,7 @@
 // login form elements.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:international_transport_app/main.dart';
@@ -17,6 +18,25 @@ void main() {
   setUpAll(() async {
     // Initialize Hive so LocaleProvider can open its box during tests.
     Hive.init('/');
+
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel('plugins.flutter.io/shared_preferences');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (call) async {
+        if (call.method == 'getAll') {
+          return <String, dynamic>{};
+        }
+        if (call.method == 'remove') {
+          return null;
+        }
+        if (call.method == 'clear') {
+          return null;
+        }
+        return null;
+      },
+    );
+
     // Initialize Supabase so services that access Supabase.instance do not
     // assert during smoke tests.
     await Supabase.initialize(

@@ -340,20 +340,59 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                     });
                   },
                 ),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'نوع الحساب البنكي', border: OutlineInputBorder()),
-                  initialValue: selectedBankAccountType,
-                  items: const [
-                    DropdownMenuItem(value: 'moroccan', child: Text('🇲🇦 الحساب المغربي (MAD)')),
-                    DropdownMenuItem(value: 'european', child: Text('🇪🇺 الحساب الأوروبي (EUR)')),
-                  ],
-                  onChanged: (val) {
-                    setDialogState(() {
-                      selectedBankAccountType = val;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
+                 DropdownButtonFormField<String>(
+                   decoration: const InputDecoration(labelText: 'نوع الحساب البنكي', border: OutlineInputBorder()),
+                   initialValue: selectedBankAccountType,
+                   items: const [
+                     DropdownMenuItem(value: 'moroccan', child: Text('🇲🇦 الحساب المغربي (MAD)')),
+                     DropdownMenuItem(value: 'european', child: Text('🇪🇺 الحساب الأوروبي (EUR)')),
+                   ],
+                   onChanged: (val) {
+                     setDialogState(() {
+                       selectedBankAccountType = val;
+                     });
+                   },
+                 ),
+                 const SizedBox(height: 12),
+                 Builder(
+                   builder: (context) {
+                     final selectedAccount = selectedBankAccountId != null
+                         ? bankAccountsList.firstWhereOrNull((b) => b['id'].toString() == selectedBankAccountId)
+                         : null;
+                     final typeLabel = selectedBankAccountType == 'moroccan'
+                         ? 'الحساب المغربي (MAD)'
+                         : selectedBankAccountType == 'european'
+                             ? 'الحساب الأوروبي (EUR)'
+                             : null;
+                     final displayText = selectedAccount != null
+                         ? 'الحساب البنكي المحدد: ${selectedAccount['bank_name']} (${selectedAccount['currency']})'
+                         : typeLabel != null
+                             ? 'نوع الحساب: $typeLabel'
+                             : null;
+                     if (displayText == null) return const SizedBox.shrink();
+                     return Container(
+                       padding: const EdgeInsets.all(10),
+                       decoration: BoxDecoration(
+                         color: Colors.green.withValues(alpha: 0.1),
+                         borderRadius: BorderRadius.circular(8),
+                         border: Border.all(color: Colors.green),
+                       ),
+                       child: Row(
+                         children: [
+                           const Icon(Icons.payment, color: Colors.green, size: 18),
+                           const SizedBox(width: 8),
+                           Expanded(
+                             child: Text(
+                               displayText,
+                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                             ),
+                           ),
+                         ],
+                       ),
+                     );
+                   },
+                 ),
+                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(

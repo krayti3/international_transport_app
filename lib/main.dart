@@ -49,7 +49,7 @@ class MyApp extends StatelessWidget {
               ),
             ),
             themeMode: themeProvider.themeMode,
-            locale: const Locale('ar'),
+            locale: const Locale('ar', 'MA'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const LoginScreen(),

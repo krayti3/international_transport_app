@@ -99,7 +99,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
     final due = m['due_date']?.toString();
     final dateStr = m['created_at']?.toString() ?? '';
     final dateFormatted = dateStr.isNotEmpty
-        ? DateFormat('yyyy/MM/dd').format(
+        ? DateFormat('dd/MM/yyyy').format(
             DateTime.tryParse(dateStr) ?? DateTime.now(),
           )
         : '';
@@ -548,7 +548,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                             child: Text(
                               maintenanceDate == null
                                   ? 'اختر التاريخ'
-                                  : DateFormat('yyyy/MM/dd').format(maintenanceDate!),
+                                   : DateFormat('dd/MM/yyyy').format(maintenanceDate!),
                               textDirection: TextDirection.ltr,
                             ),
                           ),

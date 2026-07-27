@@ -7,6 +7,7 @@ class BankAccount {
   final String? iban;
   final String? swiftCode;
   final bool isActive;
+  final int? cashBoxId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -19,6 +20,7 @@ class BankAccount {
     this.iban,
     this.swiftCode,
     this.isActive = true,
+    this.cashBoxId,
     this.createdAt,
     this.updatedAt,
   });
@@ -35,6 +37,7 @@ class BankAccount {
       iban: map['iban'] as String?,
       swiftCode: map['swift_code'] as String?,
       isActive: map['is_active'] as bool,
+      cashBoxId: map['cash_box_id'] as int?,
       createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'].toString()) : null,
       updatedAt: map['updated_at'] != null ? DateTime.tryParse(map['updated_at'].toString()) : null,
     );
@@ -50,6 +53,7 @@ class BankAccount {
       if (iban != null) 'iban': iban,
       if (swiftCode != null) 'swift_code': swiftCode,
       'is_active': isActive,
+      if (cashBoxId != null) 'cash_box_id': cashBoxId,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
       if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
     };
@@ -64,6 +68,7 @@ class BankAccount {
     String? iban,
     String? swiftCode,
     bool? isActive,
+    int? cashBoxId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -76,6 +81,7 @@ class BankAccount {
       iban: iban ?? this.iban,
       swiftCode: swiftCode ?? this.swiftCode,
       isActive: isActive ?? this.isActive,
+      cashBoxId: cashBoxId ?? this.cashBoxId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

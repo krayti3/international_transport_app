@@ -106,6 +106,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
               const SizedBox(height: 16),
               _buildBankAccountTypeSelector(),
               const SizedBox(height: 16),
+              _buildPaymentAccountSummary(),
+              const SizedBox(height: 16),
               _buildDatePickers(),
               const SizedBox(height: 16),
               _buildInputModeToggle(),
@@ -248,20 +250,79 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     );
   }
 
+  Widget _buildPaymentAccountSummary() {
+    final invoiceProvider = Provider.of<InvoiceProvider>(context);
+    final bankAccount = invoiceProvider.selectedBankAccount;
+    final bankType = _selectedBankAccountType;
+    final client = _selectedClient;
+
+    if (bankAccount == null && bankType == null && client != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.orange),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'لم يتم تحديد حساب بنكي. سيتم استخدام الإعدادات الافتراضية للزبون.',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    String summary = '';
+    if (bankAccount != null) {
+      summary = 'الحساب البنكي المحدد: ${bankAccount.displayName}';
+    } else if (bankType != null) {
+      final typeLabel = bankType == 'moroccan' ? 'الحساب المغربي (MAD)' : 'الحساب الأوروبي (EUR)';
+      summary = 'نوع الحساب: $typeLabel';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.payment, color: Colors.green),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              summary,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDatePickers() {
     return Row(
       children: [
         Expanded(
           child: ListTile(
             title: Text(context.tr('تاريخ الإصدار')),
-            subtitle: Text(DateFormat.yMd().format(_issueDate), textDirection: TextDirection.ltr),
+            subtitle: Text(DateFormat('dd/MM/yyyy').format(_issueDate), textDirection: TextDirection.ltr),
             onTap: () => _selectDate(context, isIssueDate: true),
           ),
         ),
         Expanded(
           child: ListTile(
             title: Text(context.tr('تاريخ الاستحقاق')),
-            subtitle: Text(DateFormat.yMd().format(_dueDate), textDirection: TextDirection.ltr),
+            subtitle: Text(DateFormat('dd/MM/yyyy').format(_dueDate), textDirection: TextDirection.ltr),
             onTap: () => _selectDate(context, isIssueDate: false),
           ),
         ),

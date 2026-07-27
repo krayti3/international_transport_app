@@ -7,9 +7,6 @@ import '../widgets/role_guard.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
-/// شاشة إدارة الحسابات البنكية — للأدمن فقط.
-/// تعرض قائمة بالحسابات البنكية (مع شارة العملة DH / €) وتتيح الإضافة
-/// والتعديل والحذف عبر نموذج حوار. الوصول مقيد بصلاحية الأدمن عبر [RoleGuard].
 class BankAccountsScreen extends StatefulWidget {
   const BankAccountsScreen({super.key});
 
@@ -20,9 +17,9 @@ class BankAccountsScreen extends StatefulWidget {
 class _BankAccountsScreenState extends State<BankAccountsScreen> {
   final SupabaseService _supabaseService = SupabaseService();
   List<BankAccount> _accounts = [];
+  List<Map<String, dynamic>> _cashBoxes = [];
   bool _isLoading = true;
 
-  /// م helper ثنائي اللغة: العربية افتراضياً، الفرنسية عند اختيار اللغة الفرنسية.
   String _t(String ar, String fr) {
     final code =
         Provider.of<LocaleProvider>(context, listen: false).locale.languageCode;
@@ -46,7 +43,19 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
     });
   }
 
-  /// شارة العملة: MAD = DH، EUR = €.
+  Future<Map<int, String>> _loadCashBoxLabels() async {
+    final boxes = await _supabaseService.getCashBoxes();
+    if (!mounted) return {};
+    setState(() => _cashBoxes = boxes);
+    final Map<int, String> labels = {};
+    for (final box in boxes) {
+      final id = box['id'] as int?;
+      final label = box['label']?.toString() ?? box['code']?.toString() ?? '';
+      if (id != null) labels[id] = label;
+    }
+    return labels;
+  }
+
   Widget _currencyBadge(String currency) {
     final isMad = currency == 'MAD';
     return Container(
@@ -80,7 +89,10 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
     final swiftController =
         TextEditingController(text: account?.swiftCode ?? '');
     String currency = account?.currency ?? 'MAD';
+    int? selectedCashBoxId = account?.cashBoxId;
     bool isActive = account?.isActive ?? true;
+
+    final cashBoxLabels = await _loadCashBoxLabels();
 
     await showDialog(
       context: context,
@@ -124,6 +136,27 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
                     ],
                     onChanged: (value) {
                       if (value != null) setDialogState(() => currency = value);
+                    },
+                  ),
+                  DropdownButtonFormField<int?>(
+                    initialValue: selectedCashBoxId,
+                    decoration: InputDecoration(
+                      labelText: _t('الخزينة المرتبطة', 'Caisse associée'),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('—'),
+                      ),
+                      ...cashBoxLabels.entries.map((entry) {
+                        return DropdownMenuItem<int?>(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        );
+                      }),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() => selectedCashBoxId = value);
                     },
                   ),
                   TextFormField(
@@ -181,6 +214,7 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
                     iban: ibanController.text.trim(),
                     swiftCode: swiftController.text.trim(),
                     isActive: isActive,
+                    cashBoxId: selectedCashBoxId,
                   );
 
                   try {
@@ -291,6 +325,12 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cashBoxLabels = _cashBoxes.asMap().map((key, box) {
+      final id = box['id'] as int?;
+      final label = box['label']?.toString() ?? box['code']?.toString() ?? '';
+      return MapEntry(id ?? -1, label);
+    });
+
     return RoleGuard(
       allowedRoles: const ['admin'],
       child: Scaffold(
@@ -324,6 +364,8 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
                       final iban = account.iban ?? '';
                       final holder = account.accountHolder;
                       final isActive = account.isActive;
+                      final cashBoxId = account.cashBoxId;
+                      final cashBoxLabel = cashBoxId != null ? cashBoxLabels[cashBoxId] : null;
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 4),
@@ -350,6 +392,8 @@ class _BankAccountsScreenState extends State<BankAccountsScreen> {
                               ),
                               if (iban.isNotEmpty)
                                 Text('IBAN: $iban'),
+                              if (cashBoxLabel != null && cashBoxLabel.isNotEmpty)
+                                Text('${_t('الخزينة', 'Caisse')}: $cashBoxLabel'),
                               if (!isActive)
                                 Text(
                                   _t('غير نشط', 'Inactif'),

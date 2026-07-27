@@ -358,7 +358,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                       lastDate: DateTime(2100),
                     );
                      if (picked != null) {
-                       dateController.text = DateFormat('yyyy-MM-dd').format(picked);
+                       dateController.text = DateFormat('dd/MM/yyyy').format(picked);
                      }
                   },
                 ),
