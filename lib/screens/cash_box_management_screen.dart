@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'cash_box_ledger_screen.dart';
 import '../services/supabase_service.dart';
 
 class CashBoxManagementScreen extends StatefulWidget {
@@ -12,8 +13,20 @@ class CashBoxManagementScreen extends StatefulWidget {
 class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
   final SupabaseService _supabaseService = SupabaseService();
   List<Map<String, dynamic>> _cashBoxes = [];
-  Map<int, double> _balances = {};
+  Map<int, Map<String, double>> _balances = {};
+  Map<int, List<String>> _operationsCache = {};
   bool _isLoading = true;
+
+  static const _operations = <String, String>{
+    'all': 'الكل',
+    'income': 'إيرادات',
+    'expense': 'مصاريف',
+    'transfer': 'تحويل',
+    'advance': 'عهَد',
+    'fuel': 'وقود',
+    'maintenance': 'صيانة',
+    'invoice_payment': 'دفعات فواتير',
+  };
 
   @override
   void initState() {
@@ -26,11 +39,80 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
     final boxes = await _supabaseService.getCashBoxes();
     final balances = await _supabaseService.getCashBoxBalances();
     if (!mounted) return;
+    final opsCache = <int, List<String>>{};
+    for (final box in boxes) {
+      final id = box['id'] as int?;
+      if (id != null) {
+        opsCache[id] = await _supabaseService.getAllowedOperations(id);
+      }
+    }
     setState(() {
       _cashBoxes = boxes;
       _balances = balances;
+      _operationsCache = opsCache;
       _isLoading = false;
     });
+  }
+
+  Future<void> _openOperationsDialog(Map<String, dynamic> box) async {
+    final boxId = box['id'] as int?;
+    if (boxId == null) return;
+    final label = box['label']?.toString() ?? '';
+    final allowed = await _supabaseService.getAllowedOperations(boxId);
+    final selected = <String>{...allowed};
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: Text('العمليات المسموحة: $label'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: _operations.entries.map((entry) {
+                final code = entry.key;
+                final title = entry.value;
+                return CheckboxListTile(
+                  title: Text(title),
+                  value: selected.contains(code),
+                  onChanged: (v) {
+                    if (v == true) {
+                      selected.add(code);
+                    } else {
+                      selected.remove(code);
+                    }
+                    setDialog(() {});
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _supabaseService.setAllowedOperations(boxId, selected.toList());
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تم تحديث العمليات المسموحة لـ "$label"')),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openBoxDialog({Map<String, dynamic>? box}) async {
@@ -146,6 +228,7 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
     String? fromBoxId;
     String? toBoxId;
     String description = 'تحويل بين الصناديق';
+    String transferCurrency = 'MAD';
     final formKey = GlobalKey<FormState>();
     final outerContext = context;
 
@@ -165,10 +248,10 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
                   items: _cashBoxes.map((b) {
                     final id = b['id'] as int?;
                     final label = b['label']?.toString() ?? '';
-                    final balance = _balances[id] ?? 0.0;
+                    final currencyBalances = _balances[id] ?? {'MAD': 0.0, 'EUR': 0.0};
                     return DropdownMenuItem<String>(
                       value: id?.toString(),
-                      child: Text('$label (${balance.toStringAsFixed(2)} DH)'),
+                      child: Text('$label (${currencyBalances['MAD']!.toStringAsFixed(2)} DH | ${currencyBalances['EUR']!.toStringAsFixed(2)} €)'),
                     );
                   }).toList(),
                   onChanged: (v) => setDialog(() => fromBoxId = v),
@@ -181,33 +264,55 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
                   items: _cashBoxes.map((b) {
                     final id = b['id'] as int?;
                     final label = b['label']?.toString() ?? '';
-                    final balance = _balances[id] ?? 0.0;
+                    final currencyBalances = _balances[id] ?? {'MAD': 0.0, 'EUR': 0.0};
                     return DropdownMenuItem<String>(
                       value: id?.toString(),
-                      child: Text('$label (${balance.toStringAsFixed(2)} DH)'),
+                      child: Text('$label (${currencyBalances['MAD']!.toStringAsFixed(2)} DH | ${currencyBalances['EUR']!.toStringAsFixed(2)} €)'),
                     );
                   }).toList(),
                   onChanged: (v) => setDialog(() => toBoxId = v),
                   validator: (v) => v == null ? 'يرجى اختيار الصندوق المستهدف' : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: amountController,
-                  decoration: const InputDecoration(
-                    labelText: 'المبلغ (DH)',
-                    suffixText: 'DH',
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: amountController,
+                        decoration: const InputDecoration(
+                          labelText: 'المبلغ',
+                          suffixText: 'DH',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                        ],
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'يرجى إدخال المبلغ';
+                          final p = double.tryParse(v.trim());
+                          if (p == null) return 'أرقام فقط';
+                          if (p <= 0) return 'المبلغ يجب أن يكون أكبر من صفر';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'العملة'),
+                        initialValue: transferCurrency,
+                        items: const [
+                          DropdownMenuItem(value: 'MAD', child: Text('درهم DH')),
+                          DropdownMenuItem(value: 'EUR', child: Text('يورو €')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) {
+                            setDialog(() => transferCurrency = v);
+                          }
+                        },
+                      ),
+                    ),
                   ],
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'يرجى إدخال المبلغ';
-                    final p = double.tryParse(v.trim());
-                    if (p == null) return 'أرقام فقط';
-                    if (p <= 0) return 'المبلغ يجب أن يكون أكبر من صفر';
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -229,6 +334,7 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
                     fromCashBoxId: int.parse(fromBoxId!),
                     toCashBoxId: int.parse(toBoxId!),
                     description: description,
+                    currency: transferCurrency,
                   );
                   if (!context.mounted) return;
                   Navigator.pop(context);
@@ -278,7 +384,7 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
                   final label = box['label']?.toString() ?? '';
                   final code = box['code']?.toString() ?? '';
                   final isActive = box['is_active'] ?? true;
-                  final balance = _balances[id] ?? 0.0;
+                  final balance = _balances[id] ?? {'MAD': 0.0, 'EUR': 0.0};
 
                   return Card(
                     margin: const EdgeInsets.symmetric(vertical: 6),
@@ -304,6 +410,23 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
                                 Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
                                 const SizedBox(height: 4),
                                 Text(code, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: _operationsCache[id]?.map((op) {
+                                        final title = _operations[op] ?? op;
+                                        final isAll = op == 'all';
+                                        return Chip(
+                                          label: Text(title, style: const TextStyle(fontSize: 11)),
+                                          visualDensity: VisualDensity.compact,
+                                          backgroundColor: isAll
+                                              ? Theme.of(context).colorScheme.primaryContainer
+                                              : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        );
+                                      }).toList() ??
+                                      [],
+                                ),
                               ],
                             ),
                           ),
@@ -311,9 +434,15 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text('${balance.toStringAsFixed(2)} DH',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold,
-                                      color: balance >= 0 ? Colors.green : Colors.red)),
+                              Text(
+                                '${(balance['MAD'] ?? 0.0).toStringAsFixed(2)} DH',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
+                                    color: (balance['MAD'] ?? 0.0) >= 0 ? Colors.green : Colors.red)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${(balance['EUR'] ?? 0.0).toStringAsFixed(2)} €',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                                    color: (balance['EUR'] ?? 0.0) >= 0 ? Colors.green : Colors.red)),
                               Text(isActive ? 'نشط' : 'متوقف',
                                   style: TextStyle(fontSize: 12, color: isActive ? Colors.green : Colors.grey)),
                             ],
@@ -323,13 +452,23 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
                             onSelected: (value) {
                               if (value == 'edit') {
                                 _openBoxDialog(box: box);
+                              } else if (value == 'operations') {
+                                _openOperationsDialog(box);
                               } else if (value == 'delete') {
                                 _confirmDelete(box);
+                              } else if (value == 'ledger') {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => CashBoxLedgerScreen(isAdmin: true),
+                                  ),
+                                );
                               }
                             },
                             itemBuilder: (context) => [
                               const PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                              const PopupMenuItem(value: 'operations', child: Text('العمليات المسموحة')),
                               const PopupMenuItem(value: 'delete', child: Text('حذف', style: TextStyle(color: Colors.red))),
+                              const PopupMenuItem(value: 'ledger', child: Text('كشف الحركات')),
                             ],
                           ),
                         ],

@@ -6,14 +6,6 @@ import '../services/supabase_service.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
-/// شاشة الخزينة والصندوق المباشر.
-///
-/// تعرض في الوقت الحقيقي (Realtime) الرصيد الحالي للصندوق وصافي الإيرادات
-/// والمصاريف، انطلاقاً من جدول [treasury_transactions] الحقيقي. الرصيد لا
-/// يُخزَّن بل يُحسب ديناميكياً: الإيرادات (capital_injection, trip_revenue)
-/// تُضاف والمصاريف (باقي الأنواع) تُطرح. جميع عمليات الكتابة تمر عبر
-/// [SupabaseService.addTreasuryTransaction] للحفاظ على التخزين المؤقت
-/// والمزامنة دون اتصال وتوافق المخطط.
 class TreasuryScreen extends StatefulWidget {
   const TreasuryScreen({super.key, required this.isAdmin});
 
@@ -26,34 +18,30 @@ class TreasuryScreen extends StatefulWidget {
 class _TreasuryScreenState extends State<TreasuryScreen> {
   final SupabaseService _supabaseService = SupabaseService();
 
-  // متحكمات الحقول لإدخال حركة مالية يدوية (مصاريف مكتبية، إيراد خارجي...)
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
 
-  // الاتجاه المختار في نافذة الإدخال: 'Income' (إيراد) أو 'Expense' (مصروف)
   String _selectedDirection = 'Expense';
-  // النوع البرمجي الحقيقي الموافق لمخطط treasury_transactions
   String _selectedType = 'office_expense';
+  String _selectedCurrency = 'MAD';
 
   bool _isLoading = false;
   List<Map<String, dynamic>> _cashBoxes = [];
-  Map<int, double> _boxBalances = {};
+  Map<int, Map<String, double>> _boxBalances = {};
   bool _isBoxesLoading = false;
   String? _selectedCashBox;
 
-  // خرائط التصنيف: تربط الواجهة العربية بأنواع المخطط الحقيقي (6 قيم فقط)
-  static const Map<String, String> _incomeTypes = {
+  static const _incomeTypes = <String, String>{
     'trip_revenue': 'تحصيل فواتير الزبائن',
     'capital_injection': 'تزويد رأس مال',
   };
-  static const Map<String, String> _expenseTypes = {
+  static const _expenseTypes = <String, String>{
     'office_expense': 'مصاريف عمومية وإدارية',
     'salary': 'رواتب وأجور السائقين',
     'trip_expense': 'وقود/مازوت وصيانة الرحلات',
     'owner_withdrawal': 'سحب صاحب المشروع',
   };
-  // تسميات العرض لكل نوع حقيقي (تُستخدم في قائمة الحركات)
-  static const Map<String, String> _typeLabels = {
+  static const _typeLabels = <String, String>{
     'capital_injection': 'تزويد رأس مال',
     'trip_revenue': 'تحصيل فواتير الزبائن',
     'owner_withdrawal': 'سحب صاحب المشروع',
@@ -61,6 +49,21 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     'salary': 'رواتب وأجور السائقين',
     'trip_expense': 'وقود/مازوت وصيانة الرحلات',
   };
+
+  static const _currencies = <String, String>{
+    'MAD': 'درهم (DH)',
+    'EUR': 'يورو (€)',
+  };
+
+  String _currencySymbol(String currency) {
+    switch (currency) {
+      case 'EUR':
+        return '€';
+      case 'MAD':
+      default:
+        return 'DH';
+    }
+  }
 
   bool _isIncomeType(String type) =>
       type == 'capital_injection' || type == 'trip_revenue';
@@ -80,36 +83,63 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
 
   Widget _buildCashBoxSelector() {
     if (_cashBoxes.isEmpty) return const SizedBox.shrink();
-    return DropdownButtonFormField<String>(
-      decoration: const InputDecoration(
-        labelText: 'الصندوق الفرعي',
-      ),
-      initialValue: _selectedCashBox,
-      items: [
-        const DropdownMenuItem<String>(
-          value: null,
-          child: Text('كل الصناديق'),
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            decoration: const InputDecoration(
+              labelText: 'الصندوق الفرعي',
+            ),
+            initialValue: _selectedCashBox,
+            items: [
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('كل الصناديق'),
+              ),
+              ..._cashBoxes.map((b) {
+                final id = b['id'] as int?;
+                final label = b['label']?.toString() ?? b['code']?.toString() ?? '';
+                final currencyBalances = _boxBalances[id];
+                final mad = currencyBalances?['MAD'] ?? 0.0;
+                final eur = currencyBalances?['EUR'] ?? 0.0;
+                return DropdownMenuItem<String>(
+                  value: id?.toString(),
+                  child: Text('$label | ${mad.toStringAsFixed(2)} DH | ${eur.toStringAsFixed(2)} €'),
+                );
+              }),
+            ],
+            onChanged: (val) {
+              setState(() {
+                _selectedCashBox = val;
+              });
+              _loadCashBoxes();
+            },
+          ),
         ),
-        ..._cashBoxes.map((b) {
-          final id = b['id'] as int?;
-          final label = b['label']?.toString() ?? b['code']?.toString() ?? '';
-          final balance = _boxBalances[id] ?? 0.0;
-          return DropdownMenuItem<String>(
-            value: id?.toString(),
-            child: Text('$label : ${NumberFormat('#,###.00').format(balance)} DH'),
-          );
-        }),
+        const SizedBox(width: 12),
+        DropdownButtonFormField<String>(
+          decoration: const InputDecoration(
+            labelText: 'العملة',
+          ),
+          initialValue: _selectedCurrency,
+          items: _currencies.entries
+              .map((e) => DropdownMenuItem<String>(
+                    value: e.key,
+                    child: Text(e.value),
+                  ))
+              .toList(),
+          onChanged: (val) {
+            if (val != null) {
+              setState(() {
+                _selectedCurrency = val;
+              });
+            }
+          },
+        ),
       ],
-      onChanged: (val) {
-        setState(() {
-          _selectedCashBox = val;
-        });
-        _loadCashBoxes();
-      },
     );
   }
 
-  // جلب دفق البيانات الحي (Realtime Stream) لعمليات الخزينة
   Stream<List<Map<String, dynamic>>> _getTreasuryStream() {
     return Supabase.instance.client
         .from('treasury_transactions')
@@ -117,7 +147,6 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
         .order('created_at', ascending: false);
   }
 
-  // دالة إضافة حركة مالية يدوية إلى الخزينة (عبر الطبقة الحالية SupabaseService)
   Future<void> _addTransaction(GlobalKey<FormState> formKey) async {
     if (!formKey.currentState!.validate()) return;
 
@@ -128,14 +157,21 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     setState(() => _isLoading = true);
     try {
       final int? cashBoxId = _selectedCashBox != null ? int.tryParse(_selectedCashBox!) : null;
-      await _supabaseService.addTreasuryTransaction(amount, _selectedType, title, cashBoxId: cashBoxId);
+      await _supabaseService.addTreasuryTransaction(
+        amount,
+        _selectedType,
+        title,
+        cashBoxId: cashBoxId,
+        currency: _selectedCurrency,
+      );
 
       _titleController.clear();
       _amountController.clear();
       _selectedDirection = 'Expense';
       _selectedType = 'office_expense';
+      _selectedCurrency = 'MAD';
 
-      if (mounted) Navigator.pop(context); // إغلاق النافذة
+      if (mounted) Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -157,7 +193,6 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     }
   }
 
-  // نافذة منبثقة لتسجيل حركة مالية (إيراد / مصروف) يدوياً
   void _showAddTransactionDialog() {
     showDialog(
       context: context,
@@ -190,30 +225,55 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                         onChanged: (val) => setDialogState(() => _selectedCashBox = val),
                       ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedDirection,
-                      decoration:
-                          const InputDecoration(labelText: 'نوع العملية المالية'),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'Expense',
-                            child: Text('🔴 مصروف / تدفق خارج')),
-                        DropdownMenuItem(
-                            value: 'Income',
-                            child: Text('🟢 إيراد / تدفق داخل')),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _selectedDirection,
+                            decoration:
+                                const InputDecoration(labelText: 'نوع العملية'),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'Expense',
+                                  child: Text('مصروف / خروج')),
+                              DropdownMenuItem(
+                                  value: 'Income',
+                                  child: Text('إيراد / دخول')),
+                            ],
+                            onChanged: (val) {
+                              if (val == null) return;
+                              setDialogState(() {
+                                _selectedDirection = val;
+                                _selectedType = (val == 'Income'
+                                        ? _incomeTypes
+                                        : _expenseTypes)
+                                    .keys
+                                    .first;
+                              });
+                            },
+                            validator: (v) => v == null ? 'يرجى اختيار نوع العملية' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _selectedCurrency,
+                            decoration:
+                                const InputDecoration(labelText: 'العملة'),
+                            items: _currencies.entries
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e.key,
+                                      child: Text(e.value),
+                                    ))
+                                .toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setDialogState(() => _selectedCurrency = val);
+                              }
+                            },
+                          ),
+                        ),
                       ],
-                      onChanged: (val) {
-                        if (val == null) return;
-                        setDialogState(() {
-                          _selectedDirection = val;
-                          _selectedType = (val == 'Income'
-                                  ? _incomeTypes
-                                  : _expenseTypes)
-                              .keys
-                              .first;
-                        });
-                      },
-                      validator: (v) => v == null ? 'يرجى اختيار نوع العملية' : null,
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -244,9 +304,9 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _amountController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'المبلغ المالي',
-                        suffixText: 'DH',
+                        suffixText: _currencySymbol(_selectedCurrency),
                       ),
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
@@ -305,6 +365,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     String? fromBoxId;
     String? toBoxId;
     String description = 'تحويل بين الصناديق';
+    String transferCurrency = 'MAD';
 
     final formKey = GlobalKey<FormState>();
 
@@ -347,23 +408,47 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                     validator: (v) => v == null ? 'يرجى اختيار الصندوق المستهدف' : null,
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: amountController,
-                    decoration: const InputDecoration(
-                      labelText: 'المبلغ (DH)',
-                      suffixText: 'DH',
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: amountController,
+                          decoration: InputDecoration(
+                            labelText: 'المبلغ',
+                            suffixText: _currencySymbol(transferCurrency),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                          ],
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'يرجى إدخال المبلغ';
+                            final p = double.tryParse(v.trim());
+                            if (p == null) return 'أرقام فقط';
+                            if (p <= 0) return 'المبلغ يجب أن يكون أكبر من صفر';
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          decoration: const InputDecoration(labelText: 'العملة'),
+                          initialValue: transferCurrency,
+                          items: _currencies.entries
+                              .map((e) => DropdownMenuItem<String>(
+                                    value: e.key,
+                                    child: Text(e.value),
+                                  ))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialog(() => transferCurrency = val);
+                            }
+                          },
+                        ),
+                      ),
                     ],
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'يرجى إدخال المبلغ';
-                      final p = double.tryParse(v.trim());
-                      if (p == null) return 'أرقام فقط';
-                      if (p <= 0) return 'المبلغ يجب أن يكون أكبر من صفر';
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -386,6 +471,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                     fromCashBoxId: int.parse(fromBoxId!),
                     toCashBoxId: int.parse(toBoxId!),
                     description: description,
+                    currency: transferCurrency,
                   );
                   if (!mounted) return;
                   Navigator.pop(context);
@@ -428,177 +514,222 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
             StreamBuilder<List<Map<String, dynamic>>>(
               stream: _getTreasuryStream(),
               builder: (context, snapshot) {
-                double totalIncome = 0.0;
-                double totalExpense = 0.0;
+                double totalIncomeMad = 0.0;
+                double totalExpenseMad = 0.0;
+                double totalIncomeEur = 0.0;
+                double totalExpenseEur = 0.0;
                 final transactions = snapshot.data ?? [];
 
                 // احتساب الإجمالي والملخص المالي من البيانات الحية (حسب المخطط الحقيقي)
                 for (final tx in transactions) {
                   final double amt = (tx['amount'] ?? 0.0).toDouble();
                   final String type = (tx['type'] ?? '').toString();
-                  if (_isIncomeType(type)) {
-                    totalIncome += amt;
+                  final String currency = (tx['currency']?.toString() ?? 'MAD');
+                  final bool isIncome = _isIncomeType(type);
+                  if (currency == 'EUR') {
+                    if (isIncome) {
+                      totalIncomeEur += amt;
+                    } else {
+                      totalExpenseEur += amt;
+                    }
                   } else {
-                    totalExpense += amt;
+                    if (isIncome) {
+                      totalIncomeMad += amt;
+                    } else {
+                      totalExpenseMad += amt;
+                    }
                   }
                 }
-                final double netBalance = totalIncome - totalExpense;
+                final double netBalanceMad = totalIncomeMad - totalExpenseMad;
+                final double netBalanceEur = totalIncomeEur - totalExpenseEur;
 
                 final bool isWaiting = snapshot.connectionState ==
                         ConnectionState.waiting &&
                     transactions.isEmpty;
 
-                // فحص حجم الشاشة لملاءمة بطاقات العرض
-                final bool isDesktop =
-                    MediaQuery.of(context).size.width > 700;
-
                 return Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 📊 لوحة المؤشرات المالية الثلاثية (متجاوبة)
-                      isDesktop
-                          ? Row(
-                              children: [
-                                _buildFinanceCard(
-                                    'رصيد الصندوق الحالي',
-                                    '${NumberFormat('#,###.00').format(netBalance)} DH',
-                                    Icons.account_balance_rounded,
-                                    netBalance >= 0 ? Colors.green : Colors.red),
-                                const SizedBox(width: 12),
-                                _buildFinanceCard(
-                                    'إجمالي الإيرادات (+)',
-                                    '${NumberFormat('#,###.00').format(totalIncome)} DH',
-                                    Icons.arrow_upward_rounded,
-                                    Colors.green),
-                                const SizedBox(width: 12),
-                                _buildFinanceCard(
-                                    'إجمالي المصاريف (-)',
-                                    '${NumberFormat('#,###.00').format(totalExpense)} DH',
-                                    Icons.arrow_downward_rounded,
-                                    Colors.red),
-                              ],
-                            )
-                          : Column(
-                              children: [
-                                _buildFinanceCard(
-                                    'رصيد الصندوق الحالي',
-                                    '${NumberFormat('#,###.00').format(netBalance)} DH',
-                                    Icons.account_balance_rounded,
-                                    netBalance >= 0 ? Colors.green : Colors.red,
-                                    fullWidth: true),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    _buildFinanceCard(
-                                        'الإيرادات',
-                                        '${NumberFormat('#,###.00').format(totalIncome)} DH',
-                                        Icons.arrow_upward_rounded,
-                                        Colors.green),
-                                    const SizedBox(width: 10),
-                                    _buildFinanceCard(
-                                        'المصاريف',
-                                        '${NumberFormat('#,###.00').format(totalExpense)} DH',
-                                        Icons.arrow_downward_rounded,
-                                        Colors.red),
-                                  ],
-                                ),
-                              ],
-                            ),
+                      // 📊 لوحة المؤشرات المالية
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildFinanceCard(
+                                'رصيد الصندوق الحالي (DH)',
+                                '${NumberFormat('#,###.00').format(netBalanceMad)} DH',
+                                Icons.account_balance_rounded,
+                                netBalanceMad >= 0 ? Colors.green : Colors.red),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildFinanceCard(
+                                'رصيد الصندوق الحالي (€)',
+                                '${NumberFormat('#,###.00').format(netBalanceEur)} €',
+                                Icons.account_balance_rounded,
+                                netBalanceEur >= 0 ? Colors.green : Colors.red),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildFinanceCard(
+                                'إيرادات (DH)',
+                                '${NumberFormat('#,###.00').format(totalIncomeMad)} DH',
+                                Icons.arrow_upward_rounded,
+                                Colors.green),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildFinanceCard(
+                                'مصاريف (DH)',
+                                '${NumberFormat('#,###.00').format(totalExpenseMad)} DH',
+                                Icons.arrow_downward_rounded,
+                                Colors.red),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildFinanceCard(
+                                'إيرادات (€)',
+                                '${NumberFormat('#,###.00').format(totalIncomeEur)} €',
+                                Icons.arrow_upward_rounded,
+                                Colors.green),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildFinanceCard(
+                                'مصاريف (€)',
+                                '${NumberFormat('#,###.00').format(totalExpenseEur)} €',
+                                Icons.arrow_downward_rounded,
+                                Colors.red),
+                          ),
+                        ],
+                      ),
 
                       const SizedBox(height: 24),
-                      Text(
-                        'كشف حركة الحسابات اليومية والدفق النقدي',
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                             color: Theme.of(context).colorScheme.onSurface),
+                      Row(
+                        children: [
+                          Text(
+                            'كشف حركة الحسابات اليومية والدفق النقدي',
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                 color: Theme.of(context).colorScheme.onSurface),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.filter_list_rounded),
+                            tooltip: 'فلترة بالعملة',
+                            onPressed: () {
+                              setState(() {
+                                if (_selectedCurrency == 'ALL') {
+                                  _selectedCurrency = 'MAD';
+                                } else if (_selectedCurrency == 'MAD') {
+                                  _selectedCurrency = 'EUR';
+                                } else {
+                                  _selectedCurrency = 'ALL';
+                                }
+                              });
+                            },
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
 
-                      // عرض قائمة الحركات المالية التاريخية
-                      Expanded(
-                        child: transactions.isEmpty
-                            ? Center(
-                                child: isWaiting
-                                    ? const CircularProgressIndicator()
-                                    : const Padding(
-                                        padding:
-                                            EdgeInsets.symmetric(vertical: 40.0),
-                                        child: Text(
-                                            'الصندوق فارغ حالياً، لا توجد أي تدفقات مالية مسجلة.'),
-                                      ),
-                              )
-                            : Card(
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(
-                                      color: Theme.of(context).dividerColor,
-                                      width: 0.5),
+                      if (transactions.isEmpty)
+                        Center(
+                          child: isWaiting
+                              ? const CircularProgressIndicator()
+                              : const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 40.0),
+                                  child: Text(
+                                      'الصندوق فارغ حالياً، لا توجد أي تدفقات مالية مسجلة.'),
                                 ),
-                                color: Theme.of(context).colorScheme.surfaceContainer,
-                                child: ListView.separated(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  itemCount: transactions.length,
-                                  separatorBuilder: (context, index) =>
-                                      const Divider(height: 1),
-                                  itemBuilder: (context, index) {
-                                    final tx = transactions[index];
-                                    final String type =
-                                        (tx['type'] ?? '').toString();
-                                    final bool isIncome = _isIncomeType(type);
-                                    final double amt =
-                                        (tx['amount'] ?? 0.0).toDouble();
-                                    final String desc =
-                                        (tx['description'] ?? '')
-                                            .toString()
-                                            .trim();
+                        )
+                      else
+                        Card(
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                                color: Theme.of(context).dividerColor,
+                                width: 0.5),
+                          ),
+                          color: Theme.of(context).colorScheme.surfaceContainer,
+                          child: ListView.separated(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 8),
+                            itemCount: transactions.length,
+                            separatorBuilder: (context, index) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final tx = transactions[index];
+                              final String type =
+                                  (tx['type'] ?? '').toString();
+                              final bool isIncome = _isIncomeType(type);
+                              final double amt =
+                                  (tx['amount'] ?? 0.0).toDouble();
+                              final String desc =
+                                  (tx['description'] ?? '')
+                                      .toString()
+                                      .trim();
+                              final String currency =
+                                  (tx['currency']?.toString() ?? 'DH').toUpperCase();
+                              final String symbol = _currencySymbol(currency);
 
-                                    return ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor: (isIncome
-                                                ? Colors.green
-                                                : Colors.red)
-                                            .withValues(alpha: 0.12),
-                                        child: Icon(
-                                          isIncome
-                                              ? Icons.arrow_upward_rounded
-                                              : Icons.arrow_downward_rounded,
-                                          color: isIncome
-                                              ? Colors.green[700]
-                                              : Colors.red[700],
-                                          size: 18,
-                                        ),
-                                      ),
-                                      title: Text(
-                                          desc.isEmpty
-                                              ? 'عملية بدون بيان'
-                                              : desc,
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w600)),
-                                      subtitle: Text(
-                                        'التصنيف: ${_typeLabels[type] ?? type}',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[500]),
-                                      ),
-                                      trailing: Text(
-                                        '${isIncome ? '+' : '-'} ${NumberFormat('#,###.00').format(amt)} DH',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                          color: isIncome
-                                              ? Colors.green[600]
-                                              : Colors.red[600],
-                                        ),
-                                      ),
-                                    );
-                                  },
+                              final DateTime? dt = DateTime.tryParse(tx['created_at']?.toString() ?? '');
+                              final String dateStr = dt != null
+                                  ? DateFormat('dd/MM/yyyy').format(dt)
+                                  : (tx['created_at']?.toString() ?? '');
+
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: (isIncome
+                                          ? Colors.green
+                                          : Colors.red)
+                                      .withValues(alpha: 0.12),
+                                  child: Icon(
+                                    isIncome
+                                        ? Icons.arrow_upward_rounded
+                                        : Icons.arrow_downward_rounded,
+                                    color: isIncome
+                                        ? Colors.green[700]
+                                        : Colors.red[700],
+                                    size: 18,
+                                  ),
                                 ),
-                              ),
-                      ),
+                                title: Text(
+                                    desc.isEmpty
+                                        ? 'عملية بدون بيان'
+                                        : desc,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                                subtitle: Text(
+                                  '${_typeLabels[type] ?? type} | $dateStr',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[500]),
+                                ),
+                                trailing: Text(
+                                  '${isIncome ? '+' : '-'} ${NumberFormat('#,###.00').format(amt)} $symbol',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: isIncome
+                                        ? Colors.green[600]
+                                        : Colors.red[600],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                     ],
                   ),
                 );
@@ -608,7 +739,6 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
         ),
       ),
 
-      // ➕ أزرار تسجيل الحركات والتحويل
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -632,7 +762,6 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     );
   }
 
-  // بناء بطاقات المؤشرات المالية الاحترافية والمتطابقة
   Widget _buildFinanceCard(String title, String value, IconData icon,
       Color color,
       {bool fullWidth = false}) {

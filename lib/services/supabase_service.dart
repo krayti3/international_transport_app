@@ -818,9 +818,15 @@ class SupabaseService {
     String description, {
     String? receiptUrl,
     int? cashBoxId,
+    String currency = 'MAD',
   }) async {
     try {
       await _requireAdmin();
+      if (cashBoxId != null) {
+        final operationCode =
+            _treasuryIncomeTypes.contains(type) ? 'income' : 'expense';
+        await _ensureOperationAllowed(cashBoxId, operationCode);
+      }
       await _writeRow(
         (d) => supabase.from('treasury_transactions').insert(d),
         {
@@ -829,6 +835,7 @@ class SupabaseService {
           if (description.trim().isNotEmpty) 'description': description,
           if (receiptUrl != null) 'receipt_url': receiptUrl,
           if (cashBoxId != null) 'cash_box_id': cashBoxId,
+          'currency': currency,
         },
       );
     } catch (e) {
@@ -925,12 +932,13 @@ class SupabaseService {
         final type = t['type']?.toString() ?? '';
         if (type == 'transfer') {
           final relatedId = t['related_cash_box_id'] as int?;
+          final currency = (t['currency']?.toString() ?? 'DH');
           if (cashBoxId != null && relatedId == cashBoxId) {
             unified.add({
               'date': t['created_at'] ?? '',
               'description': t['description'] ?? 'تحويل',
               'beneficiary': '-',
-              'currency': 'DH',
+              'currency': currency,
               'amount_entree': amount,
               'amount_sortie': 0.0,
               'type': 'treasury',
@@ -942,7 +950,7 @@ class SupabaseService {
               'date': t['created_at'] ?? '',
               'description': t['description'] ?? 'تحويل',
               'beneficiary': '-',
-              'currency': 'DH',
+              'currency': currency,
               'amount_entree': 0.0,
               'amount_sortie': amount,
               'type': 'treasury',
@@ -952,11 +960,12 @@ class SupabaseService {
           }
         } else {
           final isRevenue = type == 'trip_revenue' || type == 'capital_injection';
+          final currency = (t['currency']?.toString() ?? 'DH');
           unified.add({
             'date': t['created_at'] ?? '',
             'description': t['description'] ?? 'معاملة خزينة',
             'beneficiary': '-',
-            'currency': 'DH',
+            'currency': currency,
             'amount_entree': isRevenue ? amount : 0.0,
             'amount_sortie': isRevenue ? 0.0 : amount,
             'type': 'treasury',
@@ -974,6 +983,7 @@ class SupabaseService {
         final given = (a['amount_given'] is Decimal ? (a['amount_given'] as Decimal).toDouble() : (a['amount_given'] as num?)?.toDouble()) ?? 0.0;
         final spent = (a['amount_spent'] is Decimal ? (a['amount_spent'] as Decimal).toDouble() : (a['amount_spent'] as num?)?.toDouble());
         final returned = (a['amount_returned'] is Decimal ? (a['amount_returned'] as Decimal).toDouble() : (a['amount_returned'] as num?)?.toDouble());
+        final currency = (a['currency']?.toString() ?? 'DH');
         final isDeleted = a['is_deleted'] == true;
 
         // تسليم العهدة = خروج
@@ -981,7 +991,7 @@ class SupabaseService {
           'date': a['date_out'] ?? '',
           'description': 'تسليم عهدة للسائق',
           'beneficiary': driverName,
-          'currency': 'DH',
+          'currency': currency,
           'amount_entree': 0.0,
           'amount_sortie': given,
           'type': 'advance_given',
@@ -994,7 +1004,7 @@ class SupabaseService {
             'date': a['date_return'] ?? a['date_out'] ?? '',
             'description': 'تسوية عهدة (صرفيات الرحلة)',
             'beneficiary': driverName,
-            'currency': 'DH',
+            'currency': currency,
             'amount_entree': 0.0,
             'amount_sortie': spent,
             'type': 'advance_spent',
@@ -1008,7 +1018,7 @@ class SupabaseService {
             'date': a['date_return'] ?? a['date_out'] ?? '',
             'description': 'مرجوع عهدة من السائق',
             'beneficiary': driverName,
-            'currency': 'DH',
+            'currency': currency,
             'amount_entree': returned,
             'amount_sortie': 0.0,
             'type': 'advance_returned',
@@ -1022,11 +1032,12 @@ class SupabaseService {
       for (final inv in invoices) {
         final clientName = inv['client']?['name']?.toString() ?? 'زبون';
         final total = (inv['total_amount'] is Decimal ? (inv['total_amount'] as Decimal).toDouble() : (inv['total_amount'] as num?)?.toDouble()) ?? 0.0;
+        final currency = (inv['currency']?.toString() ?? 'DH');
         unified.add({
           'date': inv['issue_date'] ?? '',
           'description': 'فاتورة: ${inv['invoice_number'] ?? ''}',
           'beneficiary': clientName,
-          'currency': 'DH',
+          'currency': currency,
           'amount_entree': total,
           'amount_sortie': 0.0,
           'type': 'invoice',
@@ -1107,32 +1118,34 @@ class SupabaseService {
     }
   }
 
-  Future<Map<int, double>> getCashBoxBalances() async {
+  Future<Map<int, Map<String, double>>> getCashBoxBalances() async {
     try {
       final response = await supabase
           .from('treasury_transactions')
-          .select('amount, type, cash_box_id, related_cash_box_id');
+          .select('amount, type, currency, cash_box_id, related_cash_box_id');
       final transactions = List<Map<String, dynamic>>.from(response);
-      final Map<int, double> balances = {};
+      final Map<int, Map<String, double>> balances = {};
 
       for (final tx in transactions) {
         final amount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
         final type = _normalizeTreasuryType(tx);
+        final currency = (tx['currency']?.toString() ?? 'MAD');
         final cashBoxId = tx['cash_box_id'] as int?;
         final relatedId = tx['related_cash_box_id'] as int?;
         if (cashBoxId == null) continue;
 
-        final current = balances[cashBoxId] ?? 0.0;
+        final boxCurrencies = balances.putIfAbsent(cashBoxId, () => {'MAD': 0.0, 'EUR': 0.0});
         if (type == 'transfer') {
-          balances[cashBoxId] = current - amount;
+          boxCurrencies[currency] = (boxCurrencies[currency] ?? 0.0) - amount;
           if (relatedId != null) {
-            balances[relatedId] = (balances[relatedId] ?? 0.0) + amount;
+            final relatedCurrencies = balances.putIfAbsent(relatedId, () => {'MAD': 0.0, 'EUR': 0.0});
+            relatedCurrencies[currency] = (relatedCurrencies[currency] ?? 0.0) + amount;
           }
         } else if (type == 'capital_injection' ||
             type == 'trip_revenue') {
-          balances[cashBoxId] = current + amount;
+          boxCurrencies[currency] = (boxCurrencies[currency] ?? 0.0) + amount;
         } else {
-          balances[cashBoxId] = current - amount;
+          boxCurrencies[currency] = (boxCurrencies[currency] ?? 0.0) - amount;
         }
       }
 
@@ -1184,15 +1197,96 @@ class SupabaseService {
     }
   }
 
+  static const _treasuryIncomeTypes = <String>{
+    'capital_injection',
+    'trip_revenue',
+  };
+
+  Future<List<String>> getAllowedOperations(int cashBoxId) async {
+    try {
+      final response = await supabase
+          .from('cash_box_operations')
+          .select('operation_code')
+          .eq('cash_box_id', cashBoxId);
+      final rows = List<Map<String, dynamic>>.from(response);
+      return rows
+          .map((r) => r['operation_code']?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching allowed operations: $e');
+      return [];
+    }
+  }
+
+  Future<void> setAllowedOperations(int cashBoxId, List<String> operations) async {
+    try {
+      await _requireAdmin();
+      await supabase.from('cash_box_operations').delete().eq('cash_box_id', cashBoxId);
+      if (operations.isNotEmpty) {
+        final rows = operations
+            .map((op) => {
+              'cash_box_id': cashBoxId,
+              'operation_code': op,
+            })
+            .toList();
+        await supabase.from('cash_box_operations').insert(rows);
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      debugPrint('Error setting allowed operations: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> isOperationAllowed(int cashBoxId, String operationCode) async {
+    try {
+      final ops = await getAllowedOperations(cashBoxId);
+      if (ops.contains('all')) return true;
+      return ops.contains(operationCode);
+    } catch (e) {
+      debugPrint('Error checking operation permission: $e');
+      return false;
+    }
+  }
+
+  Future<void> _ensureOperationAllowed(int cashBoxId, String operationCode) async {
+    final allowed = await isOperationAllowed(cashBoxId, operationCode);
+    if (!allowed) {
+      throw Exception('هذه العملية غير مسموحة لهذا الصندوق');
+    }
+  }
+
+  Future<void> validateCashBoxOperationByCode(String cashBoxCode, String operationCode) async {
+    try {
+      final cb = await supabase
+          .from('cash_boxes')
+          .select('id')
+          .eq('code', cashBoxCode)
+          .maybeSingle();
+      if (cb == null) return;
+      final cashBoxId = cb['id'] as int?;
+      if (cashBoxId == null) return;
+      await _ensureOperationAllowed(cashBoxId, operationCode);
+    } catch (e) {
+      if (e is Exception) rethrow;
+      debugPrint('Error validating cash box operation: $e');
+      rethrow;
+    }
+  }
+
   Future<void> addTransfer({
     required double amount,
     required int fromCashBoxId,
     required int toCashBoxId,
     String description = 'تحويل بين الصناديق',
     String? receiptUrl,
+    String currency = 'MAD',
   }) async {
     try {
       await _requireAdmin();
+      await _ensureOperationAllowed(fromCashBoxId, 'transfer');
+      await _ensureOperationAllowed(toCashBoxId, 'transfer');
       await _writeRow(
         (d) => supabase.from('treasury_transactions').insert(d),
         {
@@ -1202,6 +1296,7 @@ class SupabaseService {
           'cash_box_id': fromCashBoxId,
           'related_cash_box_id': toCashBoxId,
           if (receiptUrl != null) 'receipt_url': receiptUrl,
+          'currency': currency,
         },
       );
     } catch (e) {
@@ -3011,7 +3106,7 @@ class SupabaseService {
       final adv = await supabase
           .from('advances')
           .select(
-              'id, driver_id, amount_given, amount_spent, status, treasury_tx_id, treasury_tx_extra_id, source_cash_box')
+              'id, driver_id, amount_given, amount_spent, status, treasury_tx_id, treasury_tx_extra_id, source_cash_box, currency')
           .eq('id', advanceId)
           .maybeSingle();
       if (adv == null) return;
@@ -3019,6 +3114,7 @@ class SupabaseService {
       final driverId = adv['driver_id'] as int?;
       final given = (adv['amount_given'] as num?)?.toDouble() ?? 0.0;
       final spent = (adv['amount_spent'] as num?)?.toDouble();
+      final advanceCurrency = (adv['currency']?.toString() ?? 'MAD');
       final status = adv['status']?.toString() ?? 'pending';
       final driverName = driverId != null ? await _driverNameById(driverId) : 'بدون سائق';
       final sourceCashBoxCode = adv['source_cash_box']?.toString();
@@ -3033,6 +3129,10 @@ class SupabaseService {
         if (cb != null) {
           cashBoxId = cb['id'] as int?;
         }
+      }
+
+      if (cashBoxId != null) {
+        await _ensureOperationAllowed(cashBoxId, 'advance');
       }
 
       double base;
@@ -3061,6 +3161,7 @@ class SupabaseService {
               'amount': base,
               'description': 'عهدة السائق $driverName — تسليم عهدة (معرّف #$advanceId)',
               if (cashBoxId != null) 'cash_box_id': cashBoxId,
+              'currency': advanceCurrency,
             })
             .select('id')
             .single();
@@ -3069,7 +3170,7 @@ class SupabaseService {
       } else {
         await supabase
             .from('treasury_transactions')
-            .update({'amount': base})
+            .update({'amount': base, 'currency': advanceCurrency})
             .eq('id', txId);
       }
 
@@ -3082,6 +3183,7 @@ class SupabaseService {
                 'amount': extra,
                 'description': 'تكملة عهدة السائق $driverName — فرق صرف (معرّف #$advanceId)',
                 if (cashBoxId != null) 'cash_box_id': cashBoxId,
+                'currency': advanceCurrency,
               })
               .select('id')
               .single();
@@ -3093,7 +3195,7 @@ class SupabaseService {
         } else {
           await supabase
               .from('treasury_transactions')
-              .update({'amount': extra})
+              .update({'amount': extra, 'currency': advanceCurrency})
               .eq('id', txExtraId);
         }
       } else if (txExtraId != null) {

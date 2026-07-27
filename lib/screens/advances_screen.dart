@@ -107,6 +107,9 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
     int? selectedDriverId = advance != null
         ? (advance['driver_id'] as int?)
         : (drivers.first['id'] as int?);
+    String currency = advance != null
+        ? (advance['currency']?.toString() ?? 'MAD')
+        : 'MAD';
     final amountGivenController = TextEditingController(
       text: advance != null ? (advance['amount_given'] as num?)?.toString() ?? '' : '',
     );
@@ -223,27 +226,43 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                      decoration: const InputDecoration(labelText: 'تاريخ العودة'),
                    ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: sourceCashBox,
-                      decoration: const InputDecoration(
-                        labelText: 'مصدر العهدة (الصندوق)',
-                      ),
-                      items: _cashBoxes.isEmpty
-                          ? null
-                          : _cashBoxes.map((b) {
-                              return DropdownMenuItem(
-                                value: b['code']?.toString(),
-                                child: Text(b['label']?.toString() ?? ''),
-                              );
-                            }).toList(),
-                      onChanged: (v) {
-                        if (v != null) {
-                          setDialogState(() => sourceCashBox = v);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
+                     DropdownButtonFormField<String>(
+                       initialValue: sourceCashBox,
+                       decoration: const InputDecoration(
+                         labelText: 'مصدر العهدة (الصندوق)',
+                       ),
+                       items: _cashBoxes.isEmpty
+                           ? null
+                           : _cashBoxes.map((b) {
+                               return DropdownMenuItem(
+                                 value: b['code']?.toString(),
+                                 child: Text(b['label']?.toString() ?? ''),
+                               );
+                             }).toList(),
+                       onChanged: (v) {
+                         if (v != null) {
+                           setDialogState(() => sourceCashBox = v);
+                         }
+                       },
+                     ),
+                     const SizedBox(height: 12),
+                     DropdownButtonFormField<String>(
+                       initialValue: currency,
+                       decoration: const InputDecoration(
+                         labelText: 'العملة',
+                       ),
+                       items: const [
+                         DropdownMenuItem(value: 'MAD', child: Text('درهم (DH) - المغرب')),
+                         DropdownMenuItem(value: 'EUR', child: Text('يورو (€) - أوروبا')),
+                       ],
+                       onChanged: (v) {
+                         if (v != null) {
+                           setDialogState(() => currency = v);
+                         }
+                       },
+                     ),
+                     const SizedBox(height: 12),
+                     TextFormField(
                       controller: notesController,
                      decoration: const InputDecoration(labelText: 'الملاحظات'),
                       maxLines: 3,
@@ -317,6 +336,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                       : dateReturnController.text.trim(),
                   'notes': notesController.text.trim(),
                   'source_cash_box': sourceCashBox,
+                  'currency': currency,
                 };
                 try {
                   if (isEdit) {
