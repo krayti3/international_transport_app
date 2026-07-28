@@ -7,10 +7,11 @@
 ## 📁 1. ملفات الأكواد الحالية (Dart Files)
 *تم فحص المجلد `lib/` والمجلدات الفرعية:*
 
-- [x] ملف `main.dart` (يحتوي على إعدادات Supabase ونظام التوجيه عبر `StreamBuilder` + `RealtimeNotifications`): **نعم — موجود (52 سطر)**
-- [x] ملف `login_screen.dart` (شاشة تسجيل الدخول + زر إنشاء حساب): **نعم — موجود (133 سطر)**
-- [x] ملف `home_screen.dart` (الشاشة الرئيسية والقائمة): **نعم — موجود (208 سطر)**
-- [x] ملف `drivers_screen.dart` (شاشة إدارة السائقين): **نعم — موجود**
+- [x] ملف `main.dart` (تهيئة Hive, SyncService, CacheService, Supabase, MultiRepositoryProvider + MultiBlocProvider + MultiProvider): **نعم — موجود (132 سطر)**
+- [x] ملف `app_router.dart` (التوجيه عبر go_router مع حماية الأدوار): **نعم — موجود (669 سطر)**
+- [x] ملف `login_screen.dart` (شاشة تسجيل الدخول + زر إنشاء حساب): **نعم — موجود**
+- [x] ملف `home_screen.dart` (الشاشة الرئيسية والقائمة الجانبية 3 مستويات بأكورديون): **نعم — موجود (1046 سطر)**
+- [x] ملف `main_dashboard_template.dart` (القالب العام للواجهة — Sidebar + BottomNav): **نعم — موجود (487 سطر)**
 - [⚠️] ملف `trips_screen.dart` (شاشة إدارة الرحلات والعُهد): **ملف بهذا الاسم غير موجود؛ الوظيفة مقسّمة على ملفات:**
   - `advances_screen.dart` → إدارة العُهد (الرحلات)
   - `trip_orders_screen.dart` → طلبات الرحلات
@@ -28,11 +29,20 @@
 - `clients_screen.dart`, `client_reports_screen.dart`, `client_statement_screen.dart`
 - `invoices_screen.dart`, `outstanding_invoices_screen.dart`, `overdue_reminders_screen.dart`, `aging_report_screen.dart`
 - `trucks_screen.dart`, `truck_documents_screen.dart`, `truck_maintenance_screen.dart`, `truck_tracking_screen.dart`, `fleet_alerts_screen.dart`
-- `driver_salary_screen.dart`, `driver_screen.dart`
+- `driver_salary_screen.dart`, `driver_screen.dart`, `driver_cash_screen.dart`, `driver_advances_screen.dart`, `driver_tasks_screen.dart`
 - `system_settings_screen.dart`, `company_profit_report_screen.dart`, `signup_screen.dart`, `main_screen.dart`
-- **المجلد `models/`**: 16 موديل (client, driver, trip, trailer, truck, invoice, payment, advance, treasury_transaction, user, ...)
-- **المجلد `services/`**: `supabase_service.dart` (خدمة ضخمة فيها كل عمليات CRUD والصلاحيات RBAC والحسابات المالية), `notification_service`, `pdf_service`, `location_service`, `ml_text_recognition_service`
-- **المجلد `widgets/`**: `realtime_notifications`, `responsive_layout`, `summary_card`, `status_chip`, `simple_bar_chart`, `expense_row`
+- `advanced_dashboard_screen.dart`, `bank_accounts_screen.dart`, `debt_invoice_form_screen.dart`, `repair_invoice_form_screen.dart`
+- `visa_tracking_screen.dart`, `maintenance_schedule_screen.dart`, `vehicle_doc_type_screen.dart`, `vehicle_oil_records_screen.dart`
+- `workshop_repairs_screen.dart`, `workshop_payment_preview_screen.dart`, `expense_workshop_report_screen.dart`
+- `document_categories_screen.dart`, `document_category_detail_screen.dart`, `expense_categories_screen.dart`, `expense_category_detail_screen.dart`
+- `providers_screen.dart`, `cash_box_management_screen.dart`, `cash_box_ledger_screen.dart`
+- **المجلد `cubits/`**: 18 ملف cubit/state (treasury, drivers, trucks, trailers, invoices, bank_accounts, settings, trips, advanced_dashboard + states)
+- **المجلد `repositories/`**: 13 repository (core, treasury, invoice, client, driver, truck, trailer, trip, advance, maintenance, document, bank_account, cash_box, settings)
+- **المجلد `features/clients/`**: وحدة عملاء مستقلة بـ cubits + repositories + screens
+- **المجلد `models/`**: 22 موديل (client, driver, trip, trailer, truck, invoice, payment, advance, treasury_transaction, user, bank_account, cash_box, ...)
+- **المجلد `services/`**: `supabase_service.dart` (خدمة ضخمة), `notification_service`, `pdf_service`, `location_service`, `ml_text_recognition_service`, `cache_service`, `sync_service`, `calculation_engine`, `excel_service`, `workshop_payment_service`, `platform_helper`
+- **المجلد `widgets/`**: `realtime_notifications`, `responsive_layout`, `summary_card`, `status_chip`, `simple_bar_chart`, `expense_row`, `role_guard`, `date_wheel_picker`, `language_switcher`, `state_wrapper`
+- **المجلد `l10n/`**: ملفات التوطين (Arabic, French, English) مع `AppLocalizations`
 
 ---
 
@@ -73,6 +83,9 @@
 1. **`main.dart` — تهيئة Hive مفقودة (تم الإصلاح):** كان `Hive` يُستخدم في `l10n/locale_provider.dart` (عبر `Hive.openBox`) لكن `HiveFlutter.init()` لم يكن يُستدعى أبداً في `main()`، ما كان سيُسبب فشل حفظ/قراءة اللغة. تمت إضافة `import 'package:hive_flutter/hive_flutter.dart';` واستدعاء `await HiveFlutter.init();` قبل `runApp(const MyApp());`.
 2. **`lib/services/pdf_service.dart` — استخدام `PdfGoogleFonts` بدون البادئة (تم الإصلاح):** كانت الحزمة مستوردة كـ `package:pdf/widgets.dart as pw;` لكن `PdfGoogleFonts` كان يُستخدم بدون بادئة `pw.` في 10 مواضع، ما يُسبب خطأ تصريف (Undefined name). تم تحويل جميع المواضع الـ10 إلى `pw.PdfGoogleFonts`.
 3. **`test/widget_test.dart` — اختبار العدّاد الافتراضي لا يطابق المشروع (تم الإصلاح):** استُبدل اختبار العدّاد (counter) الافتراضي باختبار Smoke test بسيط يبني التطبيق (`MyApp`) ويتحقق من وجود عناصر شاشة تسجيل الدخول الأساسية (أيقونة الشاحنة + حقول الإدخال + زر الدخول).
+4. **`main.dart` — الهجرة من `Provider` إلى `flutter_bloc` (Cubit):** تم استبدال نمط `ChangeNotifier` لإدارة حالة الميزات بنمط `Cubit` مع `BlocProvider` و `BlocConsumer`. أصبح `Provider` يُستخدم حصرياً لـ `ThemeProvider` و `LocaleProvider` (حالة عابرة للواجهات).
+5. **إضافة طبقة `Repository`:** تم استخراج منطق الوصول إلى البيانات من `SupabaseService` المونوليتيكي إلى 13 repository في `lib/repositories/`، يُقدَّم كل منها عبر `RepositoryProvider` في `main.dart`.
+6. **إضافة `go_router`:** تم استبدال التنقل اليدوي بـ `go_router` مع `AppRouter` وحماية الأدوار عبر `RoleGuard`.
 
 ### ⚠️ خطوات متبقية عند التشغيل
 4. **تنفيذ المايغرايشن في Supabase (خطوة متبقية مطلوبة):** يجب فتح Supabase SQL Editor ولصق محتوى الملف المُوحّد الجديد **`supabase/migrations_run_me.sql`** (يجمع كل ملفات `supabase/migrations/*.sql` بالترتيب الصحيح والمتوافق مع التبعيات) وتشغيله. بدون ذلك سيظهر خطأ `relation "X" does not exist` عند أول عملية قراءة/كتابة. (الملف idempotent وآمن لإعادة التشغيل).

@@ -845,6 +845,48 @@ class SupabaseService {
     }
   }
 
+  /// Creates a treasury transaction for a maintenance expense based on its
+  /// payment_status. Used by truck/trailer maintenance screens to keep
+  /// the treasury in sync without requiring admin role.
+  ///
+  /// payment_status mapping:
+  ///  - owner_cash / paid_by_owner → owner_cash box, type = office_expense
+  ///  - secretary_cash            → secretary_cash box, type = office_expense
+  ///  - bank_morocco              → bank_morocco box, type = office_expense
+  ///  - bank_europe               → bank_europe box, type = office_expense
+  ///  - on_credit                 → no treasury transaction (deferred)
+  Future<void> recordMaintenanceTreasuryTransaction({
+    required double amount,
+    required String paymentStatus,
+    required String currency,
+    required String description,
+    int? maintenanceId,
+  }) async {
+    try {
+      // on_credit means the expense is deferred - no treasury transaction yet
+      if (paymentStatus == 'on_credit') return;
+
+      final cashBoxCode = paymentStatus == 'paid_by_owner'
+          ? 'owner_cash'
+          : paymentStatus;
+      final cashBoxId = await getCashBoxIdByCode(cashBoxCode);
+      if (cashBoxId == null) return;
+
+      final maintenanceLabel = maintenanceId != null
+          ? 'مصروف صيانة (#$maintenanceId)'
+          : 'مصروف صيانة';
+      await supabase.from('treasury_transactions').insert({
+        'amount': amount,
+        'type': 'office_expense',
+        'description': '$maintenanceLabel - $description',
+        'cash_box_id': cashBoxId,
+        'currency': currency,
+      });
+    } catch (e) {
+      debugPrint('Error recording maintenance treasury transaction: $e');
+    }
+  }
+
   Future<double> getTreasuryBalance({int? cashBoxId}) async {
     try {
       final List<Map<String, dynamic>> transactions;
@@ -1045,6 +1087,52 @@ class SupabaseService {
         });
       }
 
+      // 3.5) مصاريف الصيانة = مصاريف تشغيلية
+      final truckMaintsForLedger = await supabase
+          .from('truck_maintenance')
+          .select('truck_id, amount, maintenance_date, description, expense_type, provider_name, is_deleted')
+          .eq('is_deleted', false)
+          .order('maintenance_date', ascending: false);
+      for (final m in truckMaintsForLedger) {
+        final amount = (m['amount'] as num?)?.toDouble() ?? 0.0;
+        if (amount <= 0) continue;
+        final dateStr = m['maintenance_date']?.toString() ?? '';
+        final desc = m['description']?.toString() ?? m['expense_type']?.toString() ?? 'صيانة شاحنة';
+        final provider = m['provider_name']?.toString();
+        unified.add({
+          'date': dateStr,
+          'description': provider != null && provider.isNotEmpty ? 'صيانة: $desc ($provider)' : 'صيانة: $desc',
+          'beneficiary': provider ?? '-',
+          'currency': (m['currency']?.toString() ?? 'MAD'),
+          'amount_entree': 0.0,
+          'amount_sortie': amount,
+          'type': 'maintenance_expense',
+          'is_archived': false,
+        });
+      }
+      final trailerMaintsForLedger = await supabase
+          .from('trailer_maintenance')
+          .select('trailer_id, amount, maintenance_date, description, expense_type, provider_name, is_deleted')
+          .eq('is_deleted', false)
+          .order('maintenance_date', ascending: false);
+      for (final m in trailerMaintsForLedger) {
+        final amount = (m['amount'] as num?)?.toDouble() ?? 0.0;
+        if (amount <= 0) continue;
+        final dateStr = m['maintenance_date']?.toString() ?? '';
+        final desc = m['description']?.toString() ?? m['expense_type']?.toString() ?? 'صيانة مقطورة';
+        final provider = m['provider_name']?.toString();
+        unified.add({
+          'date': dateStr,
+          'description': provider != null && provider.isNotEmpty ? 'صيانة مقطورة: $desc ($provider)' : 'صيانة مقطورة: $desc',
+          'beneficiary': provider ?? '-',
+          'currency': (m['currency']?.toString() ?? 'MAD'),
+          'amount_entree': 0.0,
+          'amount_sortie': amount,
+          'type': 'maintenance_expense',
+          'is_archived': false,
+        });
+      }
+
       // فلترة حسب الفترة الزمنية
       if (period != 'all') {
         final now = DateTime.now();
@@ -1115,6 +1203,22 @@ class SupabaseService {
     } catch (e) {
       debugPrint('Error fetching cash boxes: $e');
       return [];
+    }
+  }
+
+  /// Returns the cash box ID for a given code (e.g. 'owner_cash', 'secretary_cash').
+  Future<int?> getCashBoxIdByCode(String code) async {
+    try {
+      final response = await supabase
+          .from('cash_boxes')
+          .select('id')
+          .eq('code', code)
+          .maybeSingle();
+      if (response == null) return null;
+      return (response['id'] as num?)?.toInt();
+    } catch (e) {
+      debugPrint('Error fetching cash box by code: $e');
+      return null;
     }
   }
 
@@ -3304,15 +3408,19 @@ class SupabaseService {
   ///  - [treasury_balance]: current cash in the secretary's box (treasury).
   ///  - [money_on_road]: total cash currently with drivers (sum of pending
   ///    advances' outstanding amount given - returned), plus a per-driver split.
-  ///  - [truck_expenses]: actual trip spending (amount_spent of settled advances)
+  ///  - [trip_expenses]: actual trip spending (amount_spent of settled advances)
   ///    aggregated by each driver's default truck, filtered by [period]
   ///    ('all' | 'week' | 'month') on date_out.
+  ///  - [maintenance_expenses]: operational maintenance costs from
+  ///    truck_maintenance / trailer_maintenance, aggregated by vehicle,
+  ///    filtered by [period] on maintenance_date.
   Future<Map<String, dynamic>> getOwnerDashboard({String period = 'all'}) async {
     try {
       await _requireAdmin();
       final advances = await getAdvances();
       final drivers = await getDrivers();
       final trucks = await getTrucks();
+      final trailers = await getTrailers();
       final treasuryBalance = await getTreasuryBalance();
 
       final driverName = <int, String>{};
@@ -3332,6 +3440,11 @@ class SupabaseService {
         final id = t['id'] as int?;
         if (id != null) truckPlate[id] = t['plate']?.toString() ?? t['plate_number']?.toString() ?? 'بدون لوحة';
       }
+      final trailerPlate = <int, String>{};
+      for (final t in trailers) {
+        final id = t['id'] as int?;
+        if (id != null) trailerPlate[id] = t['plate_number']?.toString() ?? 'بدون لوحة';
+      }
 
       DateTime? from;
       final now = DateTime.now();
@@ -3343,7 +3456,8 @@ class SupabaseService {
 
       double moneyOnRoad = 0.0;
       final onRoadByDriver = <int, double>{};
-      final truckExpenses = <int, double>{};
+      final tripExpenses = <int, double>{};
+      final maintenanceExpenses = <int, double>{};
       int pendingCount = 0;
 
       for (final a in advances) {
@@ -3372,9 +3486,49 @@ class SupabaseService {
         if (inPeriod && status == 'settled') {
           final t = driverTruck[driverId];
           if (t != null && t != -1) {
-            truckExpenses[t] = (truckExpenses[t] ?? 0) + spent;
+            tripExpenses[t] = (tripExpenses[t] ?? 0) + spent;
           }
         }
+      }
+
+      // Fetch maintenance expenses filtered by period
+      final maintenanceDateFilter = <String, dynamic>{};
+      if (from != null) {
+        maintenanceDateFilter['gte'] = from.toIso8601String().split('T').first;
+      }
+      final truckMaints = await supabase
+          .from('truck_maintenance')
+          .select('truck_id, amount, maintenance_date')
+          .eq('is_deleted', false)
+          .order('maintenance_date', ascending: false);
+      for (final m in truckMaints) {
+        final truckId = (m['truck_id'] as num?)?.toInt();
+        final amount = (m['amount'] as num?)?.toDouble() ?? 0.0;
+        final dateStr = m['maintenance_date']?.toString() ?? '';
+        if (truckId == null || amount <= 0) continue;
+        if (from != null && dateStr.isNotEmpty) {
+          final dt = DateTime.tryParse(dateStr);
+          if (dt == null || dt.isBefore(from)) continue;
+        }
+        maintenanceExpenses[truckId] = (maintenanceExpenses[truckId] ?? 0) + amount;
+      }
+      final trailerMaints = await supabase
+          .from('trailer_maintenance')
+          .select('trailer_id, amount, maintenance_date')
+          .eq('is_deleted', false)
+          .order('maintenance_date', ascending: false);
+      for (final m in trailerMaints) {
+        final trailerId = (m['trailer_id'] as num?)?.toInt();
+        final amount = (m['amount'] as num?)?.toDouble() ?? 0.0;
+        final dateStr = m['maintenance_date']?.toString() ?? '';
+        if (trailerId == null || amount <= 0) continue;
+        if (from != null && dateStr.isNotEmpty) {
+        final dt = DateTime.tryParse(dateStr);
+        if (dt == null || dt.isBefore(from)) continue;
+        }
+        // Aggregate trailer maintenance under the truck's default trailer
+        // or just list them separately
+        maintenanceExpenses[trailerId] = (maintenanceExpenses[trailerId] ?? 0) + amount;
       }
 
       final onRoadList = onRoadByDriver.entries
@@ -3386,21 +3540,40 @@ class SupabaseService {
           .toList()
         ..sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
 
-      final truckExpenseList = truckExpenses.entries
+      final tripExpenseList = tripExpenses.entries
           .map((e) => {
                 'truck_id': e.key,
                 'truck_plate': truckPlate[e.key] ?? 'بدون لوحة',
                 'amount': e.value,
+                'type': 'trip',
               })
           .toList()
         ..sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
+
+      final maintenanceExpenseList = maintenanceExpenses.entries
+          .map((e) => {
+                'vehicle_id': e.key,
+                'vehicle_plate': truckPlate[e.key] ?? trailerPlate[e.key] ?? 'بدون لوحة',
+                'amount': e.value,
+                'type': 'maintenance',
+              })
+          .toList()
+        ..sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
+
+      // Merge both expense lists for the UI
+      final allExpenses = <Map<String, dynamic>>[];
+      allExpenses.addAll(tripExpenseList);
+      allExpenses.addAll(maintenanceExpenseList);
+      allExpenses.sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
 
       return {
         'treasury_balance': treasuryBalance,
         'money_on_road': moneyOnRoad,
         'pending_count': pendingCount,
         'on_road_by_driver': onRoadList,
-        'truck_expenses': truckExpenseList,
+        'truck_expenses': allExpenses,
+        'trip_expenses': tripExpenseList,
+        'maintenance_expenses': maintenanceExpenseList,
       };
     } catch (e) {
       debugPrint('Error building owner dashboard: $e');
@@ -3410,6 +3583,8 @@ class SupabaseService {
         'pending_count': 0,
         'on_road_by_driver': <Map<String, dynamic>>[],
         'truck_expenses': <Map<String, dynamic>>[],
+        'trip_expenses': <Map<String, dynamic>>[],
+        'maintenance_expenses': <Map<String, dynamic>>[],
       };
     }
   }

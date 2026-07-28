@@ -8,16 +8,23 @@ import '../widgets/language_switcher.dart';
 
 // استيراد الشاشات الخاصة بك
 import '../widgets/role_guard.dart';
+import 'advanced_dashboard_screen.dart';
 import 'home_screen.dart';
 import 'admin_dashboard_screen.dart';
-import 'clients_screen.dart';
+import '../features/clients/screens/clients_screen.dart';
 import 'trip_orders_screen.dart';
 import 'invoices_screen.dart';
 import 'treasury_screen.dart';
 import 'fuel_receipt_screen.dart';
 import 'truck_tracking_screen.dart';
 import 'driver_salary_screen.dart';
+import 'driver_tasks_screen.dart';
 import 'workshop_repairs_screen.dart';
+import 'bank_accounts_screen.dart';
+import 'debt_invoice_form_screen.dart';
+import 'invoice_form_screen.dart';
+import 'repair_invoice_form_screen.dart';
+import 'truck_maintenance_screen.dart';
 
 /// عنصر واحد في قائمة التنقل (يربط بين العنوان والأيقونة والصفحة).
 class _NavEntry {
@@ -84,6 +91,13 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
           icon: Icons.dashboard_rounded,
           page: RoleGuard(allowedRoles: ['admin'], child: const AdminDashboardScreen()),
         ),
+      if (_isAdmin)
+        _NavEntry(
+          title: 'لوحة التحليلات المتقدمة',
+          shortTitle: 'التحليلات',
+          icon: Icons.analytics_rounded,
+          page: RoleGuard(allowedRoles: ['admin'], child: const AdvancedDashboardScreen()),
+        ),
       _NavEntry(
         title: 'إدارة الزبائن',
         shortTitle: 'الزبائن',
@@ -134,6 +148,45 @@ class _MainDashboardTemplateState extends State<MainDashboardTemplate> {
         shortTitle: 'الرواتب',
         icon: Icons.payments_rounded,
         page: DriverSalaryScreen(isAdmin: _isAdmin),
+      ),
+      _NavEntry(
+        title: 'مهام اليوم',
+        shortTitle: 'مهام اليوم',
+        icon: Icons.calendar_today_rounded,
+        page: const DriverTasksScreen(),
+      ),
+      _NavEntry(
+        title: 'الحسابات البنكية',
+        shortTitle: 'الحسابات البنكية',
+        icon: Icons.account_balance_rounded,
+        page: const BankAccountsScreen(),
+      ),
+      _NavEntry(
+        title: 'نموذج فاتورة الدين',
+        shortTitle: 'فاتورة الدين',
+        icon: Icons.money_off_rounded,
+        page: const DebtInvoiceFormScreen(),
+      ),
+      _NavEntry(
+        title: 'نموذج الفاتورة',
+        shortTitle: 'نموذج الفاتورة',
+        icon: Icons.note_add_rounded,
+        page: const InvoiceFormScreen(),
+      ),
+      _NavEntry(
+        title: 'نموذج فاتورة الإصلاح',
+        shortTitle: 'فاتورة إصلاح',
+        icon: Icons.note_add_rounded,
+        page: const RepairInvoiceFormScreen(
+          workshopId: '',
+          workshopName: '',
+        ),
+      ),
+      _NavEntry(
+        title: 'صيانة الشاحنات',
+        shortTitle: 'صيانة الشاحنات',
+        icon: Icons.build_rounded,
+        page: TruckMaintenanceScreen(isAdmin: _isAdmin),
       ),
     ];
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import '../services/supabase_service.dart';
+import '../services/notification_service.dart';
 import '../widgets/date_wheel_picker.dart';
 
 class VisaTrackingScreen extends StatefulWidget {
@@ -119,9 +120,16 @@ class _VisaTrackingScreenState extends State<VisaTrackingScreen> {
                 }
                 try {
                   await _supabaseService.updateDriverVisa(
-                    driver!['id'].toString(),
-                    visaNumber,
-                    expiryDate!,
+                  driver!['id'].toString(),
+                  visaNumber,
+                  expiryDate!,
+                  );
+                  // Schedule visa expiry notification
+                  final notificationService = NotificationService();
+                  await notificationService.scheduleVisaExpiryNotification(
+                  driver['name']?.toString() ?? 'السائق',
+                  visaNumber,
+                  expiryDate!,
                   );
                   if (!context.mounted) return;
                   Navigator.pop(context);

@@ -7,6 +7,7 @@ import '../services/supabase_service.dart';
 import '../providers/theme_provider.dart';
 
 import '../widgets/role_guard.dart';
+import 'advanced_dashboard_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'treasury_screen.dart';
 import 'fuel_receipt_screen.dart';
@@ -33,7 +34,7 @@ import 'trailers_screen.dart';
 import 'providers_screen.dart';
 import 'expense_workshop_report_screen.dart';
 import 'truck_documents_screen.dart';
-import 'clients_screen.dart';
+import '../features/clients/screens/clients_screen.dart';
 import 'driver_tasks_screen.dart';
 import 'fleet_docs_screen.dart';
 import 'expense_categories_screen.dart';
@@ -42,7 +43,13 @@ import 'workshop_repairs_screen.dart';
 import 'trailer_maintenance_screen.dart';
 import 'maintenance_schedule_screen.dart';
 import 'driver_cash_screen.dart';
+import 'visa_tracking_screen.dart';
 import 'cash_box_management_screen.dart';
+import 'bank_accounts_screen.dart';
+import 'debt_invoice_form_screen.dart';
+import 'invoice_form_screen.dart';
+import 'repair_invoice_form_screen.dart';
+import 'truck_maintenance_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -565,11 +572,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const OwnerDashboardScreen())));
               }),
-              _buildDrawerItem(Icons.dashboard_customize_rounded, 'لوحة التحكم والتحليلات', () {
-                Navigator.pop(context);
-                setState(() => _currentTabIndex = 0);
-              }),
-              _buildDrawerItem(Icons.pie_chart_rounded, 'تقرير أرباح الشركة', () {
+_buildDrawerItem(Icons.dashboard_customize_rounded, 'لوحة التحكم والتحليلات', () {
+                 Navigator.pop(context);
+                 setState(() => _currentTabIndex = 0);
+               }),
+               _buildDrawerItem(Icons.analytics_rounded, 'لوحة التحليلات المتقدمة', () {
+                 Navigator.pop(context);
+                 Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancedDashboardScreen()));
+               }),
+               _buildDrawerItem(Icons.pie_chart_rounded, 'تقرير أرباح الشركة', () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const CompanyProfitReportScreen())));
               }),
@@ -598,6 +609,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => CurrentTripsScreen(isAdmin: isAdmin)));
               }),
+              _buildDrawerItem(Icons.calendar_today_rounded, 'مهام اليوم', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => DriverTasksScreen()));
+              }),
             ]),
 
             _buildDrawerSection('الفواتير والمدفوعات', [
@@ -616,6 +631,14 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildDrawerItem(Icons.timeline_rounded, 'تقرير العمر', () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const AgingReportScreen()));
+              }),
+              _buildDrawerItem(Icons.note_add_rounded, 'نموذج فاتورة', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoiceFormScreen()));
+              }),
+              _buildDrawerItem(Icons.money_off_rounded, 'نموذج فاتورة الدين', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DebtInvoiceFormScreen()));
               }),
               _buildDrawerItem(Icons.analytics_rounded, 'تقارير العملاء', () {
                 Navigator.pop(context);
@@ -646,6 +669,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const CashBoxManagementScreen()));
                 }),
+              _buildDrawerItem(Icons.account_balance_rounded, 'الحسابات البنكية', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const BankAccountsScreen()));
+              }),
             ]),
 
             _buildDrawerSection('السائقين', [
@@ -663,9 +690,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (driverId == null) return;
                 Navigator.push(context, MaterialPageRoute(builder: (_) => DriverCashScreen(driverId: int.tryParse(driverId) ?? 0, driverName: _userRole == 'driver' ? 'السائق' : 'سائق')));
               }),
+_buildDrawerItem(Icons.verified_rounded, 'تتبع صلاحية الفيزا', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaTrackingScreen()));
+              }),
             ]),
 
-            _buildDrawerSection('الأسطول والمركبات', [
+              _buildDrawerSection('الأسطول والمركبات', [
               _buildNestedDrawerGroup('الشاحنات', [
                 _buildNestedDrawerItem(Icons.local_shipping_rounded, 'قائمة الشاحنات', () {
                   Navigator.pop(context);
@@ -682,6 +713,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildNestedDrawerItem(Icons.calendar_month_rounded, 'جدول الصيانة الدورية', () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const MaintenanceScheduleScreen(isAdmin: true)));
+                }),
+                _buildNestedDrawerItem(Icons.build_rounded, 'صيانة الشاحنات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => TruckMaintenanceScreen(isAdmin: isAdmin)));
                 }),
               ]),
               _buildNestedDrawerGroup('المقطورات', [
@@ -720,6 +755,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkshopRepairInvoicesScreen(
                     workshopId: '',
                     workshopName: 'جميع الورش',
+                  )));
+                }),
+                _buildNestedDrawerItem(Icons.note_add_rounded, 'نموذج فاتورة إصلاح', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const RepairInvoiceFormScreen(
+                    workshopId: '',
+                    workshopName: '',
                   )));
                 }),
               ]),

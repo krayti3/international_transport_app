@@ -43,12 +43,18 @@ class _ClientStatementScreenState extends State<ClientStatementScreen> {
 
   Future<void> _exportPdf() async {
     if (!mounted) return;
-    final clientData = {'name': widget.clientName, 'id': widget.clientId};
+    final clientRecord = await _supabaseService.getClientById(widget.clientId.toString());
+    final clientData = {
+      'name': widget.clientName,
+      'id': widget.clientId,
+      if (clientRecord != null) 'currency': clientRecord.currency,
+    };
     try {
       await PdfService.instance.shareClientStatement(
         client: clientData,
         statementItems: _statement,
         currentBalance: _currentBalance,
+        currency: clientRecord?.currency ?? 'MAD',
       );
     } catch (e) {
       if (!mounted) return;

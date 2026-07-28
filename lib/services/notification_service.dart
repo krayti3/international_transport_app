@@ -130,6 +130,57 @@ class NotificationService {
     }
   }
 
+  /// جدولة تذكير بانتهاء صلاحية تأشيرة السائق.
+  ///
+  /// يرسل تذكير قبل انتهاء التأشيرة ب [daysBefore] يوم.
+  Future<void> scheduleVisaExpiryNotification(
+    String driverName,
+    String visaNumber,
+    DateTime expiryDate, {
+    int? driverId,
+    int daysBefore = 30,
+  }) async {
+    try {
+      if (kIsWeb) return;
+      final now = tz.TZDateTime.now(tz.local);
+      final expiry = tz.TZDateTime.from(expiryDate, tz.local);
+      final reminderDate = expiry.subtract(Duration(days: daysBefore));
+      final scheduledDate = reminderDate.isAfter(now) ? reminderDate : expiry;
+      final diff = expiry.difference(now).inDays;
+      String urgency;
+      if (diff < 0) {
+        urgency = 'انتهت منذ ${diff.abs()} يوم';
+      } else if (diff <= 7) {
+        urgency = 'تنتهي خلال $diff يوم فقط!';
+      } else if (diff <= 30) {
+        urgency = 'متبقي $diff يوم';
+      } else {
+        urgency = 'متبقي $diff يوم';
+      }
+      await _scheduleNotification(
+        id: driverId ?? visaNumber.hashCode + expiryDate.hashCode,
+        title: 'تنبيه انتهاء تأشيرة السائق',
+        body: 'تأشيرة $driverName ($visaNumber) $urgency - تاريخ الانتهاء: ${expiryDate.toLocal().toString().split(' ').first}',
+        scheduledDate: scheduledDate,
+        channelId: 'visa_expiry_channel',
+        channelName: 'انتهاء صلاحية التأشيرات',
+        channelDescription: 'تذكيرات بانتهاء صلاحية تأشيرات السائقين',
+      );
+    } catch (e) {
+      debugPrint('Error scheduling visa expiry notification: $e');
+    }
+  }
+
+  /// إلغاء تذكير انتهاء صلاحية تأشيرة السائق.
+  Future<void> cancelVisaExpiryNotification(int driverId) async {
+    try {
+      if (kIsWeb) return;
+      await _flutterLocalNotificationsPlugin.cancel(id: driverId);
+    } catch (e) {
+      debugPrint('Error canceling visa expiry notification: $e');
+    }
+  }
+
   Future<void> _scheduleNotification({
     required int id,
     required String title,

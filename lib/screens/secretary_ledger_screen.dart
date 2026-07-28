@@ -104,6 +104,8 @@ class _SecretaryLedgerScreenState extends State<SecretaryLedgerScreen> {
         return 'مرجوع عهدة';
       case 'invoice':
         return 'فاتورة';
+      case 'maintenance_expense':
+        return 'مصروف صيانة';
       default:
         return type ?? '-';
     }
@@ -121,6 +123,8 @@ class _SecretaryLedgerScreenState extends State<SecretaryLedgerScreen> {
         return Colors.teal;
       case 'invoice':
         return Colors.green;
+      case 'maintenance_expense':
+        return Colors.indigo;
       default:
         return Colors.grey;
     }

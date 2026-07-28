@@ -23,12 +23,17 @@
 |---------|-----------|
 | **Flutter** | واجهة أمامية للتطبيقات المحمولة والويب |
 | **Supabase** | قاعدة بيانات، مصادقة (Auth)، وواجهات برمجة التطبيقات |
-| **Provider** | إدارة حالة التطبيق |
+| **flutter_bloc (Cubit)** | إدارة حالة واجهات الميزات (أنماط Cubit مع BlocConsumer) |
+| **Provider** | إدارة حالة عابرة للواجهات (Theme, Locale) فقط |
+| **go_router** | التوجيه والتنقل بين الشاشات |
+| **Repository Pattern** | طبقة وسيطة بين الـ Cubits وقاعدة البيانات (Supabase) |
+| **Hive** | تخزين الكاش المحلي للكيانات الأساسية (عملاء، شاحنات، سائقين) مع TTL 15 دقيقة |
 | **PDF + Printing** | توليد وطباعة كشوف الحساب والفواتير |
 | **Intl** | تنسيق التواريخ والأرقام |
 | **Image Picker + ML Kit Text Recognition** | التقاط صور تذاكر المازوت والاستخراج الذكي للنصوص |
 | **flutter_map + geolocator** | عرض الخرائط وتتبع الموقع الجغرافي للشاحنات |
 | **flutter_local_notifications** | الإشعارات المحلية لتواريخ وثائق الشاحنات |
+| **decimal** | حسابات مالية دقيقة بدون أخطاء الفاصلة العائمة |
 
 ## 🗄️ بنية قاعدة البيانات
 
@@ -87,26 +92,11 @@
 
 ## 🔐 الأمان والصلاحيات
 
-نظام صلاحيات من ثلاثة مستويات:
+نظام صلاحيات من ثلاثة مستويات مع حماية عبر `RoleGuard` و `go_router`:
 
-### 1. Admin (المدير)
-- صلاحيات كاملة على جميع الشاشات
-- إدارة المستخدمين والإعدادات
-- حذف وتعديل البيانات الحساسة
-- الوصول للتقارير المالية وإعدادات الـ TVA
-- تسجيل المصاريف والسحوبات من الخزينة
-- إدارة الشاحنات والمقطورات والسائقين والوثائق
-
-### 2. Secretary (السكرتيرة)
-- إدارة الزبائن والرحلات والفواتير
-- الاطلاع على الخزينة
-- منع الوصول لإعدادات الـ TVA والتقارير المتقدمة
-- أزرار الحذف معطلة
-
-### 3. Driver (السائق)
-- شاشة مخصصة تعرض الرحلات المعينة فقط
-- لا يمكنه الوصول للشاشات المالية أو الإدارية
-- لا يوجد شريط تنقل سفلي
+- **Admin (المدير)**: صلاحيات كاملة + الوصول للتقارير المالية وإعدادات TVA وتسجيل المصاريف والسحوبات من الخزينة
+- **Secretary (السكرتيرة)**: العمليات اليومية (فواتير، عهد، خزينة، سائقين، عملاء) — أزرار الحذف معطلة
+- **Driver (السائق)**: شاشة مخصصة تعرض الرحلات المعينة فقط — لا يمكنه الوصول للشاشات المالية أو الإدارية
 
 ## 🚀 التشغيل
 
@@ -118,21 +108,21 @@
 
 ### الخطوات:
 
-1. استنساخ المشروع:
+1. استنساخ المشروع وتثبيت الاعتماديات:
 ```bash
 git clone <repository-url>
 cd international_transport_app
-```
-
-2. تثبيت الاعتماديات:
-```bash
 flutter pub get
 ```
 
-3. إعداد Supabase:
+2. إعداد Supabase:
    - أنشئ مشروعاً جديداً على [Supabase](https://supabase.com)
    - أنشئ الجداول المذكورة أعلاه
-   - استبدل الـ URL و الـ Anon Key في `lib/main.dart`
+   - استبدل الـ URL و الـ Anon Key في `.env`
+
+3. تنفيذ المايغرايشن في Supabase SQL Editor:
+   - شغّل جميع ملفات `supabase/migrations/*.sql` بالترتيب
+   - أو شغّل الملف المُوحّد `supabase/migrations_run_me.sql`
 
 4. تشغيل التطبيق:
 ```bash
@@ -147,7 +137,11 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.0.0
+  flutter_bloc: ^8.1.0
   provider: ^6.0.5
+  go_router: ^14.0.0
+  hive_flutter: ^1.1.0
+  flutter_dotenv: ^5.1.0
   pdf: ^3.10.8
   printing: ^5.11.0
   intl: ^0.19.0
@@ -159,6 +153,7 @@ dependencies:
   permission_handler: ^11.0.0
   flutter_local_notifications: ^17.0.0
   timezone: ^0.9.2
+  decimal: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -170,28 +165,44 @@ dev_dependencies:
 
 ```
 lib/
-├── main.dart                        # نقطة الدخول والتنقل الرئيسي
-├── models/                          # نماذج البيانات (clients, trips, trucks, drivers...)
-├── screens/
-│   ├── clients_screen.dart          # إدارة الزبائن
-│   ├── trip_orders_screen.dart      # إدارة الرحلات
-│   ├── invoices_screen.dart         # إدارة الفواتير
-│   ├── treasury_screen.dart         # إدارة الخزينة
-│   ├── admin_dashboard_screen.dart  # لوحة التحكم والتقارير
-│   ├── driver_screen.dart           # شاشة السائق
-│   ├── driver_salary_screen.dart    # أجور السائقين والبونص
-│   ├── trucks_screen.dart           # إدارة الشاحنات والمقطورات
-│   ├── drivers_screen.dart          # إدارة السائقين
-│   ├── truck_documents_screen.dart  # وثائق الشاحنات والإشعارات
-│   ├── truck_tracking_screen.dart   # تتبع الموقع GPS + Maps
-│   └── fuel_receipt_screen.dart     # مسح تذاكر المازوت بالذكاء الاصطناعي
-├── services/
-│   ├── supabase_service.dart        # خدمات Supabase والمنطق التجاري
-│   ├── pdf_service.dart             # توليد وطباعة PDF
-│   ├── ml_text_recognition_service.dart # استخراج نصوص تذاكر المازوت
-│   ├── location_service.dart        # تتبع الموقع GPS
-│   └── notification_service.dart    # الإشعارات المحلية للوثائق
-└── widgets/                         # مكونات واجهة قابلة لإعادة الاستخدام
+├── main.dart                        # نقطة الدخول — MultiRepositoryProvider + MultiBlocProvider + MultiProvider
+├── app_router.dart                  # التوجيه عبر go_router مع حماية الأدوار
+├── cubits/                          # إدارة حالة الميزات (Cubit + State)
+│   ├── treasury_cubit.dart
+│   ├── drivers_cubit.dart
+│   ├── trucks_cubit.dart
+│   ├── trailers_cubit.dart
+│   ├── invoices_cubit.dart
+│   ├── bank_accounts_cubit.dart
+│   ├── settings_cubit.dart
+│   ├── trips_cubit.dart
+│   ├── advanced_dashboard_cubit.dart
+│   └── ..._state.dart
+├── repositories/                    # طبقة الوسيط بين Cubits وقاعدة البيانات
+│   ├── core_repository.dart         # نمط Cache-then-Network مع Hive
+│   ├── treasury_repository.dart
+│   ├── invoice_repository.dart
+│   ├── client_repository.dart
+│   ├── driver_repository.dart
+│   ├── truck_repository.dart
+│   ├── trailer_repository.dart
+│   ├── trip_repository.dart
+│   ├── advance_repository.dart
+│   ├── maintenance_repository.dart
+│   ├── document_repository.dart
+│   ├── bank_account_repository.dart
+│   ├── cash_box_repository.dart
+│   └── settings_repository.dart
+├── features/                        # وحدات ميزات مستقلة
+│   └── clients/
+│       ├── cubits/
+│       ├── repositories/
+│       └── screens/
+├── screens/                         # شاشات الواجهة (StatelessWidget + BlocConsumer)
+├── services/                        # خدمات عابرة (PDF, ML, Location, Cache, Sync, Calculation)
+├── models/                          # نماذج البيانات (fromMap/toMap/copyWith)
+├── widgets/                         # مكونات واجهة قابلة لإعادة الاستخدام
+└── l10n/                            # التوطين (Arabic, French, English)
 ```
 
 ## 🤝 المساهمة

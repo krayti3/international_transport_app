@@ -12,9 +12,10 @@ lib/main.dart
                  └── MainDashboardTemplate (شريط جانبي + تنقل)
 ```
 
-- `main_screen.dart`: غلاف يحقّق من وجود بروفايل المستخدم بعد تسجيل الدخول.
-- `home_screen.dart`: الم routed مركزي؛ يقرأ دور المستخدم (`admin` / `secretary` / `driver` / `owner`) ويبني القائمة الجانبية المناسبة.
-- `main_dashboard_template.dart`: القالب العام للواجهة؛ يحتوي على الشريط الجانبي ذي 3 مستويات مع سلوك الأكورديون وإغلاق الأقسام المفتوحة عند فتح قسم جديد.
+- `main.dart`: نقطة الدخول — تهيئة Hive, SyncService, CacheService, Supabase، ثم `MultiRepositoryProvider` + `MultiBlocProvider` + `MultiProvider`.
+- `app_router.dart`: التوجيه عبر `go_router` مع حماية الأدوار (`RoleGuard`).
+- `home_screen.dart`: الموجه المركزي؛ يقرأ دور المستخدم (`admin` / `secretary` / `driver` / `owner`) ويبني القائمة الجانبية ذات 3 مستويات مع سلوك الأكورديون.
+- `main_dashboard_template.dart`: القالب العام للواجهة؛ يحتوي على الشريط الجانبي مع `IndexedStack` للحفاظ على حالة الشاشات، وشريط سفلي للهاتف.
 
 ## أنظمة الصلاحياتRoles
 
@@ -30,7 +31,7 @@ lib/main.dart
 ### login_screen.dart
 - **الغرض:** تسجيل الدخول عبر Supabase Auth.
 - **المدخلات:** بريد إلكتروني وكلمة مرور.
-- **المخرجات:** جلسة auth → الانتقال إلى `MainScreen`.
+- **المخرجات:** جلسة auth → الانتقال إلى `MainScreen` عبر `go_router`.
 
 ### signup_screen.dart
 - **الغرض:** إنشاء حساب مستخدم جديد.
@@ -47,7 +48,7 @@ lib/main.dart
 ### admin_dashboard_screen.dart
 - **الغرض:** نظرة عامّة على المؤشرات الرئيسية.
 - **المخرجات:** فلوت، رحلات، فواتير، مصاريف، تنبيهات النفط.
-- **ال موردات:** كافة البيانات المجمّعة من الجداول الرئيسية.
+- **النمط:** `StatelessWidget` مع `BlocConsumer`.
 
 ### owner_dashboard_screen.dart
 - **الغرض:** نظرة مالية لصاحب الشركة.
@@ -67,8 +68,9 @@ lib/main.dart
 
 ### clients_screen.dart
 - **الغرض:** قائمة العملاء مع بحث وفلترة.
-- **المدخلات/المخرجات:** عمليات CRUD عبر Supabase.
+- **المدخلات/المخرجات:** عمليات CRUD عبر `ClientRepository`.
 - **التنقل:** من الشاشة الرئيسية → قائمة العملاء → التفاصيل/النموذج.
+- **النمط:** `StatelessWidget` مع `BlocConsumer<ClientsCubit, ClientsState>`.
 
 ### client_details_screen.dart
 - **الغرض:** عرض تفاصيل عميل واحد + سجل المعاملات.
@@ -101,7 +103,7 @@ lib/main.dart
 
 ### drivers_screen.dart
 - **الغرض:** قائمة السائقين مع حالة النشاط.
-- **المدخلات/المخرجات:** CRUD للسائقين.
+- **المدخلات/المخرجات:** CRUD للسائقين عبر `DriverRepository`.
 
 ### driver_details_screen.dart
 - **الغرض:** بروفايل السائق + سجل الرحلات والمهام.
@@ -118,7 +120,7 @@ lib/main.dart
 ### driver_advances_screen.dart
 - **الغرض:** تسجيل واستعراض العهد المسلّمة للسائق.
 - **المدخلات:** `driver_id`، المبلغ، التاريخ.
-- **ال تخزين:** مربوط بـ `advances` في قاعدة البيانات.
+- **التخزين:** مربوط بـ `advances` في قاعدة البيانات.
 
 ### driver_salary_screen.dart
 - **الغرض:** حساب ومراجعة رواتب السائقين.
@@ -134,7 +136,7 @@ lib/main.dart
 
 ### trucks_screen.dart
 - **الغرض:** قائمة الشاحنات مرتبة بالترتيب: `active` → `maintenance` → `inactive` (غير نشطة تظهر أخيراً).
-- **المدخلات/المخرجات:** CRUD الشاحنات، رقم اللوحة بدون فراغات.
+- **المدخلات/المخرجات:** CRUD الشاحنات عبر `TruckRepository`، رقم اللوحة بدون فراغات.
 
 ### truck_details_screen.dart
 - **الغرض:** تفاصيل الشاحنة + الوصلات للوثائق والصيانة.
@@ -146,7 +148,7 @@ lib/main.dart
 - **قاعدة البيانات:** `truck_documents` يقبل نوع وثيقة واحد فقط لكل شاحنة (unique على `truck_id` و `type`).
 
 ### truck_maintenance_screen.dart
-- **الغرض:** سجل مصاريف الصيانة للشاحنة + تنبيهات الزيت.
+- **الغرض:** سجل مصاريف الصيانة للشاحنة.
 - **المدخلات:** `truck_id`، الفئة، المبلغ، التاريخ.
 - **التنقل:** لا يعرض قسم تنبيهات الزيت أبداً؛ التنبيهات موجودة حصراً في `oil_change_alerts_screen.dart`.
 
@@ -160,7 +162,7 @@ lib/main.dart
 
 ### trailers_screen.dart
 - **الغرض:** قائمة المقطورات مع الحالة.
-- **المدخلات/المخرجات:** CRUD للمقطورات، رقم اللوحة بدون فراغات.
+- **المدخلات/المخرجات:** CRUD للمقطورات عبر `TrailerRepository`، رقم اللوحة بدون فراغات.
 
 ### trailer_details_screen.dart
 - **الغرض:** تفاصيل مقطورة واحدة.
@@ -315,9 +317,9 @@ lib/main.dart
 ## التقارير
 
 ### aging_report_screen.dart
-- **الغرض:** تقرير岁店بالذمم المدينة حسب الفئات العمرية.
+- **الغرض:** تقرير الذمم المدينة حسب الفئات العمرية.
 - **المدخلات:** فترات (0-30، 31-60، +60 يوم)، العميل.
-- **ال نمط:** شريط (`ListTile`) يحتوي `Row` داخل `trailing` لتفادي Overflow للارتفاع 48px.
+- **النمط:** شريط (`ListTile`) يحتوي `Row` داخل `trailing` لتفادي Overflow للارتفاع 48px.
 
 ### company_profit_report_screen.dart
 - **الغرض:** ملخّص الأرباح/الخسائر.
@@ -367,7 +369,7 @@ lib/main.dart
 ### التاريخ
 - جميع التواريخ تعرض بنسق `dd/mm/yyyy`.
 - تنسيق البحث يفصل السنة عن الشهر.
-- منتقي التاريخ يستخدم `Locale('ar','MA')` مع أسماء الشهور المغربية (يناير، فبراير، مارس...).
+- منتقي التاريخ يستخدم `showDateWheelPicker` من `lib/widgets/date_wheel_picker.dart` مع `CupertinoDatePickerMode.date` داخل `ModalBottomSheet` و `Locale('ar','MA')` مع أسماء الشهور المغربية.
 
 ### النماذج
 - `DropdownButtonFormField` يُستخدم بـ `initialValue` فقط بعد الإصدار 3.33.
@@ -384,6 +386,11 @@ lib/main.dart
 - `fleet_documents`: وثيقة واحدة فقط لكل `(entity_type, entity_id, category_id)`.
 - `truck_documents`: نوع وثيقة واحد فقط لكل شاحنة.
 
+### حالة الواجهة
+- شاشات الميزات تستخدم نمط **Cubit** مع `BlocConsumer` (StatelessWidget).
+- `Provider` يُستخدم حصرياً لـ `ThemeProvider` و `LocaleProvider` (حالة عابرة للواجهات).
+- `RepositoryProvider` يُستخدم لتقديم repositories للـ cubits.
+
 ---
 
 ## دليل الملفات مرتب حسب الرقم
@@ -395,7 +402,9 @@ lib/main.dart
 ## ملاحظات للنمو المستقبلي
 
 - عند إضافة شاشة جديدة، ضع الملف في `lib/screens/`.
-- أضف intersects互不相ق في `main_dashboard_template.dart` تحت المجموعة المناسبة.
+- أضف cubit و state في `lib/cubits/` مع `BlocProvider` في `main.dart`.
+- أضف repository في `lib/repositories/` مع `RepositoryProvider` في `main.dart`.
+- أضف intersects في `main_dashboard_template.dart` تحت المجموعة المناسبة.
 - تأكّد من أن أي حقل `treasury_tx_type` يطابق القيم المسموحة في `supabase_service.dart`.
 - استخدم `RoleGuard` أو `isAdmin` لحماية الشاشات الحساسة.
 - استخدم `showDateWheelPicker` من `lib/widgets/date_wheel_picker.dart` لمنتقي التواريخ.

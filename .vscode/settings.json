@@ -1,4 +1,5 @@
 {
     "Codegeex.Chat.fontSize": 14,
-    "Codegeex.RepoIndex": true
+    "Codegeex.RepoIndex": true,
+    "references.preferredLocation": "view"
 }

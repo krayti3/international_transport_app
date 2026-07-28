@@ -1,130 +1,176 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:international_transport_app/models/client.dart';
-import '../services/supabase_service.dart';
-import '../services/pdf_service.dart';
-import '../l10n/app_localizations.dart';
-import 'client_statement_screen.dart';
+import 'package:international_transport_app/repositories/invoice_repository.dart';
+import 'package:international_transport_app/repositories/bank_account_repository.dart';
+import 'package:international_transport_app/repositories/cash_box_repository.dart';
+import '../cubits/clients_cubit.dart';
+import '../cubits/customer_detail_cubit.dart';
+import '../../../services/pdf_service.dart';
+import '../../../l10n/app_localizations.dart';
 import 'customer_detail_screen.dart';
-import 'location_picker_screen.dart';
+import '../../../screens/location_picker_screen.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
-class ClientsScreen extends StatefulWidget {
+class ClientsScreen extends StatelessWidget {
   const ClientsScreen({super.key, required this.isAdmin});
   final bool isAdmin;
 
   @override
-  State<ClientsScreen> createState() => _ClientsScreenState();
-}
+  Widget build(BuildContext context) {
+    return BlocBuilder<ClientsCubit, ClientsState>(
+      builder: (context, state) {
+        if (state.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-class _ClientsScreenState extends State<ClientsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
-  List<Client> _clients = [];
-  List<Client> _filteredClients = [];
-  bool _isLoading = true;
-  final TextEditingController _searchController = TextEditingController();
-  String _statusFilter = 'all';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadClients();
-    _searchController.addListener(_filterClients);
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(context.tr('إدارة الزبائن')),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () => _openAddClientDialog(context),
+                tooltip: 'إضافة زبون',
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: context.tr('بحث...'),
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: state.searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => context.read<ClientsCubit>().onSearchChanged(''),
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                  ),
+                  onChanged: (value) => context.read<ClientsCubit>().onSearchChanged(value),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: ToggleButtons(
+                  isSelected: [
+                    state.statusFilter == 'all',
+                    state.statusFilter == 'active',
+                    state.statusFilter == 'inactive',
+                  ],
+                  onPressed: (index) {
+                    final filter = ['all', 'active', 'inactive'][index];
+                    context.read<ClientsCubit>().onStatusFilterChanged(filter);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  selectedColor: Colors.white,
+                  fillColor: Theme.of(context).primaryColor,
+                  children: const [
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('الكل'),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('مفعل'),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('غير مفعل'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: state.filteredClients.isEmpty
+                    ? Center(child: Text(context.tr('لا يوجد زبائن حالياً')))
+                    : ListView.builder(
+                        itemCount: state.filteredClients.length,
+                        itemBuilder: (context, index) {
+                          final client = state.filteredClients[index];
+                          final subtitleParts = <String>[
+                            if (client.phone.isNotEmpty) client.phone,
+                            if (client.city?.isNotEmpty ?? false) client.city!,
+                          ];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => BlocProvider(
+                                      create: (_) => CustomerDetailCubit(
+                                        context.read<InvoiceRepository>(),
+                                        context.read<BankAccountRepository>(),
+                                        context.read<CashBoxRepository>(),
+                                        client.id ?? 0,
+                                      ),
+                                      child: CustomerDetailScreen(
+                                        client: client.toMap(),
+                                        onDeleted: () => context.read<ClientsCubit>().loadClients(),
+                                        onUpdated: () => context.read<ClientsCubit>().loadClients(),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              onLongPress: () => _showActionsSheet(context, client),
+                              child: ListTile(
+                                leading: Icon(
+                                  client.isActive ? Icons.check_circle : Icons.cancel,
+                                  color: client.isActive ? Colors.green : Colors.red,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  client.name,
+                                  style: TextStyle(
+                                    color: client.isActive ? null : Colors.grey,
+                                    decoration: client.isActive ? null : TextDecoration.lineThrough,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  subtitleParts.join(' • '),
+                                  style: TextStyle(
+                                    color: client.isActive ? null : Colors.grey,
+                                  ),
+                                ),
+                                trailing: isAdmin
+                                    ? IconButton(
+                                        icon: Icon(
+                                          Icons.edit,
+                                          size: 20,
+                                          color: client.isActive ? null : Colors.grey,
+                                        ),
+                                        onPressed: () => _openEditClientDialog(context, client),
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
-  @override
-  void dispose() {
-    _searchController.removeListener(_filterClients);
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadClients() async {
-    setState(() => _isLoading = true);
-    final clients = await _supabaseService.getClients();
-    final invoices = await _supabaseService.getInvoices();
-
-    final Map<String, DateTime> lastInvoiceDates = {};
-    for (final inv in invoices) {
-      final date = inv.issueDate;
-      if (date == null) continue;
-      final key = inv.clientId.toString();
-      final existing = lastInvoiceDates[key];
-      if (existing == null || date.isAfter(existing)) {
-        lastInvoiceDates[key] = date;
-      }
-    }
-
-    clients.sort((a, b) {
-      final aDate = lastInvoiceDates[a.id?.toString() ?? ''];
-      final bDate = lastInvoiceDates[b.id?.toString() ?? ''];
-
-      if (aDate == null && bDate == null) return 0;
-      if (aDate == null) return -1;
-      if (bDate == null) return 1;
-
-      return bDate.compareTo(aDate);
-    });
-
-    setState(() {
-      _clients = clients;
-      _filteredClients = clients;
-      _isLoading = false;
-    });
-  }
-
-  void _filterClients() {
-    final query = _searchController.text.trim().toLowerCase();
-    setState(() {
-      _filteredClients = _clients.where((client) {
-        if (_statusFilter == 'active' && !client.isActive) return false;
-        if (_statusFilter == 'inactive' && client.isActive) return false;
-        if (query.isEmpty) return true;
-        final name = client.name.toLowerCase();
-        final phone = client.phone.toLowerCase();
-        final city = client.city?.toLowerCase() ?? '';
-        final address = client.address?.toLowerCase() ?? '';
-        final nomContact = client.nomContact?.toLowerCase() ?? '';
-        final adresseFact = client.adresseFacturation?.toLowerCase() ?? '';
-        final email = client.email.toLowerCase();
-        final ice = client.ice.toLowerCase();
-        return name.contains(query) ||
-            phone.contains(query) ||
-            city.contains(query) ||
-            address.contains(query) ||
-            nomContact.contains(query) ||
-            adresseFact.contains(query) ||
-            email.contains(query) ||
-            ice.contains(query);
-      }).toList();
-    });
-  }
-
-  Future<Map<String, dynamic>> _getClientInvoiceStats(int? clientId) async {
-    if (clientId == null) return {'lastInvoice': '-', 'count': 0};
-    final invoices = await _supabaseService.getInvoices();
-    final currentYear = DateTime.now().year;
-    final clientInvoices = invoices.where((inv) {
-      if (inv.clientId != clientId.toString()) return false;
-      final date = inv.issueDate;
-      if (date == null) return false;
-      return date.year == currentYear;
-    }).toList();
-
-    String lastInvoice = '-';
-    if (clientInvoices.isNotEmpty) {
-      clientInvoices.sort((a, b) => (b.issueDate ?? DateTime(0)).compareTo(a.issueDate ?? DateTime(0)));
-      lastInvoice = clientInvoices.first.invoiceNumber;
-    }
-
-    return {'lastInvoice': lastInvoice, 'count': clientInvoices.length};
-  }
-
-  Future<void> _openAddClientDialog() async {
+  Future<void> _openAddClientDialog(BuildContext context) async {
+    final cubit = context.read<ClientsCubit>();
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
     final nomContactController = TextEditingController();
-
     final iceController = TextEditingController();
     final shippingLine1Controller = TextEditingController();
     final shippingLine2Controller = TextEditingController();
@@ -136,12 +182,11 @@ class _ClientsScreenState extends State<ClientsScreen> {
     final emailController = TextEditingController();
     final currencyController = TextEditingController();
 
-    final sysSettings = await _supabaseService.getSystemSettings();
-    final defaultCurrency = sysSettings?['default_currency']?.toString() ?? 'MAD';
-    final defaultCountry = sysSettings?['company_country']?.toString() ?? 'Maroc';
+    final defaultCurrency = await cubit.getDefaultCurrency();
+    final defaultCountry = await cubit.getDefaultCountry();
 
-    currencyController.text = defaultCurrency;
-    shippingCountryController.text = defaultCountry;
+    currencyController.text = defaultCurrency ?? 'MAD';
+    shippingCountryController.text = defaultCountry ?? 'Maroc';
 
     double? pickedLat;
     double? pickedLng;
@@ -154,7 +199,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(context.tr('إضافة زبون جديد')),
         content: SingleChildScrollView(
           child: Form(
@@ -170,34 +215,34 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     ),
                     TextFormField(
                       controller: iceController,
-                      decoration: InputDecoration(labelText: 'ICE (التعريف الضريبي)'),
+                      decoration: const InputDecoration(labelText: 'ICE (التعريف الضريبي)'),
                     ),
                     TextFormField(
                       initialValue: '-',
                       decoration: const InputDecoration(labelText: 'آخر فاتورة هذه السنة'),
                       enabled: false,
                     ),
-                     SwitchListTile(
-                       title: const Text('مفعل'),
-                       value: isActive,
-                       onChanged: (val) {
-                         isActive = val;
-                         setDialogState(() {});
-                       },
-                      ),
-                       TextFormField(
-                        initialValue: '0',
-                       decoration: const InputDecoration(labelText: 'عدد الفواتر للسنة الحالية'),
-                       enabled: false,
-                     ),
-                     Row(
+                    SwitchListTile(
+                      title: const Text('مفعل'),
+                      value: isActive,
+                      onChanged: (val) {
+                        isActive = val;
+                        setDialogState(() {});
+                      },
+                    ),
+                    TextFormField(
+                      initialValue: '0',
+                      decoration: const InputDecoration(labelText: 'عدد الفواتر للسنة الحالية'),
+                      enabled: false,
+                    ),
+                    Row(
                       children: [
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () => setDialogState(() => selectedTab = 0),
-                            style: selectedTab == 0 
-                              ? ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor)
-                              : null,
+                            style: selectedTab == 0
+                                ? ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor)
+                                : null,
                             child: Text(context.tr('العنوان')),
                           ),
                         ),
@@ -205,9 +250,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () => setDialogState(() => selectedTab = 1),
-                            style: selectedTab == 1 
-                              ? ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor)
-                              : null,
+                            style: selectedTab == 1
+                                ? ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor)
+                                : null,
                             child: Text(context.tr('البيانات البنكية')),
                           ),
                         ),
@@ -228,38 +273,38 @@ class _ClientsScreenState extends State<ClientsScreen> {
                           ),
                           TextFormField(
                             controller: emailController,
-                            decoration: InputDecoration(labelText: 'EMAIL المراسلات'),
+                            decoration: const InputDecoration(labelText: 'EMAIL المراسلات'),
                             keyboardType: TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 12),
-                          Text(context.tr('عنوان الشحن / التفريغ'), style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(context.tr('عنوان الشحن / التفريغ'), style: const TextStyle(fontWeight: FontWeight.bold)),
                           TextFormField(
                             controller: shippingLine1Controller,
-                            decoration: InputDecoration(labelText: 'العنوان 1'),
+                            decoration: const InputDecoration(labelText: 'العنوان 1'),
                           ),
                           TextFormField(
                             controller: shippingLine2Controller,
-                            decoration: InputDecoration(labelText: 'العنوان 2'),
+                            decoration: const InputDecoration(labelText: 'العنوان 2'),
                           ),
                           TextFormField(
                             controller: shippingLine3Controller,
-                            decoration: InputDecoration(labelText: 'العنوان 3'),
+                            decoration: const InputDecoration(labelText: 'العنوان 3'),
                           ),
                           TextFormField(
                             controller: shippingLine4Controller,
-                            decoration: InputDecoration(labelText: 'العنوان 4'),
+                            decoration: const InputDecoration(labelText: 'العنوان 4'),
                           ),
                           TextFormField(
                             controller: shippingCityController,
-                            decoration: InputDecoration(labelText: 'المدينة'),
+                            decoration: const InputDecoration(labelText: 'المدينة'),
                           ),
                           TextFormField(
                             controller: shippingPostalController,
-                            decoration: InputDecoration(labelText: 'رمز البريد'),
+                            decoration: const InputDecoration(labelText: 'رمز البريد'),
                           ),
                           TextFormField(
                             controller: shippingCountryController,
-                            decoration: InputDecoration(labelText: 'الدولة'),
+                            decoration: const InputDecoration(labelText: 'الدولة'),
                           ),
                           StatefulBuilder(
                             builder: (context, setStateSB) => Column(
@@ -299,7 +344,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       Column(
                         children: [
                           DropdownButtonFormField<String>(
-                            decoration: InputDecoration(labelText: 'الحساب البنكي الافتراضي', border: const OutlineInputBorder()),
+                            decoration: const InputDecoration(labelText: 'الحساب البنكي الافتراضي', border: OutlineInputBorder()),
                             initialValue: selectedDefaultBankAccount,
                             items: const [
                               DropdownMenuItem(value: 'moroccan', child: Text('🇲🇦 الحساب المغربي (MAD)')),
@@ -310,50 +355,50 @@ class _ClientsScreenState extends State<ClientsScreen> {
                             },
                             validator: (value) => value == null ? 'يرجى اختيار حساب بنكي' : null,
                           ),
-                           DropdownButtonFormField<String>(
-                             decoration: InputDecoration(labelText: 'العملة', border: const OutlineInputBorder()),
-                             initialValue: currencyController.text,
-                             items: const [
-                               DropdownMenuItem(value: 'MAD', child: Text('MAD - درهم')),
-                               DropdownMenuItem(value: 'EUR', child: Text('EUR - يورو')),
-                               DropdownMenuItem(value: 'USD', child: Text('USD - دولار')),
-                             ],
-                             onChanged: (val) {
-                               currencyController.text = val!;
-                             },
-                           ),
-                           const SizedBox(height: 12),
-                           SwitchListTile(
-                             title: const Text('فواتير ب TVA'),
-                             value: invoiceWithTva,
-                             onChanged: (val) {
-                               invoiceWithTva = val;
-                               setDialogState(() {});
-                             },
-                           ),
+                          DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(labelText: 'العملة', border: OutlineInputBorder()),
+                            initialValue: currencyController.text,
+                            items: const [
+                              DropdownMenuItem(value: 'MAD', child: Text('MAD - درهم')),
+                              DropdownMenuItem(value: 'EUR', child: Text('EUR - يورو')),
+                              DropdownMenuItem(value: 'USD', child: Text('USD - دولار')),
+                            ],
+                            onChanged: (val) {
+                              currencyController.text = val!;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          SwitchListTile(
+                            title: const Text('فواتير ب TVA'),
+                            value: invoiceWithTva,
+                            onChanged: (val) {
+                              invoiceWithTva = val;
+                              setDialogState(() {});
+                            },
+                          ),
                         ],
                       ),
                   ],
                 );
               },
             ),
-            ),
-            ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('إلغاء')),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.tr('يرجى إدخال اسم الزبون'))),
-                  );
-                  return;
-                }
-                if (!formKey.currentState!.validate()) return;
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('إلغاء')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(context.tr('يرجى إدخال اسم الزبون'))),
+                );
+                return;
+              }
+              if (!formKey.currentState!.validate()) return;
               final newClient = Client(
                 name: name,
                 phone: phoneController.text.trim(),
@@ -374,10 +419,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 isActive: isActive,
                 invoiceWithTva: invoiceWithTva,
               );
-              await _supabaseService.addClient(newClient);
+              await cubit.addClient(newClient);
               if (!context.mounted) return;
-              Navigator.pop(context);
-              await _loadClients();
+              Navigator.pop(dialogContext);
             },
             child: Text(context.tr('حفظ')),
           ),
@@ -386,25 +430,30 @@ class _ClientsScreenState extends State<ClientsScreen> {
     );
   }
 
-  Future<void> _exportClientPdf(Client client) async {
-    if (!mounted) return;
+  Future<void> _exportClientPdf(BuildContext context, Client client) async {
+    if (!context.mounted) return;
+    BuildContext? dialogContext;
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(context.tr('جاري إنشاء كشف الحساب...')),
-          ],
-        ),
-      ),
+      builder: (ctx) {
+        dialogContext = ctx;
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(context.tr('جاري إنشاء كشف الحساب...')),
+            ],
+          ),
+        );
+      },
     );
 
     try {
-      final invoices = await _supabaseService.getInvoices();
+      final invoiceRepository = context.read<InvoiceRepository>();
+      final invoices = await invoiceRepository.getInvoices();
       final clientInvoices = invoices.where((invoice) =>
         invoice.clientId == (client.id?.toString() ?? '')
       ).toList();
@@ -420,26 +469,26 @@ class _ClientsScreenState extends State<ClientsScreen> {
         transactions: clientInvoices.map((e) => e.toMap()).toList(),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.tr('خطأ في إنشاء كشف الحساب: {0}', [e]))),
       );
     } finally {
-      if (mounted) {
-        Navigator.pop(context);
+      if (context.mounted && dialogContext != null) {
+        Navigator.pop(dialogContext!);
       }
     }
   }
 
-  Future<void> _openEditClientDialog(Client client) async {
-    final stats = await _getClientInvoiceStats(client.id);
+  Future<void> _openEditClientDialog(BuildContext context, Client client) async {
+    final cubit = context.read<ClientsCubit>();
+    final stats = await cubit.getClientInvoiceStats(client.id);
     final lastInvoice = stats['lastInvoice'] as String;
     final invoiceCount = stats['count'] as int;
 
     final nameController = TextEditingController(text: client.name);
     final phoneController = TextEditingController(text: client.phone);
     final nomContactController = TextEditingController(text: client.nomContact);
-
     final iceController = TextEditingController(text: client.ice);
     final shippingLine1Controller = TextEditingController(text: client.shippingAddressLine1);
     final shippingLine2Controller = TextEditingController(text: client.shippingAddressLine2);
@@ -465,7 +514,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(context.tr('تعديل بيانات الزبون')),
         content: SingleChildScrollView(
           child: Form(
@@ -480,7 +529,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   ),
                   TextFormField(
                     controller: iceController,
-                    decoration: InputDecoration(labelText: 'ICE (التعريف الضريبي)'),
+                    decoration: const InputDecoration(labelText: 'ICE (التعريف الضريبي)'),
                   ),
                   TextFormField(
                     initialValue: lastInvoice,
@@ -494,21 +543,21 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       isActiveValue = val;
                       setDialogState(() {});
                     },
-                   ),
-                     TextFormField(
-                       initialValue: invoiceCount.toString(),
-                      decoration: const InputDecoration(labelText: 'عدد الفواتر للسنة الحالية'),
-                      enabled: false,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
+                  ),
+                  TextFormField(
+                    initialValue: invoiceCount.toString(),
+                    decoration: const InputDecoration(labelText: 'عدد الفواتر للسنة الحالية'),
+                    enabled: false,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () => setDialogState(() => selectedTab = 0),
-                           style: selectedTab == 0
-                             ? ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor)
-                             : null,
+                          style: selectedTab == 0
+                              ? ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor)
+                              : null,
                           child: Text(context.tr('العنوان')),
                         ),
                       ),
@@ -516,9 +565,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () => setDialogState(() => selectedTab = 1),
-                           style: selectedTab == 1
-                             ? ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor)
-                             : null,
+                          style: selectedTab == 1
+                              ? ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor)
+                              : null,
                           child: Text(context.tr('البيانات البنكية')),
                         ),
                       ),
@@ -539,38 +588,38 @@ class _ClientsScreenState extends State<ClientsScreen> {
                         ),
                         TextFormField(
                           controller: emailController,
-                          decoration: InputDecoration(labelText: 'EMAIL المراسلات'),
+                          decoration: const InputDecoration(labelText: 'EMAIL المراسلات'),
                           keyboardType: TextInputType.emailAddress,
                         ),
                         const SizedBox(height: 12),
-                        Text(context.tr('عنوان الشحن / التفريغ'), style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text(context.tr('عنوان الشحن / التفريغ'), style: const TextStyle(fontWeight: FontWeight.bold)),
                         TextFormField(
                           controller: shippingLine1Controller,
-                          decoration: InputDecoration(labelText: 'العنوان 1'),
+                          decoration: const InputDecoration(labelText: 'العنوان 1'),
                         ),
                         TextFormField(
                           controller: shippingLine2Controller,
-                          decoration: InputDecoration(labelText: 'العنوان 2'),
+                          decoration: const InputDecoration(labelText: 'العنوان 2'),
                         ),
                         TextFormField(
                           controller: shippingLine3Controller,
-                          decoration: InputDecoration(labelText: 'العنوان 3'),
+                          decoration: const InputDecoration(labelText: 'العنوان 3'),
                         ),
                         TextFormField(
                           controller: shippingLine4Controller,
-                          decoration: InputDecoration(labelText: 'العنوان 4'),
+                          decoration: const InputDecoration(labelText: 'العنوان 4'),
                         ),
                         TextFormField(
                           controller: shippingCityController,
-                          decoration: InputDecoration(labelText: 'المدينة'),
+                          decoration: const InputDecoration(labelText: 'المدينة'),
                         ),
                         TextFormField(
                           controller: shippingPostalController,
-                          decoration: InputDecoration(labelText: 'رمز البريد'),
+                          decoration: const InputDecoration(labelText: 'رمز البريد'),
                         ),
                         TextFormField(
                           controller: shippingCountryController,
-                          decoration: InputDecoration(labelText: 'الدولة'),
+                          decoration: const InputDecoration(labelText: 'الدولة'),
                         ),
                         StatefulBuilder(
                           builder: (context, setStateSB) => Column(
@@ -624,50 +673,50 @@ class _ClientsScreenState extends State<ClientsScreen> {
                           },
                           validator: (value) => value == null ? 'يرجى اختيار حساب بنكي' : null,
                         ),
-                         DropdownButtonFormField<String>(
-                           initialValue: currencyController.text,
-                           decoration: InputDecoration(labelText: 'العملة', border: const OutlineInputBorder()),
-                           items: const [
-                             DropdownMenuItem(value: 'MAD', child: Text('MAD - درهم')),
-                             DropdownMenuItem(value: 'EUR', child: Text('EUR - يورو')),
-                             DropdownMenuItem(value: 'USD', child: Text('USD - دولار')),
-                           ],
-                           onChanged: (val) {
-                             currencyController.text = val!;
-                           },
-                         ),
-                         const SizedBox(height: 12),
-                         SwitchListTile(
-                           title: const Text('فواتير ب TVA'),
-                           value: invoiceWithTvaValue,
-                           onChanged: (val) {
-                             invoiceWithTvaValue = val;
-                             setDialogState(() {});
-                           },
-                         ),
+                        DropdownButtonFormField<String>(
+                          initialValue: currencyController.text,
+                          decoration: const InputDecoration(labelText: 'العملة', border: OutlineInputBorder()),
+                          items: const [
+                            DropdownMenuItem(value: 'MAD', child: Text('MAD - درهم')),
+                            DropdownMenuItem(value: 'EUR', child: Text('EUR - يورو')),
+                            DropdownMenuItem(value: 'USD', child: Text('USD - دولار')),
+                          ],
+                          onChanged: (val) {
+                            currencyController.text = val!;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        SwitchListTile(
+                          title: const Text('فواتير ب TVA'),
+                          value: invoiceWithTvaValue,
+                          onChanged: (val) {
+                            invoiceWithTvaValue = val;
+                            setDialogState(() {});
+                          },
+                        ),
                       ],
                     ),
                 ],
               ),
-             ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('إلغاء')),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.tr('يرجى إدخال اسم الزبون'))),
-                  );
-                  return;
-                }
-                if (!formKey.currentState!.validate()) return;
-                final updatedClient = client.copyWith(
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('إلغاء')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(context.tr('يرجى إدخال اسم الزبون'))),
+                );
+                return;
+              }
+              if (!formKey.currentState!.validate()) return;
+              final updatedClient = client.copyWith(
                 name: name,
                 phone: phoneController.text.trim(),
                 nomContact: nomContactController.text.trim(),
@@ -687,12 +736,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 isActive: isActiveValue,
                 invoiceWithTva: invoiceWithTvaValue,
               );
-              await _supabaseService.updateClient(
-                updatedClient,
-              );
+              await cubit.updateClient(updatedClient);
               if (!context.mounted) return;
-              Navigator.pop(context);
-              await _loadClients();
+              Navigator.pop(dialogContext);
             },
             child: Text(context.tr('حفظ')),
           ),
@@ -701,10 +747,11 @@ class _ClientsScreenState extends State<ClientsScreen> {
     );
   }
 
-  Future<void> _showActionsSheet(Client client) async {
+  Future<void> _showActionsSheet(BuildContext context, Client client) async {
+    final cubit = context.read<ClientsCubit>();
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
+      builder: (bottomContext) => Container(
         padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -718,175 +765,47 @@ class _ClientsScreenState extends State<ClientsScreen> {
               leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
               title: Text(context.tr('تصدير كشف الحساب (PDF)')),
               onTap: () {
-                Navigator.pop(context);
-                _exportClientPdf(client);
+                Navigator.pop(bottomContext);
+                _exportClientPdf(context, client);
               },
             ),
             ListTile(
               leading: const Icon(Icons.description, color: Colors.blue),
               title: Text(context.tr('كشف حساب تفصيلي')),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(bottomContext);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ClientStatementScreen(
-                      clientId: client.id ?? 0,
-                      clientName: client.name,
+                    builder: (_) => BlocProvider(
+                      create: (_) => CustomerDetailCubit(
+                        context.read<InvoiceRepository>(),
+                        context.read<BankAccountRepository>(),
+                        context.read<CashBoxRepository>(),
+                        client.id ?? 0,
+                      ),
+                      child: CustomerDetailScreen(
+                        client: client.toMap(),
+                        onDeleted: () => cubit.loadClients(),
+                        onUpdated: () => cubit.loadClients(),
+                      ),
                     ),
                   ),
                 );
               },
             ),
-            if (widget.isAdmin)
+            if (isAdmin)
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.blue),
                 title: Text(context.tr('تعديل البيانات')),
                 onTap: () {
-                  Navigator.pop(context);
-                  _openEditClientDialog(client);
+                  Navigator.pop(bottomContext);
+                  _openEditClientDialog(context, client);
                 },
               ),
           ],
         ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(context.tr('إدارة الزبائن')),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _openAddClientDialog,
-            tooltip: 'إضافة زبون',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: context.tr('بحث...'),
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: ToggleButtons(
-                    isSelected: [
-                      _statusFilter == 'all',
-                      _statusFilter == 'active',
-                      _statusFilter == 'inactive',
-                    ],
-                    onPressed: (index) {
-                      _statusFilter = ['all', 'active', 'inactive'][index];
-                      _filterClients();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    selectedColor: Colors.white,
-                    fillColor: Theme.of(context).primaryColor,
-                    children: const [
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text('الكل'),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text('مفعل'),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text('غير مفعل'),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: _filteredClients.isEmpty
-                      ? Center(child: Text(context.tr('لا يوجد زبائن حالياً')))
-                      : ListView.builder(
-                          itemCount: _filteredClients.length,
-                          itemBuilder: (context, index) {
-                            final client = _filteredClients[index];
-                            final subtitleParts = <String>[
-                              if (client.phone.isNotEmpty) client.phone,
-                              if (client.city?.isNotEmpty ?? false) client.city!,
-                            ];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => CustomerDetailScreen(
-                                        client: client.toMap(),
-                                        onDeleted: _loadClients,
-                                        onUpdated: _loadClients,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                onLongPress: () => _showActionsSheet(client),
-                                child: ListTile(
-                                  leading: Icon(
-                                    client.isActive ? Icons.check_circle : Icons.cancel,
-                                    color: client.isActive ? Colors.green : Colors.red,
-                                    size: 20,
-                                  ),
-                                  title: Text(
-                                    client.name,
-                                    style: TextStyle(
-                                      color: client.isActive ? null : Colors.grey,
-                                      decoration: client.isActive ? null : TextDecoration.lineThrough,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    subtitleParts.join(' • '),
-                                    style: TextStyle(
-                                      color: client.isActive ? null : Colors.grey,
-                                    ),
-                                  ),
-                                  trailing: widget.isAdmin
-                                      ? IconButton(
-                                          icon: Icon(
-                                            Icons.edit,
-                                            size: 20,
-                                            color: client.isActive ? null : Colors.grey,
-                                          ),
-                                          onPressed: () => _openEditClientDialog(client),
-                                        )
-                                      : null,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
     );
   }
 }

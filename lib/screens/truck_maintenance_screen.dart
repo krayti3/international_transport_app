@@ -598,17 +598,33 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                                   ? null
                                   : selectedProvider,
                            'maintenance_date': maintenanceDate?.toIso8601String() ?? DateTime.now().toIso8601String(),
-                        };
-                        if (isEdit) {
-                          await _supabaseService.updateTruckMaintenance(
-                            maintenance['id'] as int,
-                            data,
-                          );
-                        } else {
-                          await _supabaseService.addTruckMaintenance(data);
-                        }
-                        if (!context.mounted) return;
-                        Navigator.pop(context);
+                             'currency': 'MAD',
+                         };
+                         int? maintenanceId;
+                         if (isEdit) {
+                           await _supabaseService.updateTruckMaintenance(
+                             maintenance['id'] as int,
+                             data,
+                           );
+                           maintenanceId = maintenance['id'] as int?;
+                         } else {
+                           await _supabaseService.addTruckMaintenance(data);
+                         }
+                         // Create treasury transaction based on payment status
+                         final amount = double.tryParse(amountController.text.trim()) ?? 0.0;
+                         if (amount > 0 && paymentStatus != 'on_credit') {
+                         await _supabaseService.recordMaintenanceTreasuryTransaction(
+                           amount: amount,
+                           paymentStatus: paymentStatus,
+                           currency: 'MAD',
+                           description: descController.text.trim().isEmpty
+                               ? expenseType
+                               : descController.text.trim(),
+                           maintenanceId: maintenanceId,
+                         );
+                         }
+                         if (!context.mounted) return;
+                         Navigator.pop(context);
                         await _loadData();
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(

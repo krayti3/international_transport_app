@@ -180,6 +180,7 @@ class _ClientReportsScreenState extends State<ClientReportsScreen> {
         trips: _clientTrips,
         totalRevenue: _totalRevenue,
         totalExpenses: _totalExpenses,
+        currency: client.currency,
       );
     } catch (e) {
       if (mounted) {
