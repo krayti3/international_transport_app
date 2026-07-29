@@ -1,118 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:decimal/decimal.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:international_transport_app/services/calculation_engine.dart';
-import 'package:international_transport_app/services/sync_service.dart';
 import 'package:international_transport_app/models/bank_account.dart';
 import 'package:international_transport_app/models/invoice.dart';
 import 'package:international_transport_app/models/client.dart';
+import 'package:international_transport_app/services/base_supabase_service.dart';
 
-class ClientService {
-  final SupabaseClient supabase = Supabase.instance.client;
-
-  static int? _parseUpdatedAt(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    final dt = DateTime.tryParse(raw);
-    if (dt == null) return null;
-    return dt.millisecondsSinceEpoch;
-  }
-
-  Future<bool> _updateWithLww(
-    Future<void> Function() updateOp,
-    String tableName,
-    Map<String, dynamic> localRow,
-  ) async {
-    final localStamp = _parseUpdatedAt(localRow['updated_at']?.toString());
-    if (localStamp == null) {
-      await updateOp();
-      return true;
-    }
-    final id = localRow['id'];
-    if (id == null) return false;
-    final server = await supabase
-        .from(tableName)
-        .select('updated_at')
-        .eq('id', id)
-        .maybeSingle();
-    final serverStamp = _parseUpdatedAt(server?['updated_at']?.toString());
-    if (serverStamp != null && serverStamp > localStamp) {
-      return false;
-    }
-    await updateOp();
-    return true;
-  }
-
-  Future<void> _cacheRows(String tableName, List<Map<String, dynamic>> rows) async {
-    await SyncService.instance.cacheRows(tableName, rows);
-  }
-
-  Future<void> _cacheSingleRow(String tableName, Map<String, dynamic>? row) async {
-    if (row == null || row['id'] == null) return;
-    await SyncService.instance.cacheRows(tableName, [row]);
-  }
-
-  String? _missingColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r"Could not find the '(\w+)' column").firstMatch(message);
-    return match?.group(1);
-  }
-
-  String? _notNullColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r'null value in column "(\w+)"').firstMatch(message);
-    return match?.group(1);
-  }
-
-  Future<void> _writeRow(
-    Future<void> Function(Map<String, dynamic>) op,
-    Map<String, dynamic> data,
-  ) async {
-    var attempt = Map<String, dynamic>.from(data);
-    String? lastFilledColumn;
-    for (var i = 0; i < 10; i++) {
-      try {
-        await op(attempt);
-        return;
-      } on PostgrestException catch (e) {
-        if (e.code == 'PGRST204') {
-          final column = _missingColumnFrom(e.message);
-          if (column != null && attempt.containsKey(column)) {
-            debugPrint('ClientService: stripping unknown column "$column" from update (PGRST204)');
-            attempt.remove(column);
-            continue;
-          }
-        } else if (e.code == '23502') {
-          final column = _notNullColumnFrom(e.message);
-          if (column != null) {
-            attempt[column] = '';
-            lastFilledColumn = column;
-            continue;
-          }
-        } else if (e.code == '22P02') {
-          if (lastFilledColumn != null) {
-            attempt[lastFilledColumn] = 0;
-            continue;
-          }
-        }
-        rethrow;
-      }
-    }
-    throw Exception('تعذّر الحفظ بسبب اختلاف في مخطط قاعدة البيانات');
-  }
-
-  Future<void> _writeClient(
-    Future<void> Function(Map<String, dynamic>) op,
-    Map<String, dynamic> data,
-  ) async {
-    var attempt = Map<String, dynamic>.from(data);
-    if (attempt.containsKey('name') && !attempt.containsKey('company_name')) {
-      attempt['company_name'] = attempt['name'];
-    }
-    if (attempt.containsKey('company_name') && !attempt.containsKey('name')) {
-      attempt['name'] = attempt['company_name'];
-    }
-    await _writeRow(op, attempt);
-  }
+class ClientService extends BaseSupabaseService {
 
   String? _currentRole;
 
@@ -145,6 +39,20 @@ class ClientService {
     }
   }
 
+  Future<void> writeClient(
+    Future<void> Function(Map<String, dynamic>) op,
+    Map<String, dynamic> data,
+  ) async {
+    var attempt = Map<String, dynamic>.from(data);
+    if (attempt.containsKey('name') && !attempt.containsKey('company_name')) {
+      attempt['company_name'] = attempt['name'];
+    }
+    if (attempt.containsKey('company_name') && !attempt.containsKey('name')) {
+      attempt['name'] = attempt['company_name'];
+    }
+    await writeRow(op, attempt);
+  }
+
   // Clients CRUD
   Future<List<Client>> getClients({bool activeOnly = false}) async {
     try {
@@ -154,7 +62,7 @@ class ClientService {
       }
       final response = await query;
       final clients = List<Map<String, dynamic>>.from(response).map((e) => Client.fromMap(e)).toList();
-      await _cacheRows('clients', response);
+      await cacheRows('clients', response);
       return clients;
     } catch (e) {
       debugPrint('Error fetching clients: $e');
@@ -183,19 +91,19 @@ class ClientService {
   }
 
   Future<void> addClient(Client client) async {
-    await _writeClient((d) => supabase.from('clients').insert(d), client.toMap());
+    await writeClient((d) => supabase.from('clients').insert(d), client.toMap());
   }
 
   Future<void> updateClient(Client client, {Map<String, dynamic>? localRow}) async {
     if (localRow == null) {
-      await _writeClient(
+      await writeClient(
         (d) => supabase.from('clients').update(d).eq('id', client.id!),
         client.toMap(),
       );
       return;
     }
-    await _updateWithLww(
-      () => _writeClient(
+    await updateWithLww(
+      () => writeClient(
         (d) => supabase.from('clients').update(d).eq('id', client.id!),
         client.toMap(),
       ),
@@ -218,7 +126,7 @@ class ClientService {
     try {
       final response = await supabase.from('bank_accounts').select();
       final bankAccounts = List<Map<String, dynamic>>.from(response).map((e) => BankAccount.fromMap(e)).toList();
-      await _cacheRows('bank_accounts', response);
+      await cacheRows('bank_accounts', response);
       return bankAccounts;
     } catch (e) {
       debugPrint('Error fetching bank accounts: $e');
@@ -264,7 +172,7 @@ class ClientService {
           .select()
           .eq('id', id)
           .maybeSingle();
-      await _cacheSingleRow('bank_accounts', response);
+      await cacheSingleRow('bank_accounts', response);
       return response != null ? BankAccount.fromMap(response) : null;
     } catch (e) {
       debugPrint('Error fetching bank account: $e');
@@ -273,19 +181,19 @@ class ClientService {
   }
 
   Future<void> addBankAccount(Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('bank_accounts').insert(d), data);
+    await writeRow((d) => supabase.from('bank_accounts').insert(d), data);
   }
 
   Future<void> updateBankAccount(String id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
     if (localRow == null) {
-      await _writeRow(
+      await writeRow(
         (d) => supabase.from('bank_accounts').update(d).eq('id', id),
         data,
       );
       return;
     }
-    await _updateWithLww(
-      () => _writeRow(
+    await updateWithLww(
+      () => writeRow(
         (d) => supabase.from('bank_accounts').update(d).eq('id', id),
         data,
       ),
@@ -310,7 +218,7 @@ class ClientService {
           .select()
           .eq('id', id)
           .maybeSingle();
-      await _cacheSingleRow('clients', response);
+      await cacheSingleRow('clients', response);
       return response != null ? Client.fromMap(response) : null;
     } catch (e) {
       debugPrint('Error fetching client by id: $e');
@@ -320,7 +228,7 @@ class ClientService {
 
   Future<void> updateClientDefaultBankAccount(int clientId, String bankAccountId) async {
     try {
-      await _writeRow(
+      await writeRow(
         (d) => supabase.from('clients').update({'default_bank_account_id': bankAccountId}).eq('id', clientId),
         {'default_bank_account_id': bankAccountId},
       );
@@ -437,7 +345,7 @@ class ClientService {
       for (final invoice in invoices) {
         invoice['client'] = client;
       }
-      await _cacheRows('invoices', invoices);
+      await cacheRows('invoices', invoices);
       return invoices.map((e) => Invoice.fromMap(e)).toList();
     } catch (e) {
       debugPrint('Error fetching outstanding invoices: $e');
@@ -624,7 +532,7 @@ class ClientService {
         }
       }
 
-      await _cacheRows('invoices', invoices);
+      await cacheRows('invoices', invoices);
       return invoices.map((e) => Invoice.fromMap(e)).toList();
     } catch (e) {
       debugPrint('Error fetching invoices: $e');
@@ -673,7 +581,7 @@ class ClientService {
         }
       }
 
-      await _cacheRows('invoices', invoices);
+      await cacheRows('invoices', invoices);
       return invoices.map((e) => Invoice.fromMap(e)).toList();
     } catch (e) {
       debugPrint('Error fetching invoices page: $e');
@@ -689,7 +597,7 @@ class ClientService {
           .eq('id', id)
           .maybeSingle();
       if (response == null) return null;
-      await _cacheSingleRow('invoices', response);
+      await cacheSingleRow('invoices', response);
       return Invoice.fromMap(response);
     } catch (e) {
       debugPrint('Error fetching invoice by id: $e');
@@ -703,14 +611,14 @@ class ClientService {
     Map<String, dynamic>? localRow,
   }) async {
     if (localRow == null) {
-      await _writeRow(
+      await writeRow(
         (d) => supabase.from('invoices').update(d).eq('id', id),
         data,
       );
       return;
     }
-    await _updateWithLww(
-      () => _writeRow(
+    await updateWithLww(
+      () => writeRow(
         (d) => supabase.from('invoices').update(d).eq('id', id),
         data,
       ),
@@ -739,7 +647,7 @@ class ClientService {
         'paid_amount': newPaidAmount,
         'status': newPaidAmount >= 0 ? 'partially_paid' : 'overdue',
       };
-      await _writeRow(
+      await writeRow(
         (d) => supabase.from('invoices').update(d).eq('id', invoiceId),
         data,
       );
@@ -758,7 +666,7 @@ class ClientService {
           .eq('invoice_id', invoiceId)
           .order('payment_date', ascending: false);
       final invoicePayments = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('invoice_payments', invoicePayments);
+      await cacheRows('invoice_payments', invoicePayments);
       return invoicePayments;
     } catch (e) {
       debugPrint('Error fetching invoice payments: $e');
@@ -790,7 +698,7 @@ class ClientService {
   }
 
   Future<void> addInvoicePayment(Map<String, dynamic> data) async {
-    await _writeRow(
+    await writeRow(
       (d) => supabase.from('invoice_payments').insert(d),
       data,
     );
@@ -911,7 +819,7 @@ class ClientService {
           .select()
           .single();
 
-      await _cacheSingleRow('invoices', response);
+      await cacheSingleRow('invoices', response);
       return Invoice.fromMap(response);
     } catch (e) {
       debugPrint('Error creating invoice: $e');
@@ -926,7 +834,7 @@ class ClientService {
           .select()
           .eq('id', 1)
           .maybeSingle();
-      await _cacheSingleRow('app_settings', response);
+      await cacheSingleRow('app_settings', response);
       return response;
     } catch (e) {
       debugPrint('Error fetching app settings: $e');
@@ -941,7 +849,7 @@ class ClientService {
           .select()
           .eq('id', 1)
           .maybeSingle();
-      await _cacheSingleRow('system_settings', response);
+      await cacheSingleRow('system_settings', response);
       return response;
     } catch (e) {
       debugPrint('Error fetching system settings: $e');

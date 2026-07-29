@@ -1,69 +1,14 @@
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:international_transport_app/services/sync_service.dart';
+import 'package:international_transport_app/services/base_supabase_service.dart';
 
-class ReferenceService {
-  final SupabaseClient supabase = Supabase.instance.client;
-
-  Future<void> _cacheRows(String tableName, List<Map<String, dynamic>> rows) async {
-    await SyncService.instance.cacheRows(tableName, rows);
-  }
-
-  String? _missingColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r"Could not find the '(\w+)' column").firstMatch(message);
-    return match?.group(1);
-  }
-
-  String? _notNullColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r'null value in column "(\w+)"').firstMatch(message);
-    return match?.group(1);
-  }
-
-  Future<void> _writeRow(
-    Future<void> Function(Map<String, dynamic>) op,
-    Map<String, dynamic> data,
-  ) async {
-    var attempt = Map<String, dynamic>.from(data);
-    String? lastFilledColumn;
-    for (var i = 0; i < 10; i++) {
-      try {
-        await op(attempt);
-        return;
-      } on PostgrestException catch (e) {
-        if (e.code == 'PGRST204') {
-          final column = _missingColumnFrom(e.message);
-          if (column != null && attempt.containsKey(column)) {
-            debugPrint('ReferenceService: stripping unknown column "$column" from update (PGRST204)');
-            attempt.remove(column);
-            continue;
-          }
-        } else if (e.code == '23502') {
-          final column = _notNullColumnFrom(e.message);
-          if (column != null) {
-            attempt[column] = '';
-            lastFilledColumn = column;
-            continue;
-          }
-        } else if (e.code == '22P02') {
-          if (lastFilledColumn != null) {
-            attempt[lastFilledColumn] = 0;
-            continue;
-          }
-        }
-        rethrow;
-      }
-    }
-    throw Exception('تعذّر الحفظ بسبب اختلاف في مخطط قاعدة البيانات');
-  }
+class ReferenceService extends BaseSupabaseService {
 
   // Countries CRUD
   Future<List<Map<String, dynamic>>> getCountries() async {
     try {
       final response = await supabase.from('countries').select().order('name', ascending: true);
       final countries = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('countries', countries);
+      await cacheRows('countries', countries);
       return countries;
     } catch (e) {
       debugPrint('Error fetching countries: $e');
@@ -76,7 +21,7 @@ class ReferenceService {
   }
 
   Future<void> updateCountry(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('countries').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating country: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('countries').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating country: $e'); rethrow; }
   }
 
   Future<void> deleteCountry(int id) async {
@@ -87,7 +32,7 @@ class ReferenceService {
     try {
       final response = await supabase.from('cities').select().order('name', ascending: true);
       final cities = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('cities', cities);
+      await cacheRows('cities', cities);
       return cities;
     } catch (e) {
       debugPrint('Error fetching cities: $e');
@@ -120,7 +65,7 @@ class ReferenceService {
   }
 
   Future<void> updateCity(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('cities').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating city: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('cities').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating city: $e'); rethrow; }
   }
 
   Future<void> deleteCity(int id) async {
@@ -136,7 +81,7 @@ class ReferenceService {
     try {
       final response = await supabase.from('currencies').select().order('code', ascending: true);
       final currencies = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('currencies', currencies);
+      await cacheRows('currencies', currencies);
       return currencies;
     } catch (e) {
       debugPrint('Error fetching currencies: $e');
@@ -149,7 +94,7 @@ class ReferenceService {
   }
 
   Future<void> updateCurrency(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('currencies').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating currency: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('currencies').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating currency: $e'); rethrow; }
   }
 
   Future<void> deleteCurrency(int id) async {
@@ -181,7 +126,7 @@ class ReferenceService {
   }
 
   Future<void> updateDocumentCategory(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('document_categories').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating document category: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('document_categories').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating document category: $e'); rethrow; }
   }
 
   Future<void> deleteDocumentCategory(int id) async {

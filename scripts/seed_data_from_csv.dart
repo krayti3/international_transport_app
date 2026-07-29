@@ -1,6 +1,8 @@
-
 import 'package:international_transport_app/models/client.dart';
-import 'package:international_transport_app/services/supabase_service.dart';
+import 'package:international_transport_app/services/advance_service.dart';
+import 'package:international_transport_app/services/client_service.dart';
+import 'package:international_transport_app/services/fleet_service.dart';
+import 'package:international_transport_app/services/reference_service.dart';
 import 'csv_reader.dart';
 
 // ignore_for_file: avoid_print
@@ -13,23 +15,26 @@ Future<void> main(List<String> args) async {
     print('=== DRY RUN MODE - No data will be inserted ===\n');
   }
 
-  final service = SupabaseService();
+  final referenceService = ReferenceService();
+  final clientService = ClientService();
+  final fleetService = FleetService();
+  final advanceService = AdvanceService();
 
   print('Starting CSV data seeding...\n');
 
-  await _seedCategories(service, dryRun, verbose);
-  await _seedClients(service, dryRun, verbose);
-  await _seedDrivers(service, dryRun, verbose);
-  await _seedTrucks(service, dryRun, verbose);
-  await _seedTrailers(service, dryRun, verbose);
-  await _seedProducts(service, dryRun, verbose);
-  await _seedTripOrders(service, dryRun, verbose);
-  await _seedTripOrderItems(service, dryRun, verbose);
+  await _seedCategories(referenceService, dryRun, verbose);
+  await _seedClients(clientService, dryRun, verbose);
+  await _seedDrivers(fleetService, dryRun, verbose);
+  await _seedTrucks(fleetService, dryRun, verbose);
+  await _seedTrailers(fleetService, dryRun, verbose);
+  await _seedProducts(advanceService, dryRun, verbose);
+  await _seedTripOrders(advanceService, dryRun, verbose);
+  await _seedTripOrderItems(advanceService, dryRun, verbose);
 
   print('\n=== Seeding completed ===');
 }
 
-Future<void> _seedCategories(SupabaseService service, bool dryRun, bool verbose) async {
+Future<void> _seedCategories(ReferenceService service, bool dryRun, bool verbose) async {
   print('Seeding document categories...');
   try {
     final rows = await readCsvFromDirectory('T09  categories.csv');
@@ -50,7 +55,7 @@ Future<void> _seedCategories(SupabaseService service, bool dryRun, bool verbose)
   }
 }
 
-Future<void> _seedClients(SupabaseService service, bool dryRun, bool verbose) async {
+Future<void> _seedClients(ClientService service, bool dryRun, bool verbose) async {
   print('Seeding clients...');
   try {
     final rows = await readCsvFromDirectory('Clientèle.csv');
@@ -80,7 +85,7 @@ Future<void> _seedClients(SupabaseService service, bool dryRun, bool verbose) as
   }
 }
 
-Future<void> _seedDrivers(SupabaseService service, bool dryRun, bool verbose) async {
+Future<void> _seedDrivers(FleetService service, bool dryRun, bool verbose) async {
   print('Seeding drivers...');
   try {
     final rows = await readCsvFromDirectory('Employés.csv');
@@ -112,7 +117,7 @@ Future<void> _seedDrivers(SupabaseService service, bool dryRun, bool verbose) as
   }
 }
 
-Future<void> _seedTrucks(SupabaseService service, bool dryRun, bool verbose) async {
+Future<void> _seedTrucks(FleetService service, bool dryRun, bool verbose) async {
   print('Seeding trucks...');
   try {
     final rows = await readCsvFromDirectory('T00vehicules.csv');
@@ -139,7 +144,7 @@ Future<void> _seedTrucks(SupabaseService service, bool dryRun, bool verbose) asy
   }
 }
 
-Future<void> _seedTrailers(SupabaseService service, bool dryRun, bool verbose) async {
+Future<void> _seedTrailers(FleetService service, bool dryRun, bool verbose) async {
   print('Seeding trailers...');
   try {
     final rows = await readCsvFromDirectory('T00frigo.csv');
@@ -165,7 +170,7 @@ Future<void> _seedTrailers(SupabaseService service, bool dryRun, bool verbose) a
   }
 }
 
-Future<void> _seedProducts(SupabaseService service, bool dryRun, bool verbose) async {
+Future<void> _seedProducts(AdvanceService service, bool dryRun, bool verbose) async {
   print('Seeding products (trip routes)...');
   try {
     final rows = await readCsvFromDirectory('Produits.csv');
@@ -192,7 +197,7 @@ Future<void> _seedProducts(SupabaseService service, bool dryRun, bool verbose) a
   }
 }
 
-Future<void> _seedTripOrders(SupabaseService service, bool dryRun, bool verbose) async {
+Future<void> _seedTripOrders(AdvanceService service, bool dryRun, bool verbose) async {
   print('Seeding trip orders...');
   try {
     final rows = await readCsvFromDirectory('Commandes.csv');
@@ -224,7 +229,7 @@ Future<void> _seedTripOrders(SupabaseService service, bool dryRun, bool verbose)
   }
 }
 
-Future<void> _seedTripOrderItems(SupabaseService service, bool dryRun, bool verbose) async {
+Future<void> _seedTripOrderItems(AdvanceService service, bool dryRun, bool verbose) async {
   print('Seeding trip order items...');
   try {
     final rows = await readCsvFromDirectory('Détails commande.csv');

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'audio_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -223,6 +224,7 @@ class NotificationService {
         'Ø£Ø±Ø³Ù„ØªÙ… Ø±Ø­Ù„Ø© Ø«Ø§Ù„ØªØ©: $route',
         tripOrderId,
       );
+      await AudioService().playNotification();
     } catch (e) {
       debugPrint('Error sending trip assignment notification: $e');
     }
@@ -252,6 +254,13 @@ class NotificationService {
         'الرحلة $route للاتت تغيرت حالتها: $statusLabel',
         route.hashCode + newStatus.hashCode,
       );
+      if (newStatus == 'en_route') {
+        await AudioService().playTripStarted();
+      } else if (newStatus == 'arrived') {
+        await AudioService().playTripArrived();
+      } else if (newStatus == 'completed') {
+        await AudioService().playTripEnded();
+      }
     } catch (e) {
       debugPrint('Error sending trip status change notification: $e');
     }
@@ -265,8 +274,23 @@ class NotificationService {
         'تم بدء الرحلة الحالية بنجاح.',
         1001,
       );
+      await AudioService().playTripStarted();
     } catch (e) {
       debugPrint('Error showing trip started notification: $e');
+    }
+  }
+
+  Future<void> showTripArrivedNotification() async {
+    try {
+      if (kIsWeb) return;
+      await showNotification(
+        'الوصول إلى الوجهة',
+        'تم الوصول إلى وجهة الرحلة الحالية.',
+        1003,
+      );
+      await AudioService().playTripArrived();
+    } catch (e) {
+      debugPrint('Error showing trip arrived notification: $e');
     }
   }
 
@@ -278,6 +302,7 @@ class NotificationService {
         'تم إنهاء الرحلة الحالية بنجاح.',
         1002,
       );
+      await AudioService().playTripEnded();
     } catch (e) {
       debugPrint('Error showing trip ended notification: $e');
     }

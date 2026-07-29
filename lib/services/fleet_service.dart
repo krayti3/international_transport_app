@@ -1,101 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:international_transport_app/services/sync_service.dart';
+import 'package:international_transport_app/services/base_supabase_service.dart';
 
-class FleetService {
-  final SupabaseClient supabase = Supabase.instance.client;
-
-  static int? _parseUpdatedAt(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    final dt = DateTime.tryParse(raw);
-    if (dt == null) return null;
-    return dt.millisecondsSinceEpoch;
-  }
-
-  Future<bool> _updateWithLww(
-    Future<void> Function() updateOp,
-    String tableName,
-    Map<String, dynamic> localRow,
-  ) async {
-    final localStamp = _parseUpdatedAt(localRow['updated_at']?.toString());
-    if (localStamp == null) {
-      await updateOp();
-      return true;
-    }
-    final id = localRow['id'];
-    if (id == null) return false;
-    final server = await supabase
-        .from(tableName)
-        .select('updated_at')
-        .eq('id', id)
-        .maybeSingle();
-    final serverStamp = _parseUpdatedAt(server?['updated_at']?.toString());
-    if (serverStamp != null && serverStamp > localStamp) {
-      return false;
-    }
-    await updateOp();
-    return true;
-  }
-
-  Future<void> _cacheRows(String tableName, List<Map<String, dynamic>> rows) async {
-    await SyncService.instance.cacheRows(tableName, rows);
-  }
-
-  String? _missingColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r"Could not find the '(\w+)' column").firstMatch(message);
-    return match?.group(1);
-  }
-
-  String? _notNullColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r'null value in column "(\w+)"').firstMatch(message);
-    return match?.group(1);
-  }
-
-  Future<void> _writeRow(
-    Future<void> Function(Map<String, dynamic>) op,
-    Map<String, dynamic> data,
-  ) async {
-    var attempt = Map<String, dynamic>.from(data);
-    String? lastFilledColumn;
-    for (var i = 0; i < 10; i++) {
-      try {
-        await op(attempt);
-        return;
-      } on PostgrestException catch (e) {
-        if (e.code == 'PGRST204') {
-          final column = _missingColumnFrom(e.message);
-          if (column != null && attempt.containsKey(column)) {
-            debugPrint('FleetService: stripping unknown column "$column" from update (PGRST204)');
-            attempt.remove(column);
-            continue;
-          }
-        } else if (e.code == '23502') {
-          final column = _notNullColumnFrom(e.message);
-          if (column != null) {
-            attempt[column] = '';
-            lastFilledColumn = column;
-            continue;
-          }
-        } else if (e.code == '22P02') {
-          if (lastFilledColumn != null) {
-            attempt[lastFilledColumn] = 0;
-            continue;
-          }
-        }
-        rethrow;
-      }
-    }
-    throw Exception('تعذّر الحفظ بسبب اختلاف في مخطط قاعدة البيانات');
-  }
+class FleetService extends BaseSupabaseService {
 
   // Trucks CRUD
   Future<List<Map<String, dynamic>>> getTrucks() async {
     try {
       final response = await supabase.from('trucks').select().order('id', ascending: true);
       final trucks = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('trucks', trucks);
+      await cacheRows('trucks', trucks);
       return trucks;
     } catch (e) {
       debugPrint('Error fetching trucks: $e');
@@ -198,15 +112,15 @@ class FleetService {
   }
 
   Future<void> addTruck(Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('trucks').insert(d), data);
+    await writeRow((d) => supabase.from('trucks').insert(d), data);
   }
 
   Future<void> updateTruck(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
     if (localRow == null) {
-      await _writeRow((d) => supabase.from('trucks').update(d).eq('id', id), data);
+      await writeRow((d) => supabase.from('trucks').update(d).eq('id', id), data);
       return;
     }
-    await _updateWithLww(() => _writeRow((d) => supabase.from('trucks').update(d).eq('id', id), data), 'trucks', localRow);
+    await updateWithLww(() => writeRow((d) => supabase.from('trucks').update(d).eq('id', id), data), 'trucks', localRow);
   }
 
   Future<void> deleteTruck(int id) async {
@@ -227,23 +141,23 @@ class FleetService {
 
   // Truck Maintenance
   Future<List<Map<String, dynamic>>> getTruckMaintenances() async {
-    try { final response = await supabase.from('truck_maintenance').select().order('created_at', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await _cacheRows('truck_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching truck maintenances: $e'); return []; }
+    try { final response = await supabase.from('truck_maintenance').select().order('created_at', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await cacheRows('truck_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching truck maintenances: $e'); return []; }
   }
 
   Future<List<Map<String, dynamic>>> getTruckMaintenancesByTruck(int truckId) async {
-    try { final response = await supabase.from('truck_maintenance').select().eq('truck_id', truckId).order('created_at', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await _cacheRows('truck_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching truck maintenances by truck: $e'); return []; }
+    try { final response = await supabase.from('truck_maintenance').select().eq('truck_id', truckId).order('created_at', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await cacheRows('truck_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching truck maintenances by truck: $e'); return []; }
   }
 
   Future<void> addTruckMaintenance(Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('truck_maintenance').insert(d), data);
+    await writeRow((d) => supabase.from('truck_maintenance').insert(d), data);
   }
 
   Future<void> updateTruckMaintenance(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
     if (localRow == null) {
-      await _writeRow((d) => supabase.from('truck_maintenance').update(d).eq('id', id), data);
+      await writeRow((d) => supabase.from('truck_maintenance').update(d).eq('id', id), data);
       return;
     }
-    await _updateWithLww(() => _writeRow((d) => supabase.from('truck_maintenance').update(d).eq('id', id), data), 'truck_maintenance', localRow);
+    await updateWithLww(() => writeRow((d) => supabase.from('truck_maintenance').update(d).eq('id', id), data), 'truck_maintenance', localRow);
   }
 
   Future<void> deleteTruckMaintenance(int id) async {
@@ -251,7 +165,7 @@ class FleetService {
   }
 
   Future<List<Map<String, dynamic>>> getTruckMaintenancesFiltered({int? truckId, String? paymentStatus, DateTime? fromDate, DateTime? toDate}) async {
-    try { var query = supabase.from('truck_maintenance').select(); if (truckId != null) query = query.eq('truck_id', truckId); if (paymentStatus != null) query = query.eq('payment_status', paymentStatus); if (fromDate != null) query = query.gte('maintenance_date', fromDate.toIso8601String()); if (toDate != null) query = query.lt('maintenance_date', toDate.toIso8601String()); final response = await query.order('maintenance_date', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await _cacheRows('truck_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching filtered truck maintenances: $e'); return []; }
+    try { var query = supabase.from('truck_maintenance').select(); if (truckId != null) query = query.eq('truck_id', truckId); if (paymentStatus != null) query = query.eq('payment_status', paymentStatus); if (fromDate != null) query = query.gte('maintenance_date', fromDate.toIso8601String()); if (toDate != null) query = query.lt('maintenance_date', toDate.toIso8601String()); final response = await query.order('maintenance_date', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await cacheRows('truck_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching filtered truck maintenances: $e'); return []; }
   }
 
   Future<List<Map<String, dynamic>>> getMaintenancesByExpenseType(String expenseType) async {
@@ -260,23 +174,23 @@ class FleetService {
 
   // Trailer Maintenance
   Future<List<Map<String, dynamic>>> getTrailerMaintenances() async {
-    try { final response = await supabase.from('trailer_maintenance').select().order('created_at', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await _cacheRows('trailer_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching trailer maintenances: $e'); return []; }
+    try { final response = await supabase.from('trailer_maintenance').select().order('created_at', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await cacheRows('trailer_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching trailer maintenances: $e'); return []; }
   }
 
   Future<List<Map<String, dynamic>>> getTrailerMaintenancesByTrailer(int trailerId) async {
-    try { final response = await supabase.from('trailer_maintenance').select().eq('trailer_id', trailerId).order('created_at', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await _cacheRows('trailer_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching trailer maintenances by trailer: $e'); return []; }
+    try { final response = await supabase.from('trailer_maintenance').select().eq('trailer_id', trailerId).order('created_at', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await cacheRows('trailer_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching trailer maintenances by trailer: $e'); return []; }
   }
 
   Future<void> addTrailerMaintenance(Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('trailer_maintenance').insert(d), data);
+    await writeRow((d) => supabase.from('trailer_maintenance').insert(d), data);
   }
 
   Future<void> updateTrailerMaintenance(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
     if (localRow == null) {
-      await _writeRow((d) => supabase.from('trailer_maintenance').update(d).eq('id', id), data);
+      await writeRow((d) => supabase.from('trailer_maintenance').update(d).eq('id', id), data);
       return;
     }
-    await _updateWithLww(() => _writeRow((d) => supabase.from('trailer_maintenance').update(d).eq('id', id), data), 'trailer_maintenance', localRow);
+    await updateWithLww(() => writeRow((d) => supabase.from('trailer_maintenance').update(d).eq('id', id), data), 'trailer_maintenance', localRow);
   }
 
   Future<void> deleteTrailerMaintenance(int id) async {
@@ -284,7 +198,7 @@ class FleetService {
   }
 
   Future<List<Map<String, dynamic>>> getTrailerMaintenancesFiltered({int? trailerId, String? paymentStatus, DateTime? fromDate, DateTime? toDate}) async {
-    try { var query = supabase.from('trailer_maintenance').select(); if (trailerId != null) query = query.eq('trailer_id', trailerId); if (paymentStatus != null) query = query.eq('payment_status', paymentStatus); if (fromDate != null) query = query.gte('maintenance_date', fromDate.toIso8601String()); if (toDate != null) query = query.lt('maintenance_date', toDate.toIso8601String()); final response = await query.order('maintenance_date', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await _cacheRows('trailer_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching filtered trailer maintenances: $e'); return []; }
+    try { var query = supabase.from('trailer_maintenance').select(); if (trailerId != null) query = query.eq('trailer_id', trailerId); if (paymentStatus != null) query = query.eq('payment_status', paymentStatus); if (fromDate != null) query = query.gte('maintenance_date', fromDate.toIso8601String()); if (toDate != null) query = query.lt('maintenance_date', toDate.toIso8601String()); final response = await query.order('maintenance_date', ascending: false); final maintenances = List<Map<String, dynamic>>.from(response); await cacheRows('trailer_maintenance', maintenances); return maintenances; } catch (e) { debugPrint('Error fetching filtered trailer maintenances: $e'); return []; }
   }
 
   Future<List<String>> getExpenseTypes() async {
@@ -296,11 +210,11 @@ class FleetService {
   }
 
   Future<List<Map<String, dynamic>>> getOilChangeRecords() async {
-    try { final response = await supabase.from('truck_maintenance').select().eq('expense_type', 'oil_change').order('created_at', ascending: false); final records = List<Map<String, dynamic>>.from(response); await _cacheRows('truck_maintenance_oil', records); return records; } catch (e) { debugPrint('Error fetching oil change records: $e'); return []; }
+    try { final response = await supabase.from('truck_maintenance').select().eq('expense_type', 'oil_change').order('created_at', ascending: false); final records = List<Map<String, dynamic>>.from(response); await cacheRows('truck_maintenance_oil', records); return records; } catch (e) { debugPrint('Error fetching oil change records: $e'); return []; }
   }
 
   Future<List<Map<String, dynamic>>> getOilChangeRecordsByTruck(int truckId) async {
-    try { final response = await supabase.from('truck_maintenance').select().eq('truck_id', truckId).eq('expense_type', 'oil_change').order('created_at', ascending: false); final records = List<Map<String, dynamic>>.from(response); await _cacheRows('truck_maintenance_oil', records); return records; } catch (e) { debugPrint('Error fetching oil change records by truck: $e'); return []; }
+    try { final response = await supabase.from('truck_maintenance').select().eq('truck_id', truckId).eq('expense_type', 'oil_change').order('created_at', ascending: false); final records = List<Map<String, dynamic>>.from(response); await cacheRows('truck_maintenance_oil', records); return records; } catch (e) { debugPrint('Error fetching oil change records by truck: $e'); return []; }
   }
 
   Future<Map<String, double>> getTruckMaintenanceTotals() async {
@@ -309,7 +223,7 @@ class FleetService {
 
   // Trailers CRUD
   Future<List<Map<String, dynamic>>> getTrailers() async {
-    try { final response = await supabase.from('trailers').select().order('id', ascending: true); final trailers = List<Map<String, dynamic>>.from(response); await _cacheRows('trailers', trailers); return trailers; } catch (e) { debugPrint('Error fetching trailers: $e'); return []; }
+    try { final response = await supabase.from('trailers').select().order('id', ascending: true); final trailers = List<Map<String, dynamic>>.from(response); await cacheRows('trailers', trailers); return trailers; } catch (e) { debugPrint('Error fetching trailers: $e'); return []; }
   }
 
   Future<int?> addTrailer(Map<String, dynamic> data) async {
@@ -318,10 +232,10 @@ class FleetService {
 
   Future<void> updateTrailer(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
     if (localRow == null) {
-      await _writeRow((d) => supabase.from('trailers').update(d).eq('id', id), data);
+      await writeRow((d) => supabase.from('trailers').update(d).eq('id', id), data);
       return;
     }
-    await _updateWithLww(() => _writeRow((d) => supabase.from('trailers').update(d).eq('id', id), data), 'trailers', localRow);
+    await updateWithLww(() => writeRow((d) => supabase.from('trailers').update(d).eq('id', id), data), 'trailers', localRow);
   }
 
   Future<void> deleteTrailer(int id) async {
@@ -330,11 +244,11 @@ class FleetService {
 
   // Fleet Documents CRUD
   Future<List<Map<String, dynamic>>> getDocuments() async {
-    try { final response = await supabase.from('documents').select().order('expiry_date', ascending: true); final documents = List<Map<String, dynamic>>.from(response); await _cacheRows('documents', documents); return documents; } catch (e) { debugPrint('Error fetching documents: $e'); return []; }
+    try { final response = await supabase.from('documents').select().order('expiry_date', ascending: true); final documents = List<Map<String, dynamic>>.from(response); await cacheRows('documents', documents); return documents; } catch (e) { debugPrint('Error fetching documents: $e'); return []; }
   }
 
   Future<void> addDocument(Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('documents').insert(d), data);
+    await writeRow((d) => supabase.from('documents').insert(d), data);
   }
 
   Future<void> deleteDocument(int id) async {
@@ -370,7 +284,7 @@ class FleetService {
   }
 
   Future<void> addFleetDocument(Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('fleet_documents').insert(d), data); } catch (e) { debugPrint('Error adding fleet document: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('fleet_documents').insert(d), data); } catch (e) { debugPrint('Error adding fleet document: $e'); rethrow; }
   }
 
   Future<bool> hasFleetDocumentType(String entityType, int entityId, String docType) async {
@@ -378,7 +292,7 @@ class FleetService {
   }
 
   Future<void> updateFleetDocument(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
-    try { Future<void> updateOp() => supabase.from('fleet_documents').update(data).eq('id', id); if (localRow == null) { await updateOp(); } else { await _updateWithLww(updateOp, 'fleet_documents', localRow); } } catch (e) { debugPrint('Error updating fleet document: $e'); rethrow; }
+    try { Future<void> updateOp() => supabase.from('fleet_documents').update(data).eq('id', id); if (localRow == null) { await updateOp(); } else { await updateWithLww(updateOp, 'fleet_documents', localRow); } } catch (e) { debugPrint('Error updating fleet document: $e'); rethrow; }
   }
 
   Future<void> deleteFleetDocument(int id) async {
@@ -403,7 +317,7 @@ class FleetService {
   }
 
   Future<void> updateTruckDocument(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
-    try { Future<void> updateOp() => supabase.from('truck_documents').update(data).eq('id', id); if (localRow == null) { await updateOp(); } else { await _updateWithLww(updateOp, 'truck_documents', localRow); } } catch (e) { debugPrint('Error updating truck document: $e'); rethrow; }
+    try { Future<void> updateOp() => supabase.from('truck_documents').update(data).eq('id', id); if (localRow == null) { await updateOp(); } else { await updateWithLww(updateOp, 'truck_documents', localRow); } } catch (e) { debugPrint('Error updating truck document: $e'); rethrow; }
   }
 
   Future<void> deleteTruckDocument(int id) async {
@@ -416,7 +330,7 @@ class FleetService {
   }
 
   Future<void> updateDriver(int id, Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('drivers').update(d).eq('id', id), data);
+    await writeRow((d) => supabase.from('drivers').update(d).eq('id', id), data);
   }
 
   Future<void> deleteDriver(int id) async {
@@ -424,7 +338,7 @@ class FleetService {
   }
 
   Future<List<Map<String, dynamic>>> getDrivers() async {
-    try { final response = await supabase.from('drivers').select(); final drivers = List<Map<String, dynamic>>.from(response); await _cacheRows('drivers', drivers); return drivers; } catch (e) { debugPrint('Error fetching drivers: $e'); return []; }
+    try { final response = await supabase.from('drivers').select(); final drivers = List<Map<String, dynamic>>.from(response); await cacheRows('drivers', drivers); return drivers; } catch (e) { debugPrint('Error fetching drivers: $e'); return []; }
   }
 
   Future<List<Map<String, dynamic>>> getDriversPage({int offset = 0, int limit = 20}) async {
@@ -432,7 +346,7 @@ class FleetService {
   }
 
   Future<void> updateDriverVisa(String driverId, String visaNumber, DateTime expiryDate) async {
-    try { await _writeRow((d) => supabase.from('drivers').update({'visa_number': visaNumber, 'visa_expiry_date': expiryDate.toIso8601String().split('T').first, 'has_valid_visa': true}).eq('id', int.parse(driverId)), {'visa_number': visaNumber, 'visa_expiry_date': expiryDate.toIso8601String().split('T').first, 'has_valid_visa': true}); } catch (e) { debugPrint('Error updating driver visa: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('drivers').update({'visa_number': visaNumber, 'visa_expiry_date': expiryDate.toIso8601String().split('T').first, 'has_valid_visa': true}).eq('id', int.parse(driverId)), {'visa_number': visaNumber, 'visa_expiry_date': expiryDate.toIso8601String().split('T').first, 'has_valid_visa': true}); } catch (e) { debugPrint('Error updating driver visa: $e'); rethrow; }
   }
 
   Future<List<Map<String, dynamic>>> getExpiringVisas({int daysThreshold = 30}) async {

@@ -6,3 +6,5 @@ export 'settings_service.dart';
 export 'report_service.dart';
 export 'reference_service.dart';
 export 'workshop_service.dart';
+export 'maintenance_service.dart';
+export 'base_supabase_service.dart';

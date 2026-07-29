@@ -2,95 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:decimal/decimal.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:international_transport_app/services/sync_service.dart';
+import 'package:international_transport_app/services/base_supabase_service.dart';
 
-class TreasuryService {
-  final SupabaseClient supabase = Supabase.instance.client;
-
-  static int? _parseUpdatedAt(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    final dt = DateTime.tryParse(raw);
-    if (dt == null) return null;
-    return dt.millisecondsSinceEpoch;
-  }
-
-  Future<bool> _updateWithLww(
-    Future<void> Function() updateOp,
-    String tableName,
-    Map<String, dynamic> localRow,
-  ) async {
-    final localStamp = _parseUpdatedAt(localRow['updated_at']?.toString());
-    if (localStamp == null) {
-      await updateOp();
-      return true;
-    }
-    final id = localRow['id'];
-    if (id == null) return false;
-    final server = await supabase
-        .from(tableName)
-        .select('updated_at')
-        .eq('id', id)
-        .maybeSingle();
-    final serverStamp = _parseUpdatedAt(server?['updated_at']?.toString());
-    if (serverStamp != null && serverStamp > localStamp) {
-      return false;
-    }
-    await updateOp();
-    return true;
-  }
-
-  Future<void> _cacheRows(String tableName, List<Map<String, dynamic>> rows) async {
-    await SyncService.instance.cacheRows(tableName, rows);
-  }
-
-  String? _missingColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r"Could not find the '(\w+)' column").firstMatch(message);
-    return match?.group(1);
-  }
-
-  String? _notNullColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r'null value in column "(\w+)"').firstMatch(message);
-    return match?.group(1);
-  }
-
-  Future<void> _writeRow(
-    Future<void> Function(Map<String, dynamic>) op,
-    Map<String, dynamic> data,
-  ) async {
-    var attempt = Map<String, dynamic>.from(data);
-    String? lastFilledColumn;
-    for (var i = 0; i < 10; i++) {
-      try {
-        await op(attempt);
-        return;
-      } on PostgrestException catch (e) {
-        if (e.code == 'PGRST204') {
-          final column = _missingColumnFrom(e.message);
-          if (column != null && attempt.containsKey(column)) {
-            debugPrint('TreasuryService: stripping unknown column "$column" from update (PGRST204)');
-            attempt.remove(column);
-            continue;
-          }
-        } else if (e.code == '23502') {
-          final column = _notNullColumnFrom(e.message);
-          if (column != null) {
-            attempt[column] = '';
-            lastFilledColumn = column;
-            continue;
-          }
-        } else if (e.code == '22P02') {
-          if (lastFilledColumn != null) {
-            attempt[lastFilledColumn] = 0;
-            continue;
-          }
-        }
-        rethrow;
-      }
-    }
-    throw Exception('تعذّر الحفظ بسبب اختلاف في مخطط قاعدة البيانات');
-  }
+class TreasuryService extends BaseSupabaseService {
 
   String? _currentRole;
 
@@ -143,7 +57,7 @@ class TreasuryService {
       for (final transaction in transactions) {
         transaction['type'] = _normalizeTreasuryType(transaction);
       }
-      await _cacheRows('treasury_transactions', transactions);
+      await cacheRows('treasury_transactions', transactions);
       return transactions;
     } catch (e) {
       debugPrint('Error fetching treasury transactions: $e');
@@ -173,7 +87,7 @@ class TreasuryService {
             _treasuryIncomeTypes.contains(type) ? 'income' : 'expense';
         await _ensureOperationAllowed(cashBoxId, operationCode);
       }
-      await _writeRow(
+      await writeRow(
         (d) => supabase.from('treasury_transactions').insert(d),
         {
           'amount': amount,
@@ -514,7 +428,7 @@ class TreasuryService {
           .select()
           .order('id', ascending: true);
       final boxes = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('cash_boxes', boxes);
+      await cacheRows('cash_boxes', boxes);
       return boxes;
     } catch (e) {
       debugPrint('Error fetching cash boxes: $e');
@@ -605,7 +519,7 @@ class TreasuryService {
   Future<void> addCashBox(Map<String, dynamic> data) async {
     try {
       await _requireAdmin();
-      await _writeRow(
+      await writeRow(
         (d) => supabase.from('cash_boxes').insert(d),
         data,
       );
@@ -623,7 +537,7 @@ class TreasuryService {
       if (localRow == null) {
         await updateOp();
       } else {
-        await _updateWithLww(updateOp, 'cash_boxes', localRow);
+        await updateWithLww(updateOp, 'cash_boxes', localRow);
       }
     } catch (e) {
       if (e is Exception) rethrow;
@@ -733,7 +647,7 @@ class TreasuryService {
       await _requireAdmin();
       await _ensureOperationAllowed(fromCashBoxId, 'transfer');
       await _ensureOperationAllowed(toCashBoxId, 'transfer');
-      await _writeRow(
+      await writeRow(
         (d) => supabase.from('treasury_transactions').insert(d),
         {
           'amount': amount,

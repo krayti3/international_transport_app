@@ -1,95 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:decimal/decimal.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:international_transport_app/services/sync_service.dart';
+import 'package:international_transport_app/services/base_supabase_service.dart';
 
-class AdvanceService {
-  final SupabaseClient supabase = Supabase.instance.client;
-
-  static int? _parseUpdatedAt(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    final dt = DateTime.tryParse(raw);
-    if (dt == null) return null;
-    return dt.millisecondsSinceEpoch;
-  }
-
-  Future<bool> _updateWithLww(
-    Future<void> Function() updateOp,
-    String tableName,
-    Map<String, dynamic> localRow,
-  ) async {
-    final localStamp = _parseUpdatedAt(localRow['updated_at']?.toString());
-    if (localStamp == null) {
-      await updateOp();
-      return true;
-    }
-    final id = localRow['id'];
-    if (id == null) return false;
-    final server = await supabase
-        .from(tableName)
-        .select('updated_at')
-        .eq('id', id)
-        .maybeSingle();
-    final serverStamp = _parseUpdatedAt(server?['updated_at']?.toString());
-    if (serverStamp != null && serverStamp > localStamp) {
-      return false;
-    }
-    await updateOp();
-    return true;
-  }
-
-  Future<void> _cacheRows(String tableName, List<Map<String, dynamic>> rows) async {
-    await SyncService.instance.cacheRows(tableName, rows);
-  }
-
-  String? _missingColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r"Could not find the '(\w+)' column").firstMatch(message);
-    return match?.group(1);
-  }
-
-  String? _notNullColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r'null value in column "(\w+)"').firstMatch(message);
-    return match?.group(1);
-  }
-
-  Future<void> _writeRow(
-    Future<void> Function(Map<String, dynamic>) op,
-    Map<String, dynamic> data,
-  ) async {
-    var attempt = Map<String, dynamic>.from(data);
-    String? lastFilledColumn;
-    for (var i = 0; i < 10; i++) {
-      try {
-        await op(attempt);
-        return;
-      } on PostgrestException catch (e) {
-        if (e.code == 'PGRST204') {
-          final column = _missingColumnFrom(e.message);
-          if (column != null && attempt.containsKey(column)) {
-            debugPrint('AdvanceService: stripping unknown column "$column" from update (PGRST204)');
-            attempt.remove(column);
-            continue;
-          }
-        } else if (e.code == '23502') {
-          final column = _notNullColumnFrom(e.message);
-          if (column != null) {
-            attempt[column] = '';
-            lastFilledColumn = column;
-            continue;
-          }
-        } else if (e.code == '22P02') {
-          if (lastFilledColumn != null) {
-            attempt[lastFilledColumn] = 0;
-            continue;
-          }
-        }
-        rethrow;
-      }
-    }
-    throw Exception('تعذّر الحفظ بسبب اختلاف في مخطط قاعدة البيانات');
-  }
+class AdvanceService extends BaseSupabaseService {
 
   Future<String?> _driverNameById(int driverId) async {
     try {
@@ -105,7 +18,7 @@ class AdvanceService {
     try {
       final response = await supabase.from('advances').select().order('created_at', ascending: false);
       final advances = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('advances', advances);
+      await cacheRows('advances', advances);
       return advances;
     } catch (e) {
       debugPrint('Error fetching advances: $e');
@@ -138,15 +51,15 @@ class AdvanceService {
   }
 
   Future<void> addAdvance(Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('advances').insert(d), data);
+    await writeRow((d) => supabase.from('advances').insert(d), data);
   }
 
   Future<void> addProduct(Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('advance_products').insert(d), data);
+    await writeRow((d) => supabase.from('advance_products').insert(d), data);
   }
 
   Future<void> addTripOrder(Map<String, dynamic> data) async {
-    await _writeRow((d) => supabase.from('trip_orders').insert(d), data);
+    await writeRow((d) => supabase.from('trip_orders').insert(d), data);
   }
 
   Future<List<Map<String, dynamic>>> getTripOrders() async {
@@ -185,7 +98,7 @@ class AdvanceService {
         await supabase.from('trip_orders').update(data).eq('id', id);
         return;
       }
-      await _updateWithLww(() => supabase.from('trip_orders').update(data).eq('id', id), 'trip_orders', localRow);
+      await updateWithLww(() => supabase.from('trip_orders').update(data).eq('id', id), 'trip_orders', localRow);
     } catch (e) {
       debugPrint('Error updating trip order: $e');
       rethrow;
@@ -213,10 +126,10 @@ class AdvanceService {
 
   Future<void> updateAdvance(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
     if (localRow == null) {
-      await _writeRow((d) => supabase.from('advances').update(d).eq('id', id), data);
+      await writeRow((d) => supabase.from('advances').update(d).eq('id', id), data);
       return;
     }
-    await _updateWithLww(() => _writeRow((d) => supabase.from('advances').update(d).eq('id', id), data), 'advances', localRow);
+    await updateWithLww(() => writeRow((d) => supabase.from('advances').update(d).eq('id', id), data), 'advances', localRow);
   }
 
   Future<void> deleteAdvance(int id) async {
@@ -448,7 +361,7 @@ class AdvanceService {
     try {
       final response = await supabase.from('truck_maintenance').select().eq('expense_type', 'oil_change').order('created_at', ascending: false);
       final records = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('truck_maintenance_oil', records);
+      await cacheRows('truck_maintenance_oil', records);
       return records;
     } catch (e) {
       debugPrint('Error fetching oil change records: $e');
@@ -460,7 +373,7 @@ class AdvanceService {
     try {
       final response = await supabase.from('truck_maintenance').select().eq('truck_id', truckId).eq('expense_type', 'oil_change').order('created_at', ascending: false);
       final records = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('truck_maintenance_oil', records);
+      await cacheRows('truck_maintenance_oil', records);
       return records;
     } catch (e) {
       debugPrint('Error fetching oil change records by truck: $e');
@@ -512,6 +425,10 @@ class AdvanceService {
       debugPrint('Error uploading trip document: $e');
       rethrow;
     }
+  }
+
+  Future<void> addTripOrderItem(Map<String, dynamic> data) async {
+    try { await supabase.from('trip_order_items').insert(data); } catch (e) { debugPrint('Error adding trip order item: $e'); rethrow; }
   }
 
   Future<List<Map<String, dynamic>>> getTripOrdersPage({int offset = 0, int limit = 20}) async {

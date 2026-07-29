@@ -1,67 +1,11 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:decimal/decimal.dart';
 import 'package:international_transport_app/services/calculation_engine.dart';
-import 'package:international_transport_app/services/sync_service.dart';
 import 'package:international_transport_app/models/invoice.dart';
+import 'package:international_transport_app/services/base_supabase_service.dart';
 
-class SettingsService {
-  final SupabaseClient supabase = Supabase.instance.client;
-
-  String? _missingColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r"Could not find the '(\w+)' column").firstMatch(message);
-    return match?.group(1);
-  }
-
-  String? _notNullColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r'null value in column "(\w+)"').firstMatch(message);
-    return match?.group(1);
-  }
-
-  Future<void> _writeRow(
-    Future<void> Function(Map<String, dynamic>) op,
-    Map<String, dynamic> data,
-  ) async {
-    var attempt = Map<String, dynamic>.from(data);
-    String? lastFilledColumn;
-    for (var i = 0; i < 10; i++) {
-      try {
-        await op(attempt);
-        return;
-      } on PostgrestException catch (e) {
-        if (e.code == 'PGRST204') {
-          final column = _missingColumnFrom(e.message);
-          if (column != null && attempt.containsKey(column)) {
-            debugPrint('SettingsService: stripping unknown column "$column" from update (PGRST204)');
-            attempt.remove(column);
-            continue;
-          }
-        } else if (e.code == '23502') {
-          final column = _notNullColumnFrom(e.message);
-          if (column != null) {
-            attempt[column] = '';
-            lastFilledColumn = column;
-            continue;
-          }
-        } else if (e.code == '22P02') {
-          if (lastFilledColumn != null) {
-            attempt[lastFilledColumn] = 0;
-            continue;
-          }
-        }
-        rethrow;
-      }
-    }
-    throw Exception('تعذّر الحفظ بسبب اختلاف في مخطط قاعدة البيانات');
-  }
-
-  Future<void> _cacheSingleRow(String tableName, Map<String, dynamic>? row) async {
-    if (row == null || row['id'] == null) return;
-    await SyncService.instance.cacheRows(tableName, [row]);
-  }
+class SettingsService extends BaseSupabaseService {
 
   String? _currentRole;
 
@@ -94,6 +38,7 @@ class SettingsService {
     }
   }
 
+
   Future<Map<String, dynamic>?> getAppSettings() async {
     try {
       final response = await supabase
@@ -101,7 +46,7 @@ class SettingsService {
           .select()
           .eq('id', 1)
           .maybeSingle();
-      await _cacheSingleRow('app_settings', response);
+      await cacheSingleRow('app_settings', response);
       return response;
     } catch (e) {
       debugPrint('Error fetching app settings: $e');
@@ -125,7 +70,7 @@ class SettingsService {
           .select()
           .eq('id', 1)
           .maybeSingle();
-      await _cacheSingleRow('system_settings', response);
+      await cacheSingleRow('system_settings', response);
       return response;
     } catch (e) {
       debugPrint('Error fetching system settings: $e');
@@ -135,7 +80,7 @@ class SettingsService {
 
   Future<void> updateSystemSettings(Map<String, dynamic> data) async {
     try {
-      await _writeRow(
+      await writeRow(
         (d) => supabase.from('system_settings').update(d).eq('id', 1),
         data,
       );
@@ -445,7 +390,7 @@ class SettingsService {
           .select()
           .single();
 
-      await _cacheSingleRow('invoices', response);
+      await cacheSingleRow('invoices', response);
       return Invoice.fromMap(response);
     } catch (e) {
       debugPrint('Error creating invoice: $e');

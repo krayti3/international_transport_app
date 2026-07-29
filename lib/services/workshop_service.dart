@@ -1,70 +1,15 @@
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:international_transport_app/services/sync_service.dart';
 import 'package:international_transport_app/models/repair_invoice.dart';
+import 'package:international_transport_app/services/base_supabase_service.dart';
 
-class WorkshopService {
-  final SupabaseClient supabase = Supabase.instance.client;
-
-  Future<void> _cacheRows(String tableName, List<Map<String, dynamic>> rows) async {
-    await SyncService.instance.cacheRows(tableName, rows);
-  }
-
-  String? _missingColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r"Could not find the '(\w+)' column").firstMatch(message);
-    return match?.group(1);
-  }
-
-  String? _notNullColumnFrom(String? message) {
-    if (message == null) return null;
-    final match = RegExp(r'null value in column "(\w+)"').firstMatch(message);
-    return match?.group(1);
-  }
-
-  Future<void> _writeRow(
-    Future<void> Function(Map<String, dynamic>) op,
-    Map<String, dynamic> data,
-  ) async {
-    var attempt = Map<String, dynamic>.from(data);
-    String? lastFilledColumn;
-    for (var i = 0; i < 10; i++) {
-      try {
-        await op(attempt);
-        return;
-      } on PostgrestException catch (e) {
-        if (e.code == 'PGRST204') {
-          final column = _missingColumnFrom(e.message);
-          if (column != null && attempt.containsKey(column)) {
-            debugPrint('WorkshopService: stripping unknown column "$column" from update (PGRST204)');
-            attempt.remove(column);
-            continue;
-          }
-        } else if (e.code == '23502') {
-          final column = _notNullColumnFrom(e.message);
-          if (column != null) {
-            attempt[column] = '';
-            lastFilledColumn = column;
-            continue;
-          }
-        } else if (e.code == '22P02') {
-          if (lastFilledColumn != null) {
-            attempt[lastFilledColumn] = 0;
-            continue;
-          }
-        }
-        rethrow;
-      }
-    }
-    throw Exception('تعذّر الحفظ بسبب اختلاف في مخطط قاعدة البيانات');
-  }
+class WorkshopService extends BaseSupabaseService {
 
   // Intervention Orders CRUD
   Future<List<Map<String, dynamic>>> getInterventionOrders() async {
     try {
       final response = await supabase.from('intervention_orders').select().order('created_at', ascending: false);
       final orders = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('intervention_orders', orders);
+      await cacheRows('intervention_orders', orders);
       return orders;
     } catch (e) {
       debugPrint('Error fetching intervention orders: $e');
@@ -93,7 +38,7 @@ class WorkshopService {
   }
 
   Future<void> updateInterventionOrder(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('intervention_orders').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating intervention order: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('intervention_orders').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating intervention order: $e'); rethrow; }
   }
 
   Future<void> deleteInterventionOrder(int id) async {
@@ -105,7 +50,7 @@ class WorkshopService {
     try {
       final response = await supabase.from('suppliers').select().order('name', ascending: true);
       final suppliers = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('suppliers', suppliers);
+      await cacheRows('suppliers', suppliers);
       return suppliers;
     } catch (e) {
       debugPrint('Error fetching suppliers: $e');
@@ -124,7 +69,7 @@ class WorkshopService {
   }
 
   Future<void> updateSupplier(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('suppliers').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating supplier: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('suppliers').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating supplier: $e'); rethrow; }
   }
 
   Future<void> deleteSupplier(int id) async {
@@ -153,7 +98,7 @@ class WorkshopService {
   }
 
   Future<void> updatePurchaseOrder(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('purchase_orders').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating purchase order: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('purchase_orders').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating purchase order: $e'); rethrow; }
   }
 
   Future<void> deletePurchaseOrder(int id) async {
@@ -182,7 +127,7 @@ class WorkshopService {
   }
 
   Future<void> updateWorkshopExpense(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('workshop_expenses').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating workshop expense: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('workshop_expenses').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating workshop expense: $e'); rethrow; }
   }
 
   Future<void> deleteWorkshopExpense(int id) async {
@@ -208,7 +153,7 @@ class WorkshopService {
     try {
       final response = await supabase.from('providers').select().order('name', ascending: true);
       final providers = List<Map<String, dynamic>>.from(response);
-      await _cacheRows('providers', providers);
+      await cacheRows('providers', providers);
       return providers;
     } catch (e) {
       debugPrint('Error fetching providers: $e');
@@ -221,7 +166,7 @@ class WorkshopService {
   }
 
   Future<void> updateProvider(int id, Map<String, dynamic> data) async {
-    try { await _writeRow((d) => supabase.from('providers').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating provider: $e'); rethrow; }
+    try { await writeRow((d) => supabase.from('providers').update(d).eq('id', id), data); } catch (e) { debugPrint('Error updating provider: $e'); rethrow; }
   }
 
   Future<void> deleteProvider(int id) async {

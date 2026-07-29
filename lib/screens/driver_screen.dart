@@ -7,6 +7,7 @@ import '../repositories/trip_repository.dart';
 import '../services/fleet_service.dart';
 import '../services/advance_service.dart';
 import '../services/notification_service.dart';
+import '../services/audio_service.dart';
 import '../services/location_service.dart';
 import '../l10n/app_localizations.dart';
 import '../models/trip_order.dart';
@@ -35,6 +36,7 @@ class _DriverScreenState extends State<DriverScreen> {
   String? _driverName;
   bool _isLoading = true;
   bool _isTracking = false;
+  bool _isDriverMode = true;
   StreamSubscription? _locationStreamSubscription;
   RealtimeChannel? _subscription;
   int? _lastNotifiedAdvanceId;
@@ -178,6 +180,8 @@ class _DriverScreenState extends State<DriverScreen> {
 
               if (newTrip.status == 'en_route') {
                 _notificationService.showTripStartedNotification();
+              } else if (newTrip.status == 'arrived') {
+                _notificationService.showTripArrivedNotification();
               } else if (newTrip.status == 'completed') {
                 _notificationService.showTripEndedNotification();
               }
@@ -194,6 +198,7 @@ class _DriverScreenState extends State<DriverScreen> {
   Future<void> _startTrip(int tripId, String route) async {
     try {
       await _tripRepository.updateTripStatus(tripId, 'en_route');
+      await AudioService().playTripStarted();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -305,6 +310,7 @@ class _DriverScreenState extends State<DriverScreen> {
   Future<void> _endTrip(int tripId, String route) async {
     try {
       await _tripRepository.updateTripStatus(tripId, 'completed');
+      await AudioService().playTripEnded();
       _stopGpsTracking();
 
       if (mounted) {
@@ -396,6 +402,11 @@ class _DriverScreenState extends State<DriverScreen> {
                 ],
               ),
             ),
+          IconButton(
+            icon: Icon(_isDriverMode ? Icons.directions_car : Icons.visibility),
+            onPressed: () => setState(() => _isDriverMode = !_isDriverMode),
+            tooltip: _isDriverMode ? 'وضع القيادة (مبسط)' : 'وضع العرض العادي',
+          ),
         ],
       ),
       body: Column(
@@ -497,15 +508,18 @@ class _DriverScreenState extends State<DriverScreen> {
     final tripId = trip['id'] as int?;
     final isSmall = MediaQuery.of(context).size.width < 400;
 
-    final titleFontSize = isSmall ? 15.0 : 17.0;
-    final cardPadding = isSmall ? 12.0 : 16.0;
-    final buttonHeight = isSmall ? 52.0 : 50.0;
-    final statusFontSize = isSmall ? 11.0 : 12.0;
+    final isDriverMode = _isDriverMode;
+    final titleFontSize = isDriverMode ? 22.0 : (isSmall ? 15.0 : 17.0);
+    final cardPadding = isDriverMode ? 20.0 : (isSmall ? 12.0 : 16.0);
+    final buttonHeight = isDriverMode ? 70.0 : (isSmall ? 52.0 : 50.0);
+    final statusFontSize = isDriverMode ? 16.0 : (isSmall ? 11.0 : 12.0);
+    final buttonFontSize = isDriverMode ? 20.0 : (isSmall ? 15.0 : 16.0);
+    final buttonIconSize = isDriverMode ? 32.0 : (isSmall ? 20.0 : 22.0);
 
     return Card(
-      margin: EdgeInsets.symmetric(vertical: isSmall ? 6 : 8),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isSmall ? 14 : 16)),
+      margin: EdgeInsets.symmetric(vertical: isDriverMode ? 12 : (isSmall ? 6 : 8)),
+      elevation: isDriverMode ? 8 : 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isDriverMode ? 20 : (isSmall ? 14 : 16))),
       child: Padding(
         padding: EdgeInsets.all(cardPadding),
         child: Column(
@@ -513,8 +527,8 @@ class _DriverScreenState extends State<DriverScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.route_rounded, color: Colors.blue, size: isSmall ? 20 : 22),
-                SizedBox(width: isSmall ? 6 : 8),
+                Icon(Icons.route_rounded, color: Colors.blue, size: isDriverMode ? 30 : (isSmall ? 20 : 22)),
+                SizedBox(width: isDriverMode ? 12 : (isSmall ? 6 : 8)),
                 Expanded(
                   child: Text(
                     route,
@@ -522,10 +536,10 @@ class _DriverScreenState extends State<DriverScreen> {
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: isSmall ? 8 : 10, vertical: isSmall ? 3 : 4),
+                  padding: EdgeInsets.symmetric(horizontal: isDriverMode ? 14 : (isSmall ? 8 : 10), vertical: isDriverMode ? 6 : (isSmall ? 3 : 4)),
                   decoration: BoxDecoration(
                     color: _statusColor(status).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(isSmall ? 7 : 8),
+                    borderRadius: BorderRadius.circular(isDriverMode ? 12 : (isSmall ? 7 : 8)),
                   ),
                   child: Text(
                     status == 'en_route' ? context.tr('الرحلة المنتزلة') : status.toUpperCase(),
@@ -534,21 +548,23 @@ class _DriverScreenState extends State<DriverScreen> {
                 ),
               ],
             ),
-            SizedBox(height: isSmall ? 10 : 12),
-            Row(
-              children: [
-                Expanded(child: _tripDetailRow(Icons.person, context.tr('الزبون'), clientName, isSmall: isSmall)),
-                Expanded(child: _tripDetailRow(Icons.local_shipping, context.tr('الشاحنة'), truckPlate, isSmall: isSmall)),
-              ],
-            ),
-            SizedBox(height: isSmall ? 6 : 8),
-            Row(
-              children: [
-                Expanded(child: _tripDetailRow(Icons.arrow_forward, context.tr('الجهة'), directionLabel, isSmall: isSmall)),
-                Expanded(child: _tripDetailRow(Icons.calendar_today, context.tr('التاريخ'), departureDate, isSmall: isSmall)),
-              ],
-            ),
-            if (_isTracking) ...[
+            SizedBox(height: isDriverMode ? 16 : (isSmall ? 10 : 12)),
+            if (!isDriverMode) ...[
+              Row(
+                children: [
+                  Expanded(child: _tripDetailRow(Icons.person, context.tr('الزبون'), clientName, isSmall: isSmall)),
+                  Expanded(child: _tripDetailRow(Icons.local_shipping, context.tr('الشاحنة'), truckPlate, isSmall: isSmall)),
+                ],
+              ),
+              SizedBox(height: isSmall ? 6 : 8),
+              Row(
+                children: [
+                  Expanded(child: _tripDetailRow(Icons.arrow_forward, context.tr('الجهة'), directionLabel, isSmall: isSmall)),
+                  Expanded(child: _tripDetailRow(Icons.calendar_today, context.tr('التاريخ'), departureDate, isSmall: isSmall)),
+                ],
+              ),
+            ],
+            if (_isTracking && !isDriverMode) ...[
               SizedBox(height: isSmall ? 8 : 10),
               Wrap(
                 spacing: isSmall ? 8 : 12,
@@ -569,20 +585,20 @@ class _DriverScreenState extends State<DriverScreen> {
                 ),
               ),
             ],
-            SizedBox(height: isSmall ? 12 : 16),
+            SizedBox(height: isDriverMode ? 20 : (isSmall ? 12 : 16)),
             Row(
               children: [
                 if (status != 'en_route' && status != 'completed')
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: tripId != null ? () => _startTrip(tripId, route) : null,
-                      icon: Icon(Icons.play_arrow_rounded, size: isSmall ? 20 : 22),
-                      label: Text(context.tr('بدء الرحلة'), style: TextStyle(fontSize: isSmall ? 15 : 16)),
+                      icon: Icon(Icons.play_arrow_rounded, size: buttonIconSize),
+                      label: Text(context.tr('بدء الرحلة'), style: TextStyle(fontSize: buttonFontSize)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.symmetric(vertical: buttonHeight),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isSmall ? 10 : 12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isDriverMode ? 16 : (isSmall ? 10 : 12))),
                       ),
                     ),
                   ),
@@ -590,27 +606,27 @@ class _DriverScreenState extends State<DriverScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: tripId != null ? () => _endTrip(tripId, route) : null,
-                      icon: Icon(Icons.flag_rounded, size: isSmall ? 20 : 22),
-                      label: Text(context.tr('إنهاء الرحلة'), style: TextStyle(fontSize: isSmall ? 15 : 16)),
+                      icon: Icon(Icons.flag_rounded, size: buttonIconSize),
+                      label: Text(context.tr('إنهاء الرحلة'), style: TextStyle(fontSize: buttonFontSize)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.symmetric(vertical: buttonHeight),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isSmall ? 10 : 12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isDriverMode ? 16 : (isSmall ? 10 : 12))),
                       ),
                     ),
                   ),
-                  SizedBox(width: isSmall ? 6 : 8),
+                  SizedBox(width: isDriverMode ? 12 : (isSmall ? 6 : 8)),
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _showRouteOnMap(trip),
-                      icon: Icon(Icons.route, size: isSmall ? 20 : 22),
-                      label: Text(context.tr('المسار'), style: TextStyle(fontSize: isSmall ? 15 : 16)),
+                      icon: Icon(Icons.route, size: buttonIconSize),
+                      label: Text(context.tr('المسار'), style: TextStyle(fontSize: buttonFontSize)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.symmetric(vertical: buttonHeight),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isSmall ? 10 : 12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isDriverMode ? 16 : (isSmall ? 10 : 12))),
                       ),
                     ),
                   ),
