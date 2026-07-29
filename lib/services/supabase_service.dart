@@ -2188,6 +2188,49 @@ class SupabaseService {
     }
   }
 
+  Future<void> recordTruckLocation(int truckId, double latitude, double longitude) async {
+    try {
+      await supabase.from('truck_locations').insert({
+        'truck_id': truckId,
+        'latitude': latitude,
+        'longitude': longitude,
+        'recorded_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error recording truck location: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTruckLocationHistory(int truckId, {int hours = 24}) async {
+    try {
+      final since = DateTime.now().subtract(Duration(hours: hours)).toIso8601String();
+      final response = await supabase
+          .from('truck_locations')
+          .select()
+          .eq('truck_id', truckId)
+          .gte('recorded_at', since)
+          .order('recorded_at', ascending: true);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching truck location history: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTripOrdersPage({int offset = 0, int limit = 20}) async {
+    try {
+      final response = await supabase
+          .from('trip_orders')
+          .select()
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching trip orders page: $e');
+      return [];
+    }
+  }
+
   // Truck maintenance expenses (operational expenses deducted from net profit)
   Future<List<Map<String, dynamic>>> getTruckMaintenances() async {
     try {

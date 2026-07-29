@@ -2,6 +2,7 @@ part of 'trucks_cubit.dart';
 
 class TrucksState {
   final bool isLoading;
+  final bool isRefreshing;
   final String? errorMessage;
   final List<Truck> trucks;
   final List<Truck> filteredTrucks;
@@ -11,6 +12,7 @@ class TrucksState {
 
   const TrucksState({
     this.isLoading = true,
+    this.isRefreshing = false,
     this.errorMessage,
     this.trucks = const [],
     this.filteredTrucks = const [],
@@ -21,6 +23,7 @@ class TrucksState {
 
   TrucksState copyWith({
     bool? isLoading,
+    bool? isRefreshing,
     String? errorMessage,
     List<Truck>? trucks,
     List<Truck>? filteredTrucks,
@@ -30,7 +33,8 @@ class TrucksState {
   }) {
     return TrucksState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
+      errorMessage: errorMessage ?? this.errorMessage,
       trucks: trucks ?? this.trucks,
       filteredTrucks: filteredTrucks ?? this.filteredTrucks,
       trailers: trailers ?? this.trailers,

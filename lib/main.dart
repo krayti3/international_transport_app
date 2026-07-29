@@ -38,6 +38,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   await SyncService.instance.init();
+  await SyncService.instance.startConnectivityListener(() async {
+    final tripRepo = TripRepository(Supabase.instance.client);
+    await tripRepo.syncPendingUpdates();
+  });
   await CacheService.instance.init();
   final dotenv = DotEnv();
   await dotenv.load();

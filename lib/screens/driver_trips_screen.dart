@@ -308,6 +308,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
     final completed = _trips.where((t) => (t['status']?.toString() ?? '') == kCompleted).length;
     final active = total - completed;
     final totalValue = _trips.fold<double>(0, (sum, t) => sum + _priceOf(t));
+    final isSmall = MediaQuery.of(context).size.width < 400;
 
     return Scaffold(
       appBar: AppBar(
@@ -323,26 +324,26 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: EdgeInsets.all(isSmall ? 12 : 16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      _buildStatCard('رحلات نشطة', '$active', Icons.local_shipping_rounded, Colors.orange, isDark),
-                      const SizedBox(width: 12),
-                      _buildStatCard('الإجمالي', '$total', Icons.analytics_rounded, Colors.blue, isDark),
-                      const SizedBox(width: 12),
-                      _buildStatCard('الإجمالي DH', NumberFormat('#,###').format(totalValue), Icons.payments_rounded, Colors.teal, isDark),
+                      _buildStatCard('رحلات نشطة', '$active', Icons.local_shipping_rounded, Colors.orange, isDark, isSmall: isSmall),
+                      SizedBox(width: isSmall ? 8 : 12),
+                      _buildStatCard('الإجمالي', '$total', Icons.analytics_rounded, Colors.blue, isDark, isSmall: isSmall),
+                      SizedBox(width: isSmall ? 8 : 12),
+                      _buildStatCard('الإجمالي DH', NumberFormat('#,###').format(totalValue), Icons.payments_rounded, Colors.teal, isDark, isSmall: isSmall),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: isSmall ? 14 : 20),
                   Expanded(
                     child: _trips.isEmpty
-                        ? Center(child: Text('لا توجد رحلات مسجلة', style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600])))
+                        ? Center(child: Text('لا توجد رحلات مسجلة', style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600], fontSize: isSmall ? 14 : null)))
                         : ListView.builder(
                             itemCount: _trips.length,
-                            itemBuilder: (context, index) => _buildTripCard(_trips[index], isDark),
+                            itemBuilder: (context, index) => _buildTripCard(_trips[index], isDark, isSmall: isSmall),
                           ),
                   ),
                 ],
@@ -351,49 +352,59 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
       floatingActionButton: widget.isAdmin
           ? FloatingActionButton.extended(
               onPressed: () => _openTripDialog(),
-              icon: const Icon(Icons.add_road_rounded),
-              label: const Text('تسجيل رحلة'),
+              icon: Icon(Icons.add_road_rounded, size: isSmall ? 20 : 22),
+              label: Text('تسجيل رحلة', style: TextStyle(fontSize: isSmall ? 14 : 16)),
             )
           : null,
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color, bool isDark) {
+  Widget _buildStatCard(String label, String value, IconData icon, Color color, bool isDark, {bool isSmall = false}) {
+    final iconSize = isSmall ? 18.0 : 20.0;
+    final valueFont = isSmall ? 18.0 : 20.0;
+    final labelFont = isSmall ? 11.0 : 12.0;
+    final padding = isSmall ? 10.0 : 14.0;
+
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(padding),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E1E1E) : Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(isSmall ? 10 : 12),
           border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
-            Text(label, style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600])),
+            Icon(icon, color: color, size: iconSize),
+            SizedBox(height: isSmall ? 6 : 8),
+            Text(value, style: TextStyle(fontSize: valueFont, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+            Text(label, style: TextStyle(fontSize: labelFont, color: isDark ? Colors.grey[400] : Colors.grey[600])),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTripCard(Map<String, dynamic> order, bool isDark) {
+  Widget _buildTripCard(Map<String, dynamic> order, bool isDark, {bool isSmall = false}) {
     final status = order['status']?.toString() ?? kActive;
     final price = _priceOf(order);
     final date = order['departure_date']?.toString() ?? '';
+    final padding = isSmall ? 12.0 : 14.0;
+    final titleFont = isSmall ? 14.0 : 15.0;
+    final statusFont = isSmall ? 11.0 : 12.0;
+    final subFont = isSmall ? 12.0 : 13.0;
+    final iconSize = isSmall ? 13.0 : 14.0;
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
+      margin: EdgeInsets.symmetric(vertical: isSmall ? 4 : 6),
       color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isSmall ? 10 : 12),
         side: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(padding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -402,28 +413,28 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                 Expanded(
                   child: Text(
                     order['route']?.toString() ?? 'مسار غير محدد',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: titleFont),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: EdgeInsets.symmetric(horizontal: isSmall ? 8 : 10, vertical: isSmall ? 3 : 4),
                   decoration: BoxDecoration(
                     color: _statusColor(status).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(isSmall ? 6 : 8),
                   ),
-                  child: Text(status, style: TextStyle(fontSize: 12, color: _statusColor(status), fontWeight: FontWeight.w600)),
+                  child: Text(status, style: TextStyle(fontSize: statusFont, color: _statusColor(status), fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: isSmall ? 8 : 10),
             Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('الزبون', style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600])),
-                      Text(_clientName(order['client_id']), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text('الزبون', style: TextStyle(fontSize: subFont - 1, color: isDark ? Colors.grey[400] : Colors.grey[600])),
+                      Text(_clientName(order['client_id']), style: TextStyle(fontWeight: FontWeight.w600, fontSize: subFont - 1)),
                     ],
                   ),
                 ),
@@ -431,46 +442,46 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('الأجرة', style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600])),
-                      Text('${price.toStringAsFixed(2)} DH', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+                      Text('الأجرة', style: TextStyle(fontSize: subFont - 1, color: isDark ? Colors.grey[400] : Colors.grey[600])),
+                      Text('${price.toStringAsFixed(2)} DH', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary, fontSize: subFont - 1)),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: isSmall ? 6 : 8),
             Row(
               children: [
-                Icon(Icons.local_shipping, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(_truckPlate(order['truck_id']), style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[300] : Colors.grey[700])),
+                Icon(Icons.local_shipping, size: iconSize, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                SizedBox(width: isSmall ? 3 : 4),
+                Text(_truckPlate(order['truck_id']), style: TextStyle(fontSize: subFont - 1, color: isDark ? Colors.grey[300] : Colors.grey[700])),
                 if (date.isNotEmpty) ...[
-                  const SizedBox(width: 16),
-                  Icon(Icons.event, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(date, style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[300] : Colors.grey[700])),
+                  SizedBox(width: isSmall ? 12 : 16),
+                  Icon(Icons.event, size: iconSize, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                  SizedBox(width: isSmall ? 3 : 4),
+                  Text(date, style: TextStyle(fontSize: subFont - 1, color: isDark ? Colors.grey[300] : Colors.grey[700])),
                 ],
               ],
             ),
             if (widget.isAdmin) ...[
-              const SizedBox(height: 10),
+              SizedBox(height: isSmall ? 8 : 10),
               const Divider(height: 1),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton.icon(
                     onPressed: () => _changeStatus(order),
-                    icon: const Icon(Icons.refresh, size: 18),
+                    icon: Icon(Icons.refresh, size: iconSize),
                     label: const Text('الحالة'),
                   ),
                   TextButton.icon(
                     onPressed: () => _openTripDialog(trip: order),
-                    icon: const Icon(Icons.edit, size: 18),
+                    icon: Icon(Icons.edit, size: iconSize),
                     label: const Text('تعديل'),
                   ),
                   TextButton.icon(
                     onPressed: () => _confirmDelete(order),
-                    icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                    icon: Icon(Icons.delete, size: iconSize, color: Colors.red),
                     label: const Text('حذف', style: TextStyle(color: Colors.red)),
                   ),
                 ],

@@ -7,6 +7,8 @@ import 'screens/aging_report_screen.dart';
 import 'screens/bank_accounts_screen.dart';
 import 'screens/cash_box_ledger_screen.dart';
 import 'screens/cash_box_management_screen.dart';
+import 'screens/chat_screen.dart';
+import 'screens/ai_reports_screen.dart';
 import 'screens/client_statement_screen.dart';
 import 'screens/client_reports_screen.dart';
 import 'features/clients/screens/clients_screen.dart';
@@ -17,6 +19,7 @@ import 'screens/document_categories_screen.dart';
 import 'screens/driver_advances_screen.dart';
 import 'screens/driver_cash_screen.dart';
 import 'screens/driver_salary_screen.dart';
+import 'screens/driver_screen.dart';
 import 'screens/driver_tasks_screen.dart';
 import 'screens/drivers_screen.dart';
 import 'screens/expense_categories_screen.dart';
@@ -83,6 +86,7 @@ class AppRoute {
   static const driverCash = '/driver-cash';
   static const driverAdvances = '/driver-advances';
   static const driverTasks = '/driver-tasks';
+  static const driverScreen = '/driver-screen';
   static const trucks = '/trucks';
   static const truckDocuments = '/truck-documents';
   static const trailers = '/trailers';
@@ -106,6 +110,8 @@ class AppRoute {
   static const locationPicker = '/location-picker';
   static const invoiceForm = '/invoice-form';
   static const debtInvoiceForm = '/debt-invoice-form';
+  static const aiReports = '/ai-reports';
+  static const chat = '/chat';
 }
 
 enum AppRole { admin, secretary, driver }
@@ -498,6 +504,11 @@ class AppRouter {
       path: AppRoute.driverTasks,
       builder: (context, state) => const DriverTasksScreen(),
     ),
+    _allRolesRoute(
+      name: AppRoute.driverScreen,
+      path: AppRoute.driverScreen,
+      builder: (context, state) => const DriverScreen(),
+    ),
     _adminSecretaryRoute(
       name: AppRoute.trucks,
       path: AppRoute.trucks,
@@ -664,6 +675,16 @@ class AppRouter {
       name: AppRoute.debtInvoiceForm,
       path: AppRoute.debtInvoiceForm,
       builder: (context, state) => const DebtInvoiceFormScreen(),
+    ),
+    _allRolesRoute(
+      name: AppRoute.chat,
+      path: AppRoute.chat,
+      builder: (context, state) => const ChatScreen(),
+    ),
+    _adminRoute(
+      name: AppRoute.aiReports,
+      path: AppRoute.aiReports,
+      builder: (context, state) => const AiReportsScreen(),
     ),
   ];
 }

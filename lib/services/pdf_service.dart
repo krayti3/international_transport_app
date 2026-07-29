@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -47,22 +47,22 @@ class PdfService {
     final amiri = await PdfGoogleFonts.amiriRegular();
     final amiriBold = await PdfGoogleFonts.amiriBold();
 
-    final companyName = 'شركة النقل الدولي';
+    final companyName = 'Ø´Ø±ÙƒØ© Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ';
     final reportDate = DateTime.now();
     final formattedDate = '${reportDate.day.toString().padLeft(2, '0')}/${reportDate.month.toString().padLeft(2, '0')}/${reportDate.year}';
-    final clientName = client['name']?.toString() ?? 'بدون اسم';
+    final clientName = client['name']?.toString() ?? 'Ø¨Ø¯ÙˆÙ† Ø§Ø³Ù…';
     final clientPhone = client['phone']?.toString() ?? '';
     final clientCity = client['city']?.toString() ?? '';
-    final currencySymbol = currency == 'EUR' ? '€' : 'DH';
+    final currencySymbol = currency == 'EUR' ? 'â‚¬' : 'DH';
 
     final rows = <pw.TableRow>[];
     rows.add(pw.TableRow(
       children: [
-        _cell('التاريخ', amiriBold, isHeader: true),
-        _cell('البيان / الرحلة', amiriBold, isHeader: true),
-        _cell('المبلغ المطلوب', amiriBold, isHeader: true),
-        _cell('المبلغ المدفوع', amiriBold, isHeader: true),
-        _cell('الرصيد المتبقي', amiriBold, isHeader: true),
+        _cell('Ø§Ù„ØªØ§Ø±ÙŠØ®', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø¨ÙŠØ§Ù† / Ø§Ù„Ø±Ø­Ù„Ø©', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ù…Ø·Ù„ÙˆØ¨', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ù…Ø¯ÙÙˆØ¹', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø±ØµÙŠØ¯ Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ', amiriBold, isHeader: true),
       ],
     ));
 
@@ -88,7 +88,7 @@ class PdfService {
     if (rows.length == 1) {
       rows.add(pw.TableRow(
         children: [
-          _cell('لا يوجد عمليات', amiri, colSpan: 5, align: pw.TextAlign.center),
+          _cell('Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø¹Ù…Ù„ÙŠØ§Øª', amiri, colSpan: 5, align: pw.TextAlign.center),
         ],
       ));
     }
@@ -105,18 +105,18 @@ class PdfService {
               ..._buildLogoSection(logoBytes),
               pw.Text(companyName, style: pw.TextStyle(font: amiriBold, fontSize: 22)),
               pw.SizedBox(height: 4),
-              pw.Text('كشف حساب زبون', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
+              pw.Text('ÙƒØ´Ù Ø­Ø³Ø§Ø¨ Ø²Ø¨ÙˆÙ†', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
               pw.SizedBox(height: 4),
-              pw.Text('تاريخ الاستخراج: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
+              pw.Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ®Ø±Ø§Ø¬: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
               pw.Divider(height: 24, thickness: 1.5),
               pw.Align(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('الزبون: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
-                    if (clientPhone.isNotEmpty) pw.Text('الهاتف: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
-                    if (clientCity.isNotEmpty) pw.Text('المدينة: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    pw.Text('Ø§Ù„Ø²Ø¨ÙˆÙ†: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
+                    if (clientPhone.isNotEmpty) pw.Text('Ø§Ù„Ù‡Ø§ØªÙ: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    if (clientCity.isNotEmpty) pw.Text('Ø§Ù„Ù…Ø¯ÙŠÙ†Ø©: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
                   ],
                 ),
               ),
@@ -134,7 +134,7 @@ class PdfService {
                 children: rows,
               ),
               pw.Spacer(),
-              pw.Text('تم إنشاء هذا الكشف آلياً بواسطة نظام النقل الدولي', style: pw.TextStyle(font: amiri, fontSize: 10, color: PdfColors.grey600)),
+              pw.Text('ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ù‡Ø°Ø§ Ø§Ù„ÙƒØ´Ù Ø¢Ù„ÙŠØ§Ù‹ Ø¨ÙˆØ§Ø³Ø·Ø© Ù†Ø¸Ø§Ù… Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ', style: pw.TextStyle(font: amiri, fontSize: 10, color: PdfColors.grey600)),
             ],
           ),
         ),
@@ -152,7 +152,7 @@ class PdfService {
           : null,
       child: pw.Text(
         text,
-        textAlign: align ?? (text.contains('بدون') || text.contains('لا يوجد') ? pw.TextAlign.center : pw.TextAlign.right),
+        textAlign: align ?? (text.contains('Ø¨Ø¯ÙˆÙ†') || text.contains('Ù„Ø§ ÙŠÙˆØ¬Ø¯') ? pw.TextAlign.center : pw.TextAlign.right),
         style: pw.TextStyle(font: font, fontSize: 11, fontWeight: isHeader ? pw.FontWeight.bold : null),
       ),
     );
@@ -179,10 +179,71 @@ class PdfService {
     final pdfBytes = await _buildPdf(client: client, transactions: transactions, currency: currency, logoBytes: logoBytes);
     await Printing.sharePdf(
       bytes: pdfBytes,
-      filename: 'كشف_حساب_${client['name'] ?? 'زبون'}.pdf',
+      filename: 'ÙƒØ´Ù_Ø­Ø³Ø§Ø¨_${client['name'] ?? 'Ø²Ø¨ÙˆÙ†'}.pdf',
     );
   }
 
+
+  Future<void> shareDashboardPdf({
+    required double totalRevenue,
+    required double totalExpenses,
+    required double netProfit,
+    required double outstandingInvoices,
+    required List<Map<String, dynamic>> monthlyRevenue,
+    required List<Map<String, dynamic>> expensesByCategory,
+    required List<Map<String, dynamic>> invoicesByStatus,
+    required List<Map<String, dynamic>> tripsByMonth,
+  }) async {
+    final logoBytes = await _fetchLogoBytes();
+    final pdfBytes = await _buildDashboardPdf(
+      totalRevenue: totalRevenue,
+      totalExpenses: totalExpenses,
+      netProfit: netProfit,
+      outstandingInvoices: outstandingInvoices,
+      monthlyRevenue: monthlyRevenue,
+      expensesByCategory: expensesByCategory,
+      invoicesByStatus: invoicesByStatus,
+      tripsByMonth: tripsByMonth,
+      logoBytes: logoBytes,
+    );
+    await Printing.sharePdf(
+      bytes: pdfBytes,
+      filename: 'dashboard_report.pdf',
+    );
+  }
+
+  Future<Uint8List> _buildDashboardPdf({
+    required double totalRevenue,
+    required double totalExpenses,
+    required double netProfit,
+    required double outstandingInvoices,
+    required List<Map<String, dynamic>> monthlyRevenue,
+    required List<Map<String, dynamic>> expensesByCategory,
+    required List<Map<String, dynamic>> invoicesByStatus,
+    required List<Map<String, dynamic>> tripsByMonth,
+    Uint8List? logoBytes,
+  }) async {
+    final pdf = pw.Document();
+    final amiri = await PdfGoogleFonts.amiriRegular();
+    final amiriBold = await PdfGoogleFonts.amiriBold();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) => [
+          ..._buildLogoSection(logoBytes),
+          pw.Text('Dashboard Report', style: pw.TextStyle(font: amiriBold, fontSize: 20)),
+          pw.SizedBox(height: 20),
+          pw.Text('Total Revenue: ${totalRevenue.toStringAsFixed(2)} MAD', style: pw.TextStyle(font: amiri, fontSize: 14)),
+          pw.Text('Total Expenses: ${totalExpenses.toStringAsFixed(2)} MAD', style: pw.TextStyle(font: amiri, fontSize: 14)),
+          pw.Text('Net Profit: ${netProfit.toStringAsFixed(2)} MAD', style: pw.TextStyle(font: amiri, fontSize: 14)),
+          pw.Text('Outstanding Invoices: ${outstandingInvoices.toStringAsFixed(2)} MAD', style: pw.TextStyle(font: amiri, fontSize: 14)),
+        ],
+      ),
+    );
+
+    return pdf.save();
+  }
   Future<Uint8List> _buildClientReportPdf({
     required Map<String, dynamic> client,
     required List<Map<String, dynamic>> trips,
@@ -194,22 +255,22 @@ class PdfService {
     final pdf = pw.Document();
     final amiri = await PdfGoogleFonts.amiriRegular();
     final amiriBold = await PdfGoogleFonts.amiriBold();
-    final companyName = 'شركة النقل الدولي';
+    final companyName = 'Ø´Ø±ÙƒØ© Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ';
     final reportDate = DateTime.now();
     final formattedDate =
         '${reportDate.day.toString().padLeft(2, '0')}/${reportDate.month.toString().padLeft(2, '0')}/${reportDate.year}';
-    final clientName = client['name']?.toString() ?? 'بدون اسم';
+    final clientName = client['name']?.toString() ?? 'Ø¨Ø¯ÙˆÙ† Ø§Ø³Ù…';
     final clientPhone = client['phone']?.toString() ?? '';
     final clientCity = client['city']?.toString() ?? '';
     final netTotal = totalRevenue - totalExpenses;
-    final currencySymbol = currency == 'EUR' ? '€' : 'DH';
+    final currencySymbol = currency == 'EUR' ? 'â‚¬' : 'DH';
 
     final summaryRows = <pw.TableRow>[];
     summaryRows.add(pw.TableRow(
       children: [
-        _cell('إجمالي الإيرادات', amiriBold, isHeader: true, align: pw.TextAlign.center),
-        _cell('إجمالي المصاريف', amiriBold, isHeader: true, align: pw.TextAlign.center),
-        _cell('الصافي', amiriBold, isHeader: true, align: pw.TextAlign.center),
+        _cell('Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¥ÙŠØ±Ø§Ø¯Ø§Øª', amiriBold, isHeader: true, align: pw.TextAlign.center),
+        _cell('Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ', amiriBold, isHeader: true, align: pw.TextAlign.center),
+        _cell('Ø§Ù„ØµØ§ÙÙŠ', amiriBold, isHeader: true, align: pw.TextAlign.center),
       ],
     ));
     summaryRows.add(pw.TableRow(
@@ -223,20 +284,20 @@ class PdfService {
     final tripRows = <pw.TableRow>[];
     tripRows.add(pw.TableRow(
       children: [
-        _cell('التاريخ', amiriBold, isHeader: true),
-        _cell('الاتجاه', amiriBold, isHeader: true),
-        _cell('المسار', amiriBold, isHeader: true),
-        _cell('السائق', amiriBold, isHeader: true),
-        _cell('الشاحنة', amiriBold, isHeader: true),
-        _cell('السعر', amiriBold, isHeader: true),
-        _cell('مصاريف الرحلة', amiriBold, isHeader: true),
+        _cell('Ø§Ù„ØªØ§Ø±ÙŠØ®', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø§ØªØ¬Ø§Ù‡', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ù…Ø³Ø§Ø±', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø³Ø§Ø¦Ù‚', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø´Ø§Ø­Ù†Ø©', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø³Ø¹Ø±', amiriBold, isHeader: true),
+        _cell('Ù…ØµØ§Ø±ÙŠÙ Ø§Ù„Ø±Ø­Ù„Ø©', amiriBold, isHeader: true),
       ],
     ));
 
     for (final trip in trips) {
       final date = trip['date_out']?.toString() ?? trip['departure_date']?.toString() ?? '';
       final direction = trip['direction']?.toString() ?? '';
-      final directionLabel = direction == 'return' ? 'عودة' : 'ذهاب';
+      final directionLabel = direction == 'return' ? 'Ø¹ÙˆØ¯Ø©' : 'Ø°Ù‡Ø§Ø¨';
       final route = trip['route']?.toString() ?? '';
       final driverName = trip['driver_name']?.toString() ?? '';
       final truckPlate = trip['truck_plate']?.toString() ?? '';
@@ -261,7 +322,7 @@ class PdfService {
         children: [
           pw.Container(
             padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: pw.Text('لا توجد رحلات', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: amiri)),
+            child: pw.Text('Ù„Ø§ ØªÙˆØ¬Ø¯ Ø±Ø­Ù„Ø§Øª', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: amiri)),
           ),
         ],
       ));
@@ -279,23 +340,23 @@ class PdfService {
               ..._buildLogoSection(logoBytes),
               pw.Text(companyName, style: pw.TextStyle(font: amiriBold, fontSize: 22)),
               pw.SizedBox(height: 4),
-              pw.Text('تقرير رحلات الزبون', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
+              pw.Text('ØªÙ‚Ø±ÙŠØ± Ø±Ø­Ù„Ø§Øª Ø§Ù„Ø²Ø¨ÙˆÙ†', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
               pw.SizedBox(height: 4),
-              pw.Text('تاريخ الاستخراج: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
+              pw.Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ®Ø±Ø§Ø¬: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
               pw.Divider(height: 24, thickness: 1.5),
               pw.Align(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('الزبون: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
-                    if (clientPhone.isNotEmpty) pw.Text('الهاتف: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
-                    if (clientCity.isNotEmpty) pw.Text('المدينة: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    pw.Text('Ø§Ù„Ø²Ø¨ÙˆÙ†: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
+                    if (clientPhone.isNotEmpty) pw.Text('Ø§Ù„Ù‡Ø§ØªÙ: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    if (clientCity.isNotEmpty) pw.Text('Ø§Ù„Ù…Ø¯ÙŠÙ†Ø©: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
                   ],
                 ),
               ),
               pw.SizedBox(height: 16),
-              pw.Text('الملخص المالي', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
+              pw.Text('Ø§Ù„Ù…Ù„Ø®Øµ Ø§Ù„Ù…Ø§Ù„ÙŠ', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
               pw.SizedBox(height: 8),
               pw.Table(
                 border: pw.TableBorder.all(color: PdfColors.grey700),
@@ -308,7 +369,7 @@ class PdfService {
                 children: summaryRows,
               ),
               pw.SizedBox(height: 24),
-              pw.Text('تفاصيل الرحلات', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
+              pw.Text('ØªÙØ§ØµÙŠÙ„ Ø§Ù„Ø±Ø­Ù„Ø§Øª', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
               pw.SizedBox(height: 8),
               pw.Table(
                 border: pw.TableBorder.all(color: PdfColors.grey700),
@@ -325,7 +386,7 @@ class PdfService {
                 children: tripRows,
               ),
               pw.Spacer(),
-              pw.Text('تم إنشاء هذا التقرير آلياً بواسطة نظام النقل الدولي',
+              pw.Text('ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ù‡Ø°Ø§ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø¢Ù„ÙŠØ§Ù‹ Ø¨ÙˆØ§Ø³Ø·Ø© Ù†Ø¸Ø§Ù… Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ',
                   style: pw.TextStyle(font: amiri, fontSize: 10, color: PdfColors.grey600)),
             ],
           ),
@@ -375,7 +436,7 @@ class PdfService {
     );
     await Printing.sharePdf(
       bytes: pdfBytes,
-      filename: 'تقرير_رحلات_${client['name'] ?? 'زبون'}.pdf',
+      filename: 'ØªÙ‚Ø±ÙŠØ±_Ø±Ø­Ù„Ø§Øª_${client['name'] ?? 'Ø²Ø¨ÙˆÙ†'}.pdf',
     );
   }
 
@@ -386,7 +447,7 @@ class PdfService {
     final pdf = pw.Document();
     final amiri = await PdfGoogleFonts.amiriRegular();
     final amiriBold = await PdfGoogleFonts.amiriBold();
-    final companyName = 'شركة النقل الدولي';
+    final companyName = 'Ø´Ø±ÙƒØ© Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ';
     final reportDate = DateTime.now();
     final formattedDate = DateFormat('dd/MM/yyyy').format(reportDate);
 
@@ -406,7 +467,7 @@ class PdfService {
     final clientCity = client?.city ?? '';
     final route = invoice.route ?? '';
     final currency = invoice.currency ?? 'MAD';
-    final currencySymbol = currency == 'EUR' ? '€' : 'DH';
+    final currencySymbol = currency == 'EUR' ? 'â‚¬' : 'DH';
     final bankInfoText = invoice.bankInfoText;
     final bankAccount = invoice.bankAccountId != null
         ? await supabaseService.getBankAccountById(invoice.bankAccountId!)
@@ -415,41 +476,41 @@ class PdfService {
     final accountNumber = bankAccount?.accountNumber ?? '';
     final logoBytes = await _fetchLogoBytes();
 
-    String statusLabel = 'غير مدفوعة';
+    String statusLabel = 'ØºÙŠØ± Ù…Ø¯ÙÙˆØ¹Ø©';
     switch (status) {
       case 'paid':
-        statusLabel = 'مدفوعة';
+        statusLabel = 'Ù…Ø¯ÙÙˆØ¹Ø©';
         break;
       case 'partially_paid':
-        statusLabel = 'مدفوعة جزئياً';
+        statusLabel = 'Ù…Ø¯ÙÙˆØ¹Ø© Ø¬Ø²Ø¦ÙŠØ§Ù‹';
         break;
       default:
-        statusLabel = 'غير مدفوعة';
+        statusLabel = 'ØºÙŠØ± Ù…Ø¯ÙÙˆØ¹Ø©';
     }
 
     final rows = <pw.TableRow>[];
     rows.add(pw.TableRow(
       children: [
-        _cell('البيان', amiriBold, isHeader: true),
-        _cell('المبلغ', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø¨ÙŠØ§Ù†', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ù…Ø¨Ù„Øº', amiriBold, isHeader: true),
       ],
     ));
 
     rows.add(pw.TableRow(
       children: [
-        _cell('الإجمالي', amiri),
+        _cell('Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ', amiri),
         _cell('${totalAmount.toStringAsFixed(2)} $currencySymbol', amiri),
       ],
     ));
     rows.add(pw.TableRow(
       children: [
-        _cell('المدفوع', amiri),
+        _cell('Ø§Ù„Ù…Ø¯ÙÙˆØ¹', amiri),
         _cell('${paidAmount.toStringAsFixed(2)} $currencySymbol', amiri),
       ],
     ));
     rows.add(pw.TableRow(
       children: [
-        _cell('المتبقي', amiriBold),
+        _cell('Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ', amiriBold),
         _cell('${remaining.toStringAsFixed(2)} $currencySymbol', amiriBold),
       ],
     ));
@@ -457,10 +518,10 @@ class PdfService {
     if (payments.isNotEmpty) {
       rows.add(pw.TableRow(
         children: [
-          _cell('تاریخ الدفع', amiriBold, isHeader: true),
-          _cell('المبلغ', amiriBold, isHeader: true),
-          _cell('طريقة الدفع', amiriBold, isHeader: true),
-          _cell('المرجع', amiriBold, isHeader: true),
+          _cell('ØªØ§Ø±ÛŒØ® Ø§Ù„Ø¯ÙØ¹', amiriBold, isHeader: true),
+          _cell('Ø§Ù„Ù…Ø¨Ù„Øº', amiriBold, isHeader: true),
+          _cell('Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹', amiriBold, isHeader: true),
+          _cell('Ø§Ù„Ù…Ø±Ø¬Ø¹', amiriBold, isHeader: true),
         ],
       ));
 
@@ -492,18 +553,18 @@ class PdfService {
               ..._buildLogoSection(logoBytes),
               pw.Text(companyName, style: pw.TextStyle(font: amiriBold, fontSize: 22)),
               pw.SizedBox(height: 4),
-              pw.Text('فاتورة ضريبية', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
+              pw.Text('ÙØ§ØªÙˆØ±Ø© Ø¶Ø±ÙŠØ¨ÙŠØ©', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
               pw.SizedBox(height: 4),
-              pw.Text('تاريخ الاستخراج: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
+              pw.Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ®Ø±Ø§Ø¬: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
               pw.Divider(height: 24, thickness: 1.5),
               pw.Align(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('الزبون: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
-                    if (clientPhone.isNotEmpty) pw.Text('الهاتف: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
-                    if (clientCity.isNotEmpty) pw.Text('المدينة: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    pw.Text('Ø§Ù„Ø²Ø¨ÙˆÙ†: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
+                    if (clientPhone.isNotEmpty) pw.Text('Ø§Ù„Ù‡Ø§ØªÙ: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    if (clientCity.isNotEmpty) pw.Text('Ø§Ù„Ù…Ø¯ÙŠÙ†Ø©: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
                   ],
                 ),
               ),
@@ -514,9 +575,9 @@ class PdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('رقم الفاتورة: $invoiceNumber', style: pw.TextStyle(font: amiri)),
-                      if (issueDate.isNotEmpty) pw.Text('تاريخ الإصدار: $issueDate', style: pw.TextStyle(font: amiri)),
-                      if (dueDate.isNotEmpty) pw.Text('تاريخ الاستحقاق: $dueDate', style: pw.TextStyle(font: amiri)),
+                      pw.Text('Ø±Ù‚Ù… Ø§Ù„ÙØ§ØªÙˆØ±Ø©: $invoiceNumber', style: pw.TextStyle(font: amiri)),
+                      if (issueDate.isNotEmpty) pw.Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¥ØµØ¯Ø§Ø±: $issueDate', style: pw.TextStyle(font: amiri)),
+                      if (dueDate.isNotEmpty) pw.Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ­Ù‚Ø§Ù‚: $dueDate', style: pw.TextStyle(font: amiri)),
                     ],
                   ),
                   pw.Container(
@@ -537,14 +598,14 @@ class PdfService {
                 pw.SizedBox(height: 12),
                 pw.Align(
                   alignment: pw.Alignment.centerRight,
-                  child: pw.Text('المسار/الرحلة: $route', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                  child: pw.Text('Ø§Ù„Ù…Ø³Ø§Ø±/Ø§Ù„Ø±Ø­Ù„Ø©: $route', style: pw.TextStyle(font: amiri, fontSize: 13)),
                 ),
               ],
               if (bankInfoText != null && bankInfoText.isNotEmpty) ...[
                 pw.SizedBox(height: 8),
                 pw.Align(
                   alignment: pw.Alignment.centerRight,
-                  child: pw.Text('معلومات الحساب البنكي: $bankInfoText', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                  child: pw.Text('Ù…Ø¹Ù„ÙˆÙ…Ø§Øª Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¨Ù†ÙƒÙŠ: $bankInfoText', style: pw.TextStyle(font: amiri, fontSize: 13)),
                 ),
               ],
               if (bankInfoText == null || bankInfoText.isEmpty) ...[
@@ -552,14 +613,14 @@ class PdfService {
                   pw.SizedBox(height: 8),
                   pw.Align(
                     alignment: pw.Alignment.centerRight,
-                    child: pw.Text('الحساب البنكي: $bankName ($currency)', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    child: pw.Text('Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¨Ù†ÙƒÙŠ: $bankName ($currency)', style: pw.TextStyle(font: amiri, fontSize: 13)),
                   ),
                 ],
                 if (accountNumber.isNotEmpty) ...[
                   pw.SizedBox(height: 4),
                   pw.Align(
                     alignment: pw.Alignment.centerRight,
-                    child: pw.Text('رقم الحساب: $accountNumber', style: pw.TextStyle(font: amiri, fontSize: 12)),
+                    child: pw.Text('Ø±Ù‚Ù… Ø§Ù„Ø­Ø³Ø§Ø¨: $accountNumber', style: pw.TextStyle(font: amiri, fontSize: 12)),
                   ),
                 ],
               ],
@@ -574,7 +635,7 @@ class PdfService {
                 children: rows,
               ),
               pw.SizedBox(height: 24),
-              pw.Text('تم إنشاء هذه الفاتورة آلياً بواسطة نظام النقل الدولي',
+              pw.Text('ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ù‡Ø°Ù‡ Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø¢Ù„ÙŠØ§Ù‹ Ø¨ÙˆØ§Ø³Ø·Ø© Ù†Ø¸Ø§Ù… Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ',
                   style: pw.TextStyle(font: amiri, fontSize: 10, color: PdfColors.grey600)),
             ],
           ),
@@ -603,7 +664,7 @@ class PdfService {
     final name = invoice.invoiceNumber;
     await Printing.sharePdf(
       bytes: pdfBytes,
-      filename: 'فاتورة_$name.pdf',
+      filename: 'ÙØ§ØªÙˆØ±Ø©_$name.pdf',
     );
   }
 
@@ -614,7 +675,7 @@ class PdfService {
     final pdf = pw.Document();
     final amiri = await PdfGoogleFonts.amiriRegular();
     final amiriBold = await PdfGoogleFonts.amiriBold();
-    final companyName = 'شركة النقل الدولي';
+    final companyName = 'Ø´Ø±ÙƒØ© Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ';
     final reportDate = DateTime.now();
     final formattedDate =
         '${reportDate.day.toString().padLeft(2, '0')}/${reportDate.month.toString().padLeft(2, '0')}/${reportDate.year}';
@@ -622,30 +683,30 @@ class PdfService {
     final clientName = client['name']?.toString() ??
         client['company_name']?.toString() ??
         client['full_name']?.toString() ??
-        'بدون اسم';
+        'Ø¨Ø¯ÙˆÙ† Ø§Ø³Ù…';
     final clientPhone = client['phone']?.toString() ?? '';
     final clientCity = client['city']?.toString() ?? '';
     final clientCurrency = client['currency']?.toString() ?? 'MAD';
-    final clientCurrencySymbol = clientCurrency == 'EUR' ? '€' : 'DH';
+    final clientCurrencySymbol = clientCurrency == 'EUR' ? 'â‚¬' : 'DH';
     final logoBytes = await _fetchLogoBytes();
 
     double totalRemaining = 0.0;
     final rows = <pw.TableRow>[];
     rows.add(pw.TableRow(
       children: [
-        _cell('رقم الفاتورة', amiriBold, isHeader: true),
-        _cell('تاريخ الإصدار', amiriBold, isHeader: true),
-        _cell('تاريخ الاستحقاق', amiriBold, isHeader: true),
-        _cell('الإجمالي', amiriBold, isHeader: true),
-        _cell('المدفوع', amiriBold, isHeader: true),
-        _cell('المتبقي', amiriBold, isHeader: true),
+        _cell('Ø±Ù‚Ù… Ø§Ù„ÙØ§ØªÙˆØ±Ø©', amiriBold, isHeader: true),
+        _cell('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¥ØµØ¯Ø§Ø±', amiriBold, isHeader: true),
+        _cell('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ­Ù‚Ø§Ù‚', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ù…Ø¯ÙÙˆØ¹', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ', amiriBold, isHeader: true),
       ],
     ));
 
     for (final invoice in invoices) {
       final invoiceNumber = invoice['invoice_number']?.toString() ?? '#${invoice['id'] ?? '?'}';
       final currency = invoice['currency']?.toString() ?? clientCurrency;
-      final currencySymbol = currency == 'EUR' ? '€' : 'DH';
+      final currencySymbol = currency == 'EUR' ? 'â‚¬' : 'DH';
       final issueDate = invoice['issue_date']?.toString() ?? '';
       final dueDate = invoice['due_date']?.toString() ?? '';
       final totalAmount = (invoice['total_amount'] as num?)?.toDouble() ?? 0.0;
@@ -677,18 +738,18 @@ class PdfService {
               ..._buildLogoSection(logoBytes),
               pw.Text(companyName, style: pw.TextStyle(font: amiriBold, fontSize: 22)),
               pw.SizedBox(height: 4),
-              pw.Text('كشف الفواتير المستحقة', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
+              pw.Text('ÙƒØ´Ù Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø³ØªØ­Ù‚Ø©', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
               pw.SizedBox(height: 4),
-              pw.Text('تاريخ الاستخراج: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
+              pw.Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ®Ø±Ø§Ø¬: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
               pw.Divider(height: 24, thickness: 1.5),
               pw.Align(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('الزبون: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
-                    if (clientPhone.isNotEmpty) pw.Text('الهاتف: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
-                    if (clientCity.isNotEmpty) pw.Text('المدينة: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    pw.Text('Ø§Ù„Ø²Ø¨ÙˆÙ†: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
+                    if (clientPhone.isNotEmpty) pw.Text('Ø§Ù„Ù‡Ø§ØªÙ: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    if (clientCity.isNotEmpty) pw.Text('Ø§Ù„Ù…Ø¯ÙŠÙ†Ø©: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
                   ],
                 ),
               ),
@@ -710,13 +771,13 @@ class PdfService {
               pw.Align(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Text(
-                  'إجمالي المستحق: ${totalRemaining.toStringAsFixed(2)} $clientCurrencySymbol',
+                  'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø³ØªØ­Ù‚: ${totalRemaining.toStringAsFixed(2)} $clientCurrencySymbol',
                   style: pw.TextStyle(font: amiriBold, fontSize: 14, color: PdfColors.red),
                 ),
               ),
               pw.Spacer(),
               pw.Text(
-                'إليكم بيان بالفواتير المستجدة والمستحقة للدفع فقط. نأمل تسويتها في أقرب وقت ممكن. شكراً لتعاملكم مع $companyName',
+                'Ø¥Ù„ÙŠÙƒÙ… Ø¨ÙŠØ§Ù† Ø¨Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø³ØªØ¬Ø¯Ø© ÙˆØ§Ù„Ù…Ø³ØªØ­Ù‚Ø© Ù„Ù„Ø¯ÙØ¹ ÙÙ‚Ø·. Ù†Ø£Ù…Ù„ ØªØ³ÙˆÙŠØªÙ‡Ø§ ÙÙŠ Ø£Ù‚Ø±Ø¨ ÙˆÙ‚Øª Ù…Ù…ÙƒÙ†. Ø´ÙƒØ±Ø§Ù‹ Ù„ØªØ¹Ø§Ù…Ù„ÙƒÙ… Ù…Ø¹ $companyName',
                 style: pw.TextStyle(font: amiri, fontSize: 11, color: PdfColors.grey700),
                 textAlign: pw.TextAlign.center,
               ),
@@ -744,10 +805,10 @@ class PdfService {
     required List<Map<String, dynamic>> invoices,
   }) async {
     final pdfBytes = await buildOutstandingStatementPdf(client: client, invoices: invoices);
-    final name = client['name']?.toString() ?? client['company_name']?.toString() ?? 'زبون';
+    final name = client['name']?.toString() ?? client['company_name']?.toString() ?? 'Ø²Ø¨ÙˆÙ†';
     await Printing.sharePdf(
       bytes: pdfBytes,
-      filename: 'كشف_المستحقات_$name.pdf',
+      filename: 'ÙƒØ´Ù_Ø§Ù„Ù…Ø³ØªØ­Ù‚Ø§Øª_$name.pdf',
     );
   }
 
@@ -761,23 +822,23 @@ class PdfService {
     final pdf = pw.Document();
     final amiri = await PdfGoogleFonts.amiriRegular();
     final amiriBold = await PdfGoogleFonts.amiriBold();
-    final companyName = 'شركة النقل الدولي';
+    final companyName = 'Ø´Ø±ÙƒØ© Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ';
     final reportDate = DateTime.now();
     final formattedDate =
         '${reportDate.day.toString().padLeft(2, '0')}/${reportDate.month.toString().padLeft(2, '0')}/${reportDate.year}';
-    final clientName = client['name']?.toString() ?? 'بدون اسم';
+    final clientName = client['name']?.toString() ?? 'Ø¨Ø¯ÙˆÙ† Ø§Ø³Ù…';
     final clientPhone = client['phone']?.toString() ?? '';
     final clientCity = client['city']?.toString() ?? '';
-    final currencySymbol = currency == 'EUR' ? '€' : 'DH';
+    final currencySymbol = currency == 'EUR' ? 'â‚¬' : 'DH';
 
     final rows = <pw.TableRow>[];
     rows.add(pw.TableRow(
       children: [
-        _cell('التاريخ', amiriBold, isHeader: true),
-        _cell('البيان', amiriBold, isHeader: true),
-        _cell('مدين', amiriBold, isHeader: true),
-        _cell('دائن', amiriBold, isHeader: true),
-        _cell('الرصيد', amiriBold, isHeader: true),
+        _cell('Ø§Ù„ØªØ§Ø±ÙŠØ®', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø¨ÙŠØ§Ù†', amiriBold, isHeader: true),
+        _cell('Ù…Ø¯ÙŠÙ†', amiriBold, isHeader: true),
+        _cell('Ø¯Ø§Ø¦Ù†', amiriBold, isHeader: true),
+        _cell('Ø§Ù„Ø±ØµÙŠØ¯', amiriBold, isHeader: true),
       ],
     ));
 
@@ -804,7 +865,7 @@ class PdfService {
         children: [
           pw.Container(
             padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: pw.Text('لا توجد معاملات', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: amiri)),
+            child: pw.Text('Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…Ø¹Ø§Ù…Ù„Ø§Øª', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: amiri)),
           ),
         ],
       ));
@@ -822,18 +883,18 @@ class PdfService {
               ..._buildLogoSection(logoBytes),
               pw.Text(companyName, style: pw.TextStyle(font: amiriBold, fontSize: 22)),
               pw.SizedBox(height: 4),
-              pw.Text('كشف حساب تفصيلي', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
+              pw.Text('ÙƒØ´Ù Ø­Ø³Ø§Ø¨ ØªÙØµÙŠÙ„ÙŠ', style: pw.TextStyle(font: amiriBold, fontSize: 16)),
               pw.SizedBox(height: 4),
-              pw.Text('تاريخ الاستخراج: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
+              pw.Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ®Ø±Ø§Ø¬: $formattedDate', style: pw.TextStyle(font: amiri, fontSize: 12)),
               pw.Divider(height: 24, thickness: 1.5),
               pw.Align(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('الزبون: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
-                    if (clientPhone.isNotEmpty) pw.Text('الهاتف: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
-                    if (clientCity.isNotEmpty) pw.Text('المدينة: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    pw.Text('Ø§Ù„Ø²Ø¨ÙˆÙ†: $clientName', style: pw.TextStyle(font: amiriBold, fontSize: 14)),
+                    if (clientPhone.isNotEmpty) pw.Text('Ø§Ù„Ù‡Ø§ØªÙ: $clientPhone', style: pw.TextStyle(font: amiri, fontSize: 13)),
+                    if (clientCity.isNotEmpty) pw.Text('Ø§Ù„Ù…Ø¯ÙŠÙ†Ø©: $clientCity', style: pw.TextStyle(font: amiri, fontSize: 13)),
                   ],
                 ),
               ),
@@ -854,12 +915,12 @@ class PdfService {
               pw.Align(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Text(
-                  'الرصيد الحالي: ${currentBalance.toStringAsFixed(2)} $currencySymbol',
+                  'Ø§Ù„Ø±ØµÙŠØ¯ Ø§Ù„Ø­Ø§Ù„ÙŠ: ${currentBalance.toStringAsFixed(2)} $currencySymbol',
                   style: pw.TextStyle(font: amiriBold, fontSize: 14, color: PdfColors.blue),
                 ),
               ),
               pw.Spacer(),
-              pw.Text('تم إنشاء هذا الكشف آلياً بواسطة نظام النقل الدولي',
+              pw.Text('ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ù‡Ø°Ø§ Ø§Ù„ÙƒØ´Ù Ø¢Ù„ÙŠØ§Ù‹ Ø¨ÙˆØ§Ø³Ø·Ø© Ù†Ø¸Ø§Ù… Ø§Ù„Ù†Ù‚Ù„ Ø§Ù„Ø¯ÙˆÙ„ÙŠ',
                   style: pw.TextStyle(font: amiri, fontSize: 10, color: PdfColors.grey600)),
             ],
           ),
@@ -903,10 +964,13 @@ class PdfService {
       currency: currency,
       logoBytes: logoBytes,
     );
-    final name = client['name']?.toString() ?? client['company_name']?.toString() ?? 'زبون';
+    final name = client['name']?.toString() ?? client['company_name']?.toString() ?? 'Ø²Ø¨ÙˆÙ†';
     await Printing.sharePdf(
       bytes: pdfBytes,
-      filename: 'كشف_حساب_$name.pdf',
+      filename: 'ÙƒØ´Ù_Ø­Ø³Ø§Ø¨_$name.pdf',
     );
   }
 }
+
+
+

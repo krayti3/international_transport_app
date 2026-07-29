@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:international_transport_app/models/invoice.dart';
 import '../../repositories/invoice_repository.dart';
@@ -21,7 +22,23 @@ class InvoicesCubit extends Cubit<InvoicesState> {
   final SettingsRepository _settingsRepository;
 
   Future<void> loadInvoices() async {
-    emit(state.copyWith(isLoading: true, errorMessage: null));
+    emit(state.copyWith(isLoading: true, isRefreshing: false, errorMessage: null));
+
+    try {
+      final cachedInvoices = await _invoiceRepository.getCachedInvoices();
+      if (cachedInvoices != null) {
+        final filtered = _applyFilter(cachedInvoices, state.currentFilter);
+        emit(state.copyWith(
+          allInvoices: cachedInvoices,
+          filteredInvoices: filtered,
+          isLoading: false,
+          isRefreshing: true,
+        ));
+      }
+    } catch (e) {
+      debugPrint('Cache read error in loadInvoices: $e');
+    }
+
     try {
       final invoices = await _invoiceRepository.getInvoices();
       final clients = await _clientRepository.getClients();
@@ -42,9 +59,14 @@ class InvoicesCubit extends Cubit<InvoicesState> {
         tvaPercentage: tvaPercentage,
         filteredInvoices: _applyFilter(invoices, state.currentFilter),
         isLoading: false,
+        isRefreshing: false,
       ));
     } catch (e) {
-      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      if (state.allInvoices.isEmpty) {
+        emit(state.copyWith(isLoading: false, isRefreshing: false, errorMessage: e.toString()));
+      } else {
+        emit(state.copyWith(isRefreshing: false, errorMessage: e.toString()));
+      }
     }
   }
 

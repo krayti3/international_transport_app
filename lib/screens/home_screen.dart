@@ -35,6 +35,7 @@ import 'providers_screen.dart';
 import 'expense_workshop_report_screen.dart';
 import 'truck_documents_screen.dart';
 import '../features/clients/screens/clients_screen.dart';
+import 'driver_screen.dart';
 import 'driver_tasks_screen.dart';
 import 'fleet_docs_screen.dart';
 import 'expense_categories_screen.dart';
@@ -46,7 +47,9 @@ import 'driver_cash_screen.dart';
 import 'visa_tracking_screen.dart';
 import 'cash_box_management_screen.dart';
 import 'bank_accounts_screen.dart';
+import 'chat_screen.dart';
 import 'debt_invoice_form_screen.dart';
+import 'ai_reports_screen.dart';
 import 'invoice_form_screen.dart';
 import 'repair_invoice_form_screen.dart';
 import 'truck_maintenance_screen.dart';
@@ -80,6 +83,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _expiringTrailerDocs = [];
   List<Map<String, dynamic>> _trucks = [];
   List<Map<String, dynamic>> _trailers = [];
+  Map<String, dynamic>? _currentTrip;
+  bool _isLoadingTrip = false;
 
   @override
   void initState() {
@@ -141,6 +146,60 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadAdvancesSummary();
       _loadExpiringVisasCount();
       _loadExpiringFleetDocsCount();
+    } else {
+      _loadCurrentTrip();
+    }
+  }
+
+  Future<void> _loadCurrentTrip() async {
+    if (!mounted) return;
+    setState(() => _isLoadingTrip = true);
+    try {
+      final authUser = _supabase.auth.currentUser;
+      if (authUser == null) {
+        if (!mounted) return;
+        setState(() {
+          _currentTrip = null;
+          _isLoadingTrip = false;
+        });
+        return;
+      }
+
+      final driverIdResponse = await _supabase
+          .from('drivers')
+          .select('id')
+          .eq('user_id', authUser.id)
+          .maybeSingle();
+
+      final driverId = driverIdResponse?['id'] as int?;
+
+      if (driverId == null) {
+        if (!mounted) return;
+        setState(() {
+          _currentTrip = null;
+          _isLoadingTrip = false;
+        });
+        return;
+      }
+
+      final activeTrip = await _supabase
+          .from('trip_orders')
+          .select()
+          .eq('driver_id', driverId)
+          .eq('status', 'قيد التنفيذ')
+          .maybeSingle();
+
+      if (!mounted) return;
+      setState(() {
+        _currentTrip = activeTrip;
+        _isLoadingTrip = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _currentTrip = null;
+        _isLoadingTrip = false;
+      });
     }
   }
 
@@ -360,6 +419,116 @@ class _HomeScreenState extends State<HomeScreen> {
     context.read<ThemeProvider>().toggleThemeForCurrentUser(userId);
   }
 
+  Widget _buildCurrentTripCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final isSmall = MediaQuery.of(context).size.width < 400;
+
+    if (_isLoadingTrip) {
+      return Container(
+        margin: EdgeInsets.fromLTRB(isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 6 : 8),
+        padding: EdgeInsets.all(isSmall ? 14 : 16),
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(isSmall ? 14 : 16),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_currentTrip == null) {
+      return Container(
+        margin: EdgeInsets.fromLTRB(isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 6 : 8),
+        padding: EdgeInsets.all(isSmall ? 14 : 16),
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(isSmall ? 14 : 16),
+        ),
+        child: Text(
+          'لا توجد رحلة نشطة حالياً',
+          style: TextStyle(
+            fontSize: isSmall ? 14 : 15,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onPrimaryContainer,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final trip = _currentTrip!;
+    final route = trip['route']?.toString() ?? 'غير محدد';
+    final departureDateStr = trip['departure_date']?.toString() ?? '';
+    final notes = trip['notes']?.toString() ?? '';
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 6 : 8),
+      padding: EdgeInsets.all(isSmall ? 14 : 16),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(isSmall ? 14 : 16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.15),
+            blurRadius: isSmall ? 8 : 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.navigation_rounded, color: colorScheme.primary, size: isSmall ? 20 : 22),
+              SizedBox(width: isSmall ? 6 : 8),
+              Expanded(
+                child: Text(
+                  'الرحلة الحالية',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: isSmall ? 14 : 15,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: isSmall ? 10 : 12),
+          _TripInfoRow(icon: Icons.route_rounded, label: 'المسار', value: route, isSmall: isSmall),
+          if (departureDateStr.isNotEmpty) ...[
+            SizedBox(height: isSmall ? 6 : 8),
+            _TripInfoRow(
+              icon: Icons.calendar_today_rounded,
+              label: 'تاريخ الانطلاق',
+              value: dateFormat.format(DateTime.tryParse(departureDateStr) ?? DateTime.now()),
+              isSmall: isSmall,
+            ),
+          ],
+          if (notes.isNotEmpty) ...[
+            SizedBox(height: isSmall ? 6 : 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.notes_rounded, color: colorScheme.primary, size: isSmall ? 16 : 18),
+                SizedBox(width: isSmall ? 6 : 8),
+                Expanded(
+                  child: Text(
+                    notes,
+                    style: TextStyle(
+                      fontSize: isSmall ? 12 : 13,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildAdvancesDashboardCard() {
     final colorScheme = Theme.of(context).colorScheme;
     final numberFormat = NumberFormat('#,###.00');
@@ -464,9 +633,10 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     final List<Widget> driverTabs = [
-      DriverTasksScreen(),
+      DriverScreen(),
       const FuelReceiptScreen(isAdmin: false),
       TruckTrackingScreen(isAdmin: isAdmin),
+      const ChatScreen(),
     ];
 
     final Widget activeBody = isAdmin
@@ -476,10 +646,10 @@ class _HomeScreenState extends State<HomeScreen> {
             : driverTabs[_currentTabIndex];
 
     final String appBarTitle = isAdmin
-        ? (_currentTabIndex == 0 ? 'نظام النقل الدولي' : _currentTabIndex == 1 ? 'الصندوق المالي المركزي' : 'تتبع الشاحنات مباشر')
+        ? (_currentTabIndex == 0 ? 'نظام النقل الدولي' : _currentTabIndex == 1 ? 'الصندوق المالي المركزي' : _currentTabIndex == 3 ? 'دردشة داخلية' : 'تتبع الشاحنات مباشر')
         : isSecretary
-            ? (_currentTabIndex == 0 ? 'لوحة السكرتيرة' : _currentTabIndex == 1 ? 'الصندوق المالي المركزي' : 'تتبع الشاحنات مباشر')
-            : (_currentTabIndex == 0 ? 'مهامي اليوم' : _currentTabIndex == 1 ? 'مسح تذكرة وقود ذكية' : 'خريطة الطريق والـ GPS');
+            ? (_currentTabIndex == 0 ? 'لوحة السكرتيرة' : _currentTabIndex == 1 ? 'الصندوق المالي المركزي' : _currentTabIndex == 3 ? 'دردشة داخلية' : 'تتبع الشاحنات مباشر')
+            : (_currentTabIndex == 0 ? 'رحلاتي' : _currentTabIndex == 1 ? 'مسح تذكرة وقود ذكية' : _currentTabIndex == 3 ? 'دردشة داخلية' : 'خريطة الطريق والـ GPS');
 
     final bool showDashboard = (isAdmin || isSecretary) && !isDriver;
 
@@ -778,6 +948,20 @@ _buildDrawerItem(Icons.verified_rounded, 'تتبع صلاحية الفيزا', (
               }),
             ]),
 
+            _buildDrawerSection('التواصل', [
+              _buildDrawerItem(Icons.chat_bubble_rounded, 'دردشة داخلية', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
+              }),
+            ]),
+
+            _buildDrawerSection('التحليلات والتقارير', [
+              _buildDrawerItem(Icons.auto_graph_rounded, 'تقارير ذكية (AI)', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AiReportsScreen()));
+              }),
+            ]),
+
             const Divider(height: 20),
 
             _buildDrawerGroupHeader('الإعدادات'),
@@ -801,14 +985,21 @@ _buildDrawerItem(Icons.verified_rounded, 'تتبع صلاحية الفيزا', (
       ),
 
       body: SafeArea(
-        child: showDashboard
+        child: isDriver
             ? Column(
                 children: [
-                  _buildAdvancesDashboardCard(),
+                  _buildCurrentTripCard(),
                   Expanded(child: activeBody),
                 ],
               )
-            : activeBody,
+            : showDashboard
+                ? Column(
+                    children: [
+                      _buildAdvancesDashboardCard(),
+                      Expanded(child: activeBody),
+                    ],
+                  )
+                : activeBody,
       ),
 
       bottomNavigationBar: BottomNavigationBar(
@@ -819,7 +1010,7 @@ _buildDrawerItem(Icons.verified_rounded, 'تتبع صلاحية الفيزا', (
         backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        selectedLabelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: isDriver && MediaQuery.of(context).size.width < 400 ? 11 : 12),
         elevation: 10,
         type: BottomNavigationBarType.fixed,
         items: isAdmin
@@ -834,10 +1025,23 @@ _buildDrawerItem(Icons.verified_rounded, 'تتبع صلاحية الفيزا', (
                     BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_rounded), label: 'الخزينة'),
                     BottomNavigationBarItem(icon: Icon(Icons.explore_rounded), label: 'التتبع'),
                   ]
-                : const [
-                    BottomNavigationBarItem(icon: Icon(Icons.assignment_turned_in_rounded), label: 'مهامي'),
-                    BottomNavigationBarItem(icon: Icon(Icons.document_scanner_rounded), label: 'مسح التذكرة'),
-                    BottomNavigationBarItem(icon: Icon(Icons.map_rounded), label: 'موقعي'),
+                : [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.local_shipping_rounded, size: MediaQuery.of(context).size.width < 400 ? 20 : 22),
+                      label: 'رحلاتي',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.document_scanner_rounded, size: MediaQuery.of(context).size.width < 400 ? 20 : 22),
+                      label: 'مسح التذكرة',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.map_rounded, size: MediaQuery.of(context).size.width < 400 ? 20 : 22),
+                      label: 'موقعي',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.chat_bubble_rounded, size: MediaQuery.of(context).size.width < 400 ? 20 : 22),
+                      label: 'الدردشة',
+                    ),
                   ],
       ),
     );
@@ -978,6 +1182,38 @@ _buildDrawerItem(Icons.verified_rounded, 'تتبع صلاحية الفيزا', (
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TripInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isSmall;
+
+  const _TripInfoRow({required this.icon, required this.label, required this.value, this.isSmall = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final iconSize = isSmall ? 16.0 : 18.0;
+    final fontSize = isSmall ? 12.0 : 13.0;
+
+    return Row(
+      children: [
+        Icon(icon, color: colorScheme.primary, size: iconSize),
+        SizedBox(width: isSmall ? 6 : 8),
+        Expanded(
+          child: Text(
+            '$label: $value',
+            style: TextStyle(
+              fontSize: fontSize,
+              color: colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

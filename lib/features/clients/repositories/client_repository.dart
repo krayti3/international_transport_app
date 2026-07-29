@@ -122,6 +122,12 @@ class ClientRepository {
     return Map<String, dynamic>.from(client)..['name'] = name;
   }
 
+  Future<List<Client>?> getCachedClients() async {
+    final rows = await SyncService.instance.getAllCachedRows('clients');
+    if (rows == null) return null;
+    return rows.map((e) => Client.fromMap(e)).toList();
+  }
+
   Future<List<Client>> getClients({bool activeOnly = false}) async {
     try {
       var query = supabase.from('clients').select();

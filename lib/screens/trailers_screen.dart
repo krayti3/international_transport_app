@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../cubits/trailers_cubit.dart';
@@ -49,13 +49,13 @@ class _TrailersScreenBody extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(context.tr('المقطورات')),
+            title: Text(context.tr('Ø§Ù„Ù…Ù‚Ø·ÙˆØ±Ø§Øª')),
             actions: [
               if (isAdmin)
                 IconButton(
                   icon: const Icon(Icons.add),
                   onPressed: () => _openTrailerDialog(context, cubit),
-                  tooltip: 'إضافة مقطورة',
+                  tooltip: 'Ø¥Ø¶Ø§ÙØ© Ù…Ù‚Ø·ÙˆØ±Ø©',
                 ),
             ],
           ),
@@ -67,7 +67,7 @@ class _TrailersScreenBody extends StatelessWidget {
                 child: TextField(
                   onChanged: cubit.onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: context.tr('بحث...'),
+                    hintText: context.tr('Ø¨Ø­Ø«...'),
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -78,7 +78,7 @@ class _TrailersScreenBody extends StatelessWidget {
               ),
               Expanded(
                 child: state.filteredTrailers.isEmpty
-                    ? Center(child: Text(context.tr('لا توجد مقطورات حالياً')))
+                    ? Center(child: Text(context.tr('Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…Ù‚Ø·ÙˆØ±Ø§Øª Ø­Ø§Ù„ÙŠØ§Ù‹')))
                     : ListView.builder(
                         padding: const EdgeInsets.all(12),
                         itemCount: state.filteredTrailers.length,
@@ -137,25 +137,25 @@ class _TrailersScreenBody extends StatelessWidget {
       child: Row(
         children: [
           ChoiceChip(
-            label: Text(context.tr('الكل')),
+            label: Text(context.tr('Ø§Ù„ÙƒÙ„')),
             selected: statusFilter == 'all',
             onSelected: (_) => cubit.onStatusFilterChanged('all'),
           ),
           const SizedBox(width: 8),
           ChoiceChip(
-            label: Text(context.tr('نشط')),
+            label: Text(context.tr('Ù†Ø´Ø·')),
             selected: statusFilter == 'active',
             onSelected: (_) => cubit.onStatusFilterChanged('active'),
           ),
           const SizedBox(width: 8),
           ChoiceChip(
-            label: Text(context.tr('صيانة')),
+            label: Text(context.tr('ØµÙŠØ§Ù†Ø©')),
             selected: statusFilter == 'maintenance',
             onSelected: (_) => cubit.onStatusFilterChanged('maintenance'),
           ),
           const SizedBox(width: 8),
           ChoiceChip(
-            label: Text(context.tr('غير نشط')),
+            label: Text(context.tr('ØºÙŠØ± Ù†Ø´Ø·')),
             selected: statusFilter == 'inactive',
             onSelected: (_) => cubit.onStatusFilterChanged('inactive'),
           ),
@@ -183,7 +183,7 @@ Future<void> _openTrailerDialog(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
-        title: Text(isEdit ? context.tr('تعديل المقطورة') : context.tr('إضافة مقطورة جديدة')),
+        title: Text(isEdit ? context.tr('ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ù…Ù‚Ø·ÙˆØ±Ø©') : context.tr('Ø¥Ø¶Ø§ÙØ© Ù…Ù‚Ø·ÙˆØ±Ø© Ø¬Ø¯ÙŠØ¯Ø©')),
         content: SingleChildScrollView(
           child: Form(
             child: Column(
@@ -194,19 +194,19 @@ Future<void> _openTrailerDialog(
                   textDirection: TextDirection.ltr,
                   textAlign: TextAlign.left,
                   inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
-                  decoration: InputDecoration(labelText: context.tr('لوحة الترقيم')),
+                  decoration: InputDecoration(labelText: context.tr('Ù„ÙˆØ­Ø© Ø§Ù„ØªØ±Ù‚ÙŠÙ…')),
                 ),
                 TextFormField(
                   controller: typeController,
-                  decoration: InputDecoration(labelText: context.tr('النوع')),
+                  decoration: InputDecoration(labelText: context.tr('Ø§Ù„Ù†ÙˆØ¹')),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: status,
-                  decoration: InputDecoration(labelText: context.tr('الحالة')),
+                  decoration: InputDecoration(labelText: context.tr('Ø§Ù„Ø­Ø§Ù„Ø©')),
                   items: const [
-                    DropdownMenuItem(value: 'active', child: Text('نشط')),
-                    DropdownMenuItem(value: 'maintenance', child: Text('صيانة')),
-                    DropdownMenuItem(value: 'inactive', child: Text('غير نشط')),
+                    DropdownMenuItem(value: 'active', child: Text('Ù†Ø´Ø·')),
+                    DropdownMenuItem(value: 'maintenance', child: Text('ØµÙŠØ§Ù†Ø©')),
+                    DropdownMenuItem(value: 'inactive', child: Text('ØºÙŠØ± Ù†Ø´Ø·')),
                   ],
                   onChanged: (value) {
                     if (value != null) setDialogState(() => status = value);
@@ -219,14 +219,14 @@ Future<void> _openTrailerDialog(
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.tr('إلغاء')),
+            child: Text(context.tr('Ø¥Ù„ØºØ§Ø¡')),
           ),
           ElevatedButton(
             onPressed: () async {
               final plate = plateController.text.trim();
               if (plate.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(context.tr('يرجى إدخال رقم اللوحة'))),
+                  SnackBar(content: Text(context.tr('ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø±Ù‚Ù… Ø§Ù„Ù„ÙˆØ­Ø©'))),
                 );
                 return;
               }
@@ -246,14 +246,19 @@ Future<void> _openTrailerDialog(
               } catch (e) {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(context.tr('خطأ في حفظ المقطورة: {0}', [e]))),
+                  SnackBar(content: Text(context.tr('Ø®Ø·Ø£ ÙÙŠ Ø­ÙØ¸ Ø§Ù„Ù…Ù‚Ø·ÙˆØ±Ø©: {0}', [e]))),
                 );
               }
             },
-            child: Text(context.tr('حفظ')),
+            child: Text(context.tr('Ø­ÙØ¸')),
           ),
         ],
       ),
     ),
   );
 }
+
+
+
+
+

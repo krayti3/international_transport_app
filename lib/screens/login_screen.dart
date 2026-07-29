@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/theme_provider.dart';
-
+import '../services/biometric_service.dart';
+import '../services/secure_storage_service.dart';
 import 'main_screen.dart';
 import 'signup_screen.dart';
 
@@ -18,16 +19,68 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   static const String _lastEmailKey = 'lastEmail';
   final _formKey = GlobalKey<FormState>();
+  final _scaffoldKey = GlobalKey<ScaffoldMessengerState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isBiometricLoading = false;
   String? _errorMessage;
+
+  final BiometricService _biometricService = BiometricService();
+  final SecureStorageService _secureStorage = SecureStorageService();
 
   @override
   void initState() {
     super.initState();
     _loadLastEmail();
+    _attemptBiometricLogin();
+  }
+
+  Future<void> _attemptBiometricLogin() async {
+    final isEnabled = await _secureStorage.isBiometricEnabled();
+    if (!isEnabled) return;
+
+    final isAvailable = await _biometricService.isBiometricAvailable();
+    if (!isAvailable) return;
+
+    final credentials = await _secureStorage.getCredentials();
+    if (credentials == null) return;
+
+    setState(() => _isBiometricLoading = true);
+
+    final authenticated = await _biometricService.authenticate(
+      reason: 'سجل الدخول باستخدام بصمة الإصبع أو الوجه',
+      title: 'تسجيل الدخول',
+      subtitle: 'استخدم بصمة إصبعك أو وجهك للدخول',
+    );
+
+    if (!authenticated) {
+      setState(() => _isBiometricLoading = false);
+      return;
+    }
+
+    final email = credentials['email']!;
+    final password = credentials['password']!;
+
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'فشل تسجيل الدخول، يرجى المحاولة يدوياً';
+        _isBiometricLoading = false;
+      });
+      await _secureStorage.clearCredentials();
+      await _secureStorage.saveBiometricEnabled(false);
+    }
   }
 
   Future<void> _loadLastEmail() async {
@@ -69,6 +122,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await _saveLastEmail(email);
 
+      _askToEnableBiometric(email, _passwordController.text);
+
       final userId = response.user?.id;
       if (userId != null && mounted) {
         final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -103,15 +158,98 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _errorMessage = e.message);
     } catch (e) {
       setState(() => _errorMessage = context.tr('حدث خطأ غير متوقع'));
-    }     finally {
+    } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _askToEnableBiometric(String email, String password) async {
+    final isAvailable = await _biometricService.isBiometricAvailable();
+    if (!isAvailable) return;
+
+    final alreadyEnabled = await _secureStorage.isBiometricEnabled();
+    if (alreadyEnabled) return;
+
+    if (!mounted) return;
+
+    final shouldEnable = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('🔐 تفعيل الدخول السريع'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('هل ترغب في تفعيل الدخول عبر بصمة الإصبع أو الوجه لتسجيل الدخول بسرعة في المرات القادمة؟'),
+            const SizedBox(height: 12),
+            const Icon(Icons.fingerprint, size: 48, color: Colors.blue),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ليس الآن'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.check),
+            label: const Text('تفعيل'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldEnable == true) {
+      await _secureStorage.saveCredentials(email, password);
+      await _secureStorage.saveBiometricEnabled(true);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ تم تفعيل الدخول السريع بنجاح'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
+    if (_isBiometricLoading) {
+      return ScaffoldMessenger(
+        key: _scaffoldKey,
+        child: Scaffold(
+          body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 24),
+              Text(
+                'جاري المصادقة عبر البصمة...',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              const Icon(Icons.fingerprint, size: 64, color: Colors.blue),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  setState(() => _isBiometricLoading = false);
+                },
+                child: const Text('إلغاء والمحاولة يدوياً'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+    return ScaffoldMessenger(
+      key: _scaffoldKey,
+      child: Scaffold(
+        body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Form(
@@ -123,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 24),
                 Text(
                   context.tr('النقل الدولي'),
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 48),
                 TextFormField(
@@ -132,8 +270,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   autofillHints: const [AutofillHints.email],
                   decoration: InputDecoration(
                     labelText: context.tr('البريد الإلكتروني'),
-                    prefixIcon: Icon(Icons.email),
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.email),
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) return context.tr('أدخل البريد الإلكتروني');
@@ -177,7 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: _isLoading ? null : _login,
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(context.tr('تسجيل الدخول'), style: TextStyle(fontSize: 18)),
+                        : Text(context.tr('تسجيل الدخول'), style: const TextStyle(fontSize: 18)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -190,10 +328,30 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                   child: Text(context.tr('إنشاء حساب جديد')),
                 ),
+                FutureBuilder<bool>(
+                  future: _secureStorage.isBiometricEnabled(),
+                  builder: (context, snapshot) {
+                    if (snapshot.data != true) return const SizedBox.shrink();
+                    return TextButton(
+                      onPressed: () async {
+                        await _secureStorage.saveBiometricEnabled(false);
+                        await _secureStorage.clearCredentials();
+                        _scaffoldKey.currentState?.showSnackBar(
+                          const SnackBar(
+                            content: Text('تم إلغاء تفعيل الدخول السريع'),
+                          ),
+                        );
+                        setState(() {});
+                      },
+                      child: const Text('إلغاء تفعيل الدخول السريع', style: TextStyle(color: Colors.red)),
+                    );
+                  },
+                ),
               ],
             ),
           ),
         ),
+      ),
       ),
     );
   }

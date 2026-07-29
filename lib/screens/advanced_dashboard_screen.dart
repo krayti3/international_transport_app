@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../cubits/advanced_dashboard_cubit.dart';
 import '../l10n/app_localizations.dart';
 import '../services/excel_service.dart';
+import '../services/pdf_service.dart';
 import '../widgets/summary_card.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -41,17 +42,22 @@ class _AdvancedDashboardBody extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(context.tr('لوحة التحليلات المتقدمة')),
+            title: Text(context.tr('Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­Ù„ÙŠÙ„Ø§Øª Ø§Ù„Ù…ØªÙ‚Ø¯Ù…Ø©')),
             actions: [
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: cubit.loadDashboardData,
-                tooltip: 'تحديث',
+                tooltip: 'ØªØ­Ø¯ÙŠØ«',
+              ),
+              IconButton(
+                icon: const Icon(Icons.picture_as_pdf),
+                onPressed: () => _exportPdf(context, state),
+                tooltip: 'ØªØµØ¯ÙŠØ± PDF',
               ),
               IconButton(
                 icon: const Icon(Icons.table_chart),
                 onPressed: () => _exportExcel(context, state),
-                tooltip: 'تصدير Excel',
+                tooltip: 'ØªØµØ¯ÙŠØ± Excel',
               ),
             ],
           ),
@@ -82,7 +88,7 @@ class _AdvancedDashboardBody extends StatelessWidget {
       children: [
         Expanded(
           child: SummaryCard(
-            title: 'إجمالي الإيرادات',
+            title: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¥ÙŠØ±Ø§Ø¯Ø§Øª',
             value: '${state.totalRevenue.toStringAsFixed(2)} DH',
             color: Colors.green,
           ),
@@ -90,7 +96,7 @@ class _AdvancedDashboardBody extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: SummaryCard(
-            title: 'إجمالي المصاريف',
+            title: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ',
             value: '${state.totalExpenses.toStringAsFixed(2)} DH',
             color: Colors.red,
           ),
@@ -98,7 +104,7 @@ class _AdvancedDashboardBody extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: SummaryCard(
-            title: 'صافي الربح',
+            title: 'ØµØ§ÙÙŠ Ø§Ù„Ø±Ø¨Ø­',
             value: '${state.netProfit.toStringAsFixed(2)} DH',
             color: state.netProfit >= 0 ? Colors.green : Colors.red,
           ),
@@ -106,7 +112,7 @@ class _AdvancedDashboardBody extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: SummaryCard(
-            title: 'الفواتير المعلقة',
+            title: 'Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø¹Ù„Ù‚Ø©',
             value: '${state.outstandingInvoices.toStringAsFixed(2)} DH',
             color: Colors.orange,
           ),
@@ -120,10 +126,12 @@ class _AdvancedDashboardBody extends StatelessWidget {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('لا توجد بيانات شهرية'),
+          child: Text('Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ø´Ù‡Ø±ÙŠØ©'),
         ),
       );
     }
+
+    final chartHeight = MediaQuery.of(context).size.width > 600 ? 300.0 : 200.0;
 
     return Card(
       child: Padding(
@@ -132,12 +140,12 @@ class _AdvancedDashboardBody extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'الإيرادات والمصاريف الشهرية',
+              'Ø§Ù„Ø¥ÙŠØ±Ø§Ø¯Ø§Øª ÙˆØ§Ù„Ù…ØµØ§Ø±ÙŠÙ Ø§Ù„Ø´Ù‡Ø±ÙŠØ©',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 200,
+              height: chartHeight,
               child: _buildBarChart(state.monthlyRevenue),
             ),
           ],
@@ -207,7 +215,7 @@ class _AdvancedDashboardBody extends StatelessWidget {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('لا توجد بيانات مصاريف'),
+          child: Text('Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ù…ØµØ§Ø±ÙŠÙ'),
         ),
       );
     }
@@ -219,7 +227,7 @@ class _AdvancedDashboardBody extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'توزيع المصاريف',
+              'ØªÙˆØ²ÙŠØ¹ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
@@ -268,17 +276,17 @@ class _AdvancedDashboardBody extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'حالة الفواتير (درهم / يورو)',
+              'Ø­Ø§Ù„Ø© Ø§Ù„ÙÙˆØ§ØªÙŠØ± (Ø¯Ø±Ù‡Ù… / ÙŠÙˆØ±Ùˆ)',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
             DataTable(
               columns: const [
-                DataColumn(label: Text('الحالة')),
-                DataColumn(label: Text('العدد')),
-                DataColumn(label: Text('المبلغ (درهم)')),
-                DataColumn(label: Text('المبلغ (يورو)')),
-                DataColumn(label: Text('الإجمالي')),
+                DataColumn(label: Text('Ø§Ù„Ø­Ø§Ù„Ø©')),
+                DataColumn(label: Text('Ø§Ù„Ø¹Ø¯Ø¯')),
+                DataColumn(label: Text('Ø§Ù„Ù…Ø¨Ù„Øº (Ø¯Ø±Ù‡Ù…)')),
+                DataColumn(label: Text('Ø§Ù„Ù…Ø¨Ù„Øº (ÙŠÙˆØ±Ùˆ)')),
+                DataColumn(label: Text('Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ')),
               ],
               rows: state.invoicesByStatus.map((row) {
                 return DataRow(cells: [
@@ -306,10 +314,12 @@ class _AdvancedDashboardBody extends StatelessWidget {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('لا توجد بيانات رحلات'),
+          child: Text('Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ø±Ø­Ù„Ø§Øª'),
         ),
       );
     }
+
+    final chartHeight = MediaQuery.of(context).size.width > 600 ? 250.0 : 150.0;
 
     return Card(
       child: Padding(
@@ -318,12 +328,12 @@ class _AdvancedDashboardBody extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'الرحلات الشهرية',
+              'Ø§Ù„Ø±Ø­Ù„Ø§Øª Ø§Ù„Ø´Ù‡Ø±ÙŠØ©',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 150,
+              height: chartHeight,
               child: _buildTripsBarChart(state.tripsByMonth),
             ),
           ],
@@ -365,7 +375,7 @@ class _AdvancedDashboardBody extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 Text(
-                  '$count رحلة',
+                  '$count Ø±Ø­Ù„Ø©',
                   style: const TextStyle(fontSize: 9),
                   textAlign: TextAlign.center,
                 ),
@@ -411,13 +421,42 @@ Future<void> _exportExcel(
     });
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم تصدير Excel بنجاح')),
+        const SnackBar(content: Text('ØªÙ… ØªØµØ¯ÙŠØ± Excel Ø¨Ù†Ø¬Ø§Ø­')),
       );
     }
   } catch (e) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ في تصدير Excel: $e')),
+        SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ ØªØµØ¯ÙŠØ± Excel: $e')),
+      );
+    }
+  }
+}
+
+Future<void> _exportPdf(
+  BuildContext context,
+  AdvancedDashboardState state,
+) async {
+  try {
+    await PdfService.instance.shareDashboardPdf(
+      totalRevenue: state.totalRevenue,
+      totalExpenses: state.totalExpenses,
+      netProfit: state.netProfit,
+      outstandingInvoices: state.outstandingInvoices,
+      monthlyRevenue: state.monthlyRevenue,
+      expensesByCategory: state.expensesByCategory,
+      invoicesByStatus: state.invoicesByStatus,
+      tripsByMonth: state.tripsByMonth,
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ØªÙ… ØªØµØ¯ÙŠØ± PDF Ø¨Ù†Ø¬Ø§Ø­')),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ ØªØµØ¯ÙŠØ± PDF: $e')),
       );
     }
   }

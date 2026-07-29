@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:international_transport_app/models/client.dart';
 import 'package:international_transport_app/models/invoice.dart';
@@ -23,7 +24,23 @@ class ClientsCubit extends Cubit<ClientsState> {
   final SettingsRepository _settingsRepository;
 
   Future<void> loadClients() async {
-    emit(state.copyWith(isLoading: true, errorMessage: null));
+    emit(state.copyWith(isLoading: true, isRefreshing: false, errorMessage: null));
+
+    try {
+      final cachedClients = await _clientRepository.getCachedClients();
+      if (cachedClients != null) {
+        final filtered = _applyFilters(cachedClients, state.searchQuery, state.statusFilter);
+        emit(state.copyWith(
+          clients: cachedClients,
+          filteredClients: filtered,
+          isLoading: false,
+          isRefreshing: true,
+        ));
+      }
+    } catch (e) {
+      debugPrint('Cache read error in loadClients: $e');
+    }
+
     try {
       final clients = await _clientRepository.getClients();
       final invoices = await _invoiceRepository.getInvoices();
@@ -55,12 +72,14 @@ class ClientsCubit extends Cubit<ClientsState> {
         clients: clients,
         filteredClients: filtered,
         isLoading: false,
+        isRefreshing: false,
       ));
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      ));
+      if (state.clients.isEmpty) {
+        emit(state.copyWith(isLoading: false, isRefreshing: false, errorMessage: e.toString()));
+      } else {
+        emit(state.copyWith(isRefreshing: false, errorMessage: e.toString()));
+      }
     }
   }
 

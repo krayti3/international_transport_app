@@ -83,6 +83,8 @@ class SyncService {
     await box.put(key, entry);
   }
 
+  Box? get offlineQueueBox => _offlineQueueBoxRef;
+
   Future<void> startConnectivityListener(VoidCallback onConnected) async {
     try {
       InternetConnectionChecker.createInstance()
@@ -96,6 +98,46 @@ class SyncService {
       debugPrint('SyncService: connectivity listener error: $e');
       debugPrint(stackTrace.toString());
     }
+  }
+
+  Future<List<Map<String, dynamic>>?> getAllCachedRows(String tableName, {Duration? maxAge}) async {
+    final box = _rowCacheBoxRef;
+    if (box == null) {
+      debugPrint('SyncService: row cache box not initialized');
+      return null;
+    }
+    final prefix = '$tableName:';
+    final rows = <Map<String, dynamic>>[];
+    for (final key in box.keys) {
+      if (key is String && key.startsWith(prefix)) {
+        final value = box.get(key);
+        if (value is Map) {
+          final entry = Map<String, dynamic>.from(value);
+          final data = entry['data'];
+          if (data is Map) {
+            final row = Map<String, dynamic>.from(data);
+            if (maxAge != null) {
+              final updatedAt = entry['updated_at'];
+              if (updatedAt != null) {
+                DateTime? dt;
+                if (updatedAt is String) {
+                  dt = DateTime.tryParse(updatedAt);
+                } else if (updatedAt is int) {
+                  dt = DateTime.fromMillisecondsSinceEpoch(updatedAt);
+                }
+                if (dt != null && DateTime.now().difference(dt) > maxAge) {
+                  continue;
+                }
+              }
+            }
+            rows.add(row);
+          }
+        }
+      }
+    }
+    if (rows.isEmpty) return null;
+    rows.sort((a, b) => ((b['id'] as int?) ?? 0).compareTo((a['id'] as int?) ?? 0));
+    return rows;
   }
 
   Future<void> clearCacheForTable(String tableName) async {

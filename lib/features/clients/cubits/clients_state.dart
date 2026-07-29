@@ -2,6 +2,7 @@ part of 'clients_cubit.dart';
 
 class ClientsState {
   final bool isLoading;
+  final bool isRefreshing;
   final String? errorMessage;
   final List<Client> clients;
   final List<Client> filteredClients;
@@ -10,6 +11,7 @@ class ClientsState {
 
   const ClientsState({
     this.isLoading = true,
+    this.isRefreshing = false,
     this.errorMessage,
     this.clients = const [],
     this.filteredClients = const [],
@@ -19,6 +21,7 @@ class ClientsState {
 
   ClientsState copyWith({
     bool? isLoading,
+    bool? isRefreshing,
     String? errorMessage,
     List<Client>? clients,
     List<Client>? filteredClients,
@@ -27,7 +30,8 @@ class ClientsState {
   }) {
     return ClientsState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
+      errorMessage: errorMessage ?? this.errorMessage,
       clients: clients ?? this.clients,
       filteredClients: filteredClients ?? this.filteredClients,
       searchQuery: searchQuery ?? this.searchQuery,

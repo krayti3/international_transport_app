@@ -11,6 +11,10 @@ class DriverRepository {
     await SyncService.instance.cacheRows(tableName, rows);
   }
 
+  Future<List<Map<String, dynamic>>?> getCachedDrivers() async {
+    return SyncService.instance.getAllCachedRows('drivers');
+  }
+
   Future<List<Map<String, dynamic>>> getDrivers() async {
     try {
       final response = await supabase.from('drivers').select();

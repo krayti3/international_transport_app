@@ -99,6 +99,12 @@ class InvoiceRepository {
     throw Exception('تعذّر الحفظ بسبب اختلاف في مخطط قاعدة البيانات');
   }
 
+  Future<List<Invoice>?> getCachedInvoices() async {
+    final rows = await SyncService.instance.getAllCachedRows('invoices');
+    if (rows == null) return null;
+    return rows.map((e) => Invoice.fromMap(e)).toList();
+  }
+
   Future<List<Invoice>> getInvoices() async {
     try {
       final invoicesResponse = await supabase.from('invoices').select();

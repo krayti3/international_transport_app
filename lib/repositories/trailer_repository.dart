@@ -12,6 +12,12 @@ class TrailerRepository {
     await SyncService.instance.cacheRows(tableName, rows);
   }
 
+  Future<List<Trailer>> getCachedTrailers() async {
+    final rows = await SyncService.instance.getAllCachedRows('trailers');
+    if (rows == null) return const [];
+    return rows.map((e) => Trailer.fromMap(e)).toList();
+  }
+
   Future<List<Trailer>> getTrailers() async {
     try {
       final response = await supabase.from('trailers').select();

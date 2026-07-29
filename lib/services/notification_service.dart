@@ -211,4 +211,141 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
+
+  // ==================== Trip Notifications ====================
+
+  /// Notify driver of a new trip assignment.
+  Future<void> notifyTripAssigned(String driverName, String route, int tripOrderId) async {
+    try {
+      if (kIsWeb) return;
+      await showNotification(
+        'ØªØ§Ø±ÙŠØª Ø±Ø­Ù„Ø© Ø¬Ø¯ÙŠØ¯Ø©',
+        'Ø£Ø±Ø³Ù„ØªÙ… Ø±Ø­Ù„Ø© Ø«Ø§Ù„ØªØ©: $route',
+        tripOrderId,
+      );
+    } catch (e) {
+      debugPrint('Error sending trip assignment notification: $e');
+    }
+  }
+
+  /// Notify driver of a departure time change.
+  Future<void> notifyDepartureTimeChanged(String driverName, String route, String newTime) async {
+    try {
+      if (kIsWeb) return;
+      await showNotification(
+        'ØªØªØ¨Ø³Øª Ø§Ù„Ø§Ù†ØªØ²Ø§Ù„Ø©',
+        'Ø§Ù„Ø±Ø­Ù„Ø© $route ØªÙ… Ø§Ù„Ø§Ù†ØªØ²Ø§Ù„ Ø§Ù„ØªØ§Ø±ÙŠØ®Ø§Øª Ø§Ù„Ø¥Ù†Ø°Ø§Ø²ÙŠØ© Ø«Ø§Ù„ØªØ©: $newTime',
+        route.hashCode,
+      );
+    } catch (e) {
+      debugPrint('Error sending departure time change notification: $e');
+    }
+  }
+
+  /// Notify driver of a trip status change (by secretary).
+  Future<void> notifyTripStatusChanged(String driverName, String route, String newStatus) async {
+    try {
+      if (kIsWeb) return;
+      final statusLabel = _tripStatusLabel(newStatus);
+      await showNotification(
+        'تغير حالة الرحلة',
+        'الرحلة $route للاتت تغيرت حالتها: $statusLabel',
+        route.hashCode + newStatus.hashCode,
+      );
+    } catch (e) {
+      debugPrint('Error sending trip status change notification: $e');
+    }
+  }
+
+  Future<void> showTripStartedNotification() async {
+    try {
+      if (kIsWeb) return;
+      await showNotification(
+        'بدء الرحلة',
+        'تم بدء الرحلة الحالية بنجاح.',
+        1001,
+      );
+    } catch (e) {
+      debugPrint('Error showing trip started notification: $e');
+    }
+  }
+
+  Future<void> showTripEndedNotification() async {
+    try {
+      if (kIsWeb) return;
+      await showNotification(
+        'انتهاء الرحلة',
+        'تم إنهاء الرحلة الحالية بنجاح.',
+        1002,
+      );
+    } catch (e) {
+      debugPrint('Error showing trip ended notification: $e');
+    }
+  }
+
+  /// Notify secretary that a driver has ended a trip and settlement is needed.
+  Future<void> notifySecretaryTripEnded(String driverName, String route, int tripOrderId) async {
+    try {
+      if (kIsWeb) return;
+      await showNotification(
+        'Ø§Ù†ØªÙ…Ø§Ø¡ Ø§Ù„Ø±Ø­Ù„Ø© - Ù„ØªØ³ÙˆÙŠØ© Ø§Ù„Ø¹Ù‡Ø¯Ø©',
+        'Ø§Ù†ØªÙ…Ø§Ø¡ Ø§Ù„Ø³Ø§Ø¦Ù‚ $driverName Ø§Ù„Ø±Ø­Ù„Ø©: $route. ÙŠÙ„Ø²Ù… ØªØ³ÙˆÙŠØ© Ø§Ù„Ø¹Ù‡Ø¯Ø©.',
+        tripOrderId,
+      );
+    } catch (e) {
+      debugPrint('Error sending secretary trip-end notification: $e');
+    }
+  }
+
+  /// Notify driver that a new cash advance has been delivered in his name.
+  Future<void> notifyNewAdvanceDelivered(String driverName, double amount, int advanceId) async {
+    try {
+      if (kIsWeb) return;
+      await showNotification(
+        'Ø¹Ù‡Ø¯Ø© Ø¬Ø¯ÙŠØ¯Ø© Ù„Ø¯ÙŠÙƒ',
+        'ØªÙ… ØªØ³Ù„Ù… Ø¹Ù‡Ø¯Ø© Ø¥Ø¬Ù…Ø§Ù†ÙŠØ©: ${amount.toStringAsFixed(2)} DH. Ø§Ø³ØªÙ„Ù… Ø§Ù„ØªØ³Ø¬ÙŠÙ„.',
+        advanceId,
+      );
+    } catch (e) {
+      debugPrint('Error sending advance delivery notification: $e');
+    }
+  }
+
+  // ==================== Chat Notifications ====================
+
+  /// Show a local notification for a new chat message when the app is in
+  /// the background or the chat screen is not active.
+  Future<void> showChatNotification({
+    required String sender,
+    required String message,
+    String? payload,
+  }) async {
+    try {
+      if (kIsWeb) return;
+      await showNotification(
+        'رسالة جديدة من $sender',
+        message,
+        sender.hashCode + DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      );
+    } catch (e) {
+      debugPrint('Error showing chat notification: $e');
+    }
+  }
+
+  String _tripStatusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return 'Ù†Ø´Ø·';
+      case 'pending':
+        return 'Ù‚Ø¯ Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±';
+      case 'completed':
+        return 'Ù…ÙƒØªÙ…Ù„';
+      case 'en_route':
+        return 'Ø§Ù„Ø±Ø­Ù„Ø© Ø§Ù„Ø§Ù†ØªØ²Ø§Ù„Ø©';
+      case 'arrived':
+        return 'Ø§Ù„Ø±Ø­Ù„Ø© Ø§Ù„ÙˆØµÙ„Øª';
+      default:
+        return status;
+    }
+  }
 }

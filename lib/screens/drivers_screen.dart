@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../cubits/drivers_cubit.dart';
 import '../models/driver.dart';
@@ -48,13 +48,13 @@ class _DriversScreenBody extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(context.tr('السائقين')),
+            title: Text(context.tr('Ø§Ù„Ø³Ø§Ø¦Ù‚ÙŠÙ†')),
             actions: [
               if (isAdmin)
                 IconButton(
                   icon: const Icon(Icons.add),
                   onPressed: () => _openDriverDialog(context, cubit),
-                  tooltip: 'إضافة سائق',
+                  tooltip: 'Ø¥Ø¶Ø§ÙØ© Ø³Ø§Ø¦Ù‚',
                 ),
             ],
           ),
@@ -65,7 +65,7 @@ class _DriversScreenBody extends StatelessWidget {
                 child: TextField(
                   onChanged: cubit.onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: context.tr('بحث...'),
+                    hintText: context.tr('Ø¨Ø­Ø«...'),
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -76,7 +76,7 @@ class _DriversScreenBody extends StatelessWidget {
               ),
               Expanded(
                 child: state.filteredDrivers.isEmpty
-                    ? Center(child: Text(context.tr('لا يوجد سائقين حالياً')))
+                    ? Center(child: Text(context.tr('Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø³Ø§Ø¦Ù‚ÙŠÙ† Ø­Ø§Ù„ÙŠØ§Ù‹')))
                     : ListView.builder(
                         padding: const EdgeInsets.all(12),
                         itemCount: state.filteredDrivers.length,
@@ -117,7 +117,7 @@ class _DriversScreenBody extends StatelessWidget {
                                 leading: const Icon(Icons.person, color: Colors.blue),
                                 title: Text(driver.name),
                                 subtitle: Text(
-                                  '${driver.phone} • ${_statusLabel(driver.status)}',
+                                  '${driver.phone} â€¢ ${_statusLabel(driver.status)}',
                                 ),
                                 trailing: isAdmin
                                     ? IconButton(
@@ -145,10 +145,10 @@ class _DriversScreenBody extends StatelessWidget {
 
 String _statusLabel(String? status) {
   const statusOptions = {
-    'active': 'نشط',
-    'inactive': 'غير نشط',
+    'active': 'Ù†Ø´Ø·',
+    'inactive': 'ØºÙŠØ± Ù†Ø´Ø·',
   };
-  return statusOptions[status] ?? status ?? 'نشط';
+  return statusOptions[status] ?? status ?? 'Ù†Ø´Ø·';
 }
 
 Future<void> _openDriverDialog(
@@ -176,7 +176,7 @@ Future<void> _openDriverDialog(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
-        title: Text(isEdit ? context.tr('تعديل السائق') : context.tr('إضافة سائق جديد')),
+        title: Text(isEdit ? context.tr('ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ø³Ø§Ø¦Ù‚') : context.tr('Ø¥Ø¶Ø§ÙØ© Ø³Ø§Ø¦Ù‚ Ø¬Ø¯ÙŠØ¯')),
         content: SingleChildScrollView(
           child: Form(
             child: Column(
@@ -184,23 +184,23 @@ Future<void> _openDriverDialog(
               children: [
                 TextFormField(
                   controller: nameController,
-                  decoration: InputDecoration(labelText: context.tr('الاسم')),
+                  decoration: InputDecoration(labelText: context.tr('Ø§Ù„Ø§Ø³Ù…')),
                 ),
                 TextFormField(
                   controller: phoneController,
-                  decoration: InputDecoration(labelText: context.tr('الهاتف')),
+                  decoration: InputDecoration(labelText: context.tr('Ø§Ù„Ù‡Ø§ØªÙ')),
                   keyboardType: TextInputType.phone,
                 ),
                 TextFormField(
                   controller: licenseController,
-                  decoration: InputDecoration(labelText: context.tr('رقم الرخصة')),
+                  decoration: InputDecoration(labelText: context.tr('Ø±Ù‚Ù… Ø§Ù„Ø±Ø®ØµØ©')),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: status,
-                  decoration: InputDecoration(labelText: context.tr('الحالة')),
+                  decoration: InputDecoration(labelText: context.tr('Ø§Ù„Ø­Ø§Ù„Ø©')),
                   items: const [
-                    DropdownMenuItem(value: 'active', child: Text('نشط')),
-                    DropdownMenuItem(value: 'inactive', child: Text('غير نشط')),
+                    DropdownMenuItem(value: 'active', child: Text('Ù†Ø´Ø·')),
+                    DropdownMenuItem(value: 'inactive', child: Text('ØºÙŠØ± Ù†Ø´Ø·')),
                   ],
                   onChanged: (value) {
                     if (value != null) setDialogState(() => status = value);
@@ -208,12 +208,12 @@ Future<void> _openDriverDialog(
                 ),
                 TextFormField(
                   controller: baseSalaryController,
-                  decoration: InputDecoration(labelText: context.tr('الراتب الأساسي')),
+                  decoration: InputDecoration(labelText: context.tr('Ø§Ù„Ø±Ø§ØªØ¨ Ø§Ù„Ø£Ø³Ø§Ø³ÙŠ')),
                   keyboardType: TextInputType.number,
                 ),
                 TextFormField(
                   controller: bonusController,
-                  decoration: InputDecoration(labelText: context.tr('نسبة المكافأة (%)')),
+                  decoration: InputDecoration(labelText: context.tr('Ù†Ø³Ø¨Ø© Ø§Ù„Ù…ÙƒØ§ÙØ£Ø© (%)')),
                   keyboardType: TextInputType.number,
                 ),
               ],
@@ -223,14 +223,14 @@ Future<void> _openDriverDialog(
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.tr('إلغاء')),
+            child: Text(context.tr('Ø¥Ù„ØºØ§Ø¡')),
           ),
           ElevatedButton(
             onPressed: () async {
               final name = nameController.text.trim();
               if (name.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(context.tr('يرجى إدخال اسم السائق'))),
+                  SnackBar(content: Text(context.tr('ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø§Ø³Ù… Ø§Ù„Ø³Ø§Ø¦Ù‚'))),
                 );
                 return;
               }
@@ -253,14 +253,19 @@ Future<void> _openDriverDialog(
               } catch (e) {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(context.tr('خطأ في حفظ السائق: {0}', [e]))),
+                  SnackBar(content: Text(context.tr('Ø®Ø·Ø£ ÙÙŠ Ø­ÙØ¸ Ø§Ù„Ø³Ø§Ø¦Ù‚: {0}', [e]))),
                 );
               }
             },
-            child: Text(context.tr('حفظ')),
+            child: Text(context.tr('Ø­ÙØ¸')),
           ),
         ],
       ),
     ),
   );
 }
+
+
+
+
+

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/secure_storage_service.dart';
 import '../services/supabase_service.dart';
 import '../widgets/language_switcher.dart';
 import '../widgets/responsive_layout.dart';
@@ -456,6 +457,38 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        _buildSectionCard(
+                          title: 'المصادقة الحيوية',
+                          icon: Icons.fingerprint_rounded,
+                          children: [
+                            FutureBuilder<bool>(
+                              future: SecureStorageService().isBiometricEnabled(),
+                              builder: (context, snapshot) {
+                                final isEnabled = snapshot.data ?? false;
+                                return SwitchListTile(
+                                  title: const Text('الدخول بالبصمة / الوجه'),
+                                  subtitle: const Text('تسجيل الدخول بسرعة باستخدام بصمة الإصبع أو الوجه'),
+                                  value: isEnabled,
+                                  onChanged: (value) async {
+                                    if (value) {
+                                      final email = await _askForEmail(context);
+                                      final password = await _askForPassword(context);
+                                      if (email != null && password != null) {
+                                        await SecureStorageService().saveCredentials(email, password);
+                                        await SecureStorageService().saveBiometricEnabled(true);
+                                      }
+                                    } else {
+                                      await SecureStorageService().saveBiometricEnabled(false);
+                                      await SecureStorageService().clearCredentials();
+                                    }
+                                    if (mounted) setState(() {});
+                                  },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 32),
                       ],
                     ),
@@ -464,6 +497,64 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Future<String?> _askForEmail(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('البريد الإلكتروني'),
+        content: TextFormField(
+          controller: controller,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'البريد الإلكتروني',
+            prefixIcon: Icon(Icons.email),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _askForPassword(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('كلمة المرور'),
+        content: TextFormField(
+          controller: controller,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'كلمة المرور',
+            prefixIcon: Icon(Icons.lock),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
     );
   }
 

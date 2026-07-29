@@ -2,6 +2,7 @@ part of 'invoices_cubit.dart';
 
 class InvoicesState {
   final bool isLoading;
+  final bool isRefreshing;
   final String? errorMessage;
   final List<Invoice> allInvoices;
   final List<Invoice> filteredInvoices;
@@ -12,6 +13,7 @@ class InvoicesState {
 
   const InvoicesState({
     this.isLoading = true,
+    this.isRefreshing = false,
     this.errorMessage,
     this.allInvoices = const [],
     this.filteredInvoices = const [],
@@ -23,6 +25,7 @@ class InvoicesState {
 
   InvoicesState copyWith({
     bool? isLoading,
+    bool? isRefreshing,
     String? errorMessage,
     List<Invoice>? allInvoices,
     List<Invoice>? filteredInvoices,
@@ -33,7 +36,8 @@ class InvoicesState {
   }) {
     return InvoicesState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
+      errorMessage: errorMessage ?? this.errorMessage,
       allInvoices: allInvoices ?? this.allInvoices,
       filteredInvoices: filteredInvoices ?? this.filteredInvoices,
       clientNames: clientNames ?? this.clientNames,

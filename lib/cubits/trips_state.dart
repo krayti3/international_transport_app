@@ -2,6 +2,7 @@ part of 'trips_cubit.dart';
 
 class TripsState {
   final bool isLoading;
+  final bool isRefreshing;
   final String? errorMessage;
   final List<Map<String, dynamic>> tripOrders;
   final List<Map<String, dynamic>> clients;
@@ -13,6 +14,7 @@ class TripsState {
 
   const TripsState({
     this.isLoading = true,
+    this.isRefreshing = false,
     this.errorMessage,
     this.tripOrders = const [],
     this.clients = const [],
@@ -25,6 +27,7 @@ class TripsState {
 
   TripsState copyWith({
     bool? isLoading,
+    bool? isRefreshing,
     String? errorMessage,
     List<Map<String, dynamic>>? tripOrders,
     List<Map<String, dynamic>>? clients,
@@ -36,6 +39,7 @@ class TripsState {
   }) {
     return TripsState(
       isLoading: isLoading ?? this.isLoading,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
       errorMessage: errorMessage ?? this.errorMessage,
       tripOrders: tripOrders ?? this.tripOrders,
       clients: clients ?? this.clients,
