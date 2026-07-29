@@ -814,6 +814,170 @@ create policy "Allow authenticated access"
 update public.system_settings set updated_at = now() where id = 1;
 
 
+-- =====================================================================
+-- 18. 20250723000000_add_model_and_oil_tracking.sql
+-- =====================================================================
+
+-- Migration: add truck model column, daily km average, and oil-change tracking fields
+-- Safe to re-run: all ALTERs are guarded with IF NOT EXISTS.
+
+-- 1. Trucks: add model text and daily_km_average numeric
+alter table public.trucks
+  add column if not exists model text,
+  add column if not exists daily_km_average numeric;
+
+-- 2. Truck maintenance: add oil change tracking columns
+alter table public.truck_maintenance
+  add column if not exists oil_interval_km numeric,
+  add column if not exists next_change_km numeric,
+  add column if not exists next_change_date date;
+
+-- Bump cache
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 19. 20250724000000_add_default_driver_to_trucks.sql
+-- =====================================================================
+
+-- Migration: add default_driver_id column to trucks
+-- Safe to re-run: guarded with IF NOT EXISTS.
+
+alter table public.trucks
+  add column if not exists default_driver_id integer references public.drivers(id) on delete set null;
+
+-- Unique constraint: one truck per default driver at most
+create unique index if not exists idx_trucks_default_driver_id
+  on public.trucks (default_driver_id)
+  where default_driver_id is not null;
+
+
+-- =====================================================================
+-- 20. 20250101000015_truck_locations.sql
+-- =====================================================================
+
+-- Add GPS location tracking columns to the trucks table
+-- These columns are used by the truck tracking screen for realtime fleet monitoring
+alter table public.trucks
+  add column if not exists current_latitude double precision,
+  add column if not exists current_longitude double precision,
+  add column if not exists current_location text;
+
+-- Enable RLS on the trucks table if not already enabled
+alter table public.trucks enable row level security;
+
+drop policy if exists "Authenticated users can view truck locations" on public.trucks;
+create policy "Authenticated users can view truck locations"
+  on public.trucks for select
+  to authenticated
+  using (true);
+
+drop policy if exists "Authenticated users can update truck locations" on public.trucks;
+create policy "Authenticated users can update truck locations"
+  on public.trucks for update
+  to authenticated
+  using (true)
+  with check (true);
+
+
+-- =====================================================================
+-- 21. 20250719100000_trucks_default_trailer.sql
+-- =====================================================================
+
+-- Migration: Adds the "default trailer" concept to the transport app.
+-- Each truck head (public.trucks) can reference a default trailer
+-- (public.trailers) via the new default_trailer_id column.
+-- The column is nullable: a truck may have no default trailer.
+-- The foreign key uses ON DELETE SET NULL so removing a trailer
+-- does not break the referencing truck.
+-- All statements are guarded to be safe to re-run.
+
+-- 1. Add the nullable default_trailer_id column to public.trucks.
+alter table public.trucks
+  add column if not exists default_trailer_id integer;
+
+-- 2. Add the foreign key constraint to public.trailers(id).
+--    Postgres has no "ADD CONSTRAINT IF NOT EXISTS", so guard it in PL/pgSQL.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.table_constraints
+    where constraint_name = 'trucks_default_trailer_fkey'
+      and table_schema = 'public'
+      and table_name = 'trucks'
+  ) then
+    alter table public.trucks
+      add constraint trucks_default_trailer_fkey
+      foreign key (default_trailer_id)
+      references public.trailers(id)
+      on delete set null;
+  end if;
+end $$;
+
+-- 3. Bump the cache (project convention).
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 22. 20250720100000_trucks_status_column.sql
+-- =====================================================================
+
+-- Add status column to trucks table if missing.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'trucks'
+      and column_name = 'status'
+  ) then
+    alter table public.trucks
+      add column status text not null default 'active';
+  end if;
+end $$;
+
+-- Bump cache.
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 23. 20250720100001_trailers_status_column.sql
+-- =====================================================================
+
+-- Add status column to trailers table if missing.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'trailers'
+      and column_name = 'status'
+  ) then
+    alter table public.trailers
+      add column status text not null default 'active';
+  end if;
+end $$;
+
+-- Bump cache.
+update public.system_settings set updated_at = now() where id = 1;
+
+
+-- =====================================================================
+-- 24. 20250725000000_add_truck_purchase_weight_power.sql
+-- =====================================================================
+
+-- Migration: add purchase date, empty weight, and fiscal power to trucks
+-- Safe to re-run: all ALTERs are guarded with IF NOT EXISTS.
+
+alter table public.trucks
+  add column if not exists purchase_date date,
+  add column if not exists empty_weight numeric,
+  add column if not exists fiscal_power numeric;
+
+-- Bump cache
+update public.system_settings set updated_at = now() where id = 1;
+
+
 
 -- =====================================================================
 -- 20260724000001: Repair invoices and workshop payments tables
@@ -881,6 +1045,18 @@ alter table public.workshop_payments enable row level security;
 alter table public.workshop_payment_allocations enable row level security;
 
 -- 5) سياسات RLS
+drop policy if exists "Authenticated read repair invoices" on public.repair_invoices;
+drop policy if exists "Authenticated insert repair invoices" on public.repair_invoices;
+drop policy if exists "Authenticated update repair invoices" on public.repair_invoices;
+drop policy if exists "Authenticated delete repair invoices" on public.repair_invoices;
+drop policy if exists "Authenticated read workshop payments" on public.workshop_payments;
+drop policy if exists "Authenticated insert workshop payments" on public.workshop_payments;
+drop policy if exists "Authenticated update workshop payments" on public.workshop_payments;
+drop policy if exists "Authenticated delete workshop payments" on public.workshop_payments;
+drop policy if exists "Authenticated read workshop allocations" on public.workshop_payment_allocations;
+drop policy if exists "Authenticated insert workshop allocations" on public.workshop_payment_allocations;
+drop policy if exists "Authenticated delete workshop allocations" on public.workshop_payment_allocations;
+
 create policy "Authenticated read repair invoices" on public.repair_invoices for select to authenticated using (true);
 create policy "Authenticated insert repair invoices" on public.repair_invoices for insert to authenticated with check (true);
 create policy "Authenticated update repair invoices" on public.repair_invoices for update to authenticated using (true) with check (true);
@@ -894,7 +1070,7 @@ create policy "Authenticated insert workshop allocations" on public.workshop_pay
 create policy "Authenticated delete workshop allocations" on public.workshop_payment_allocations for delete to authenticated using (true);
 
 -- 6) Trigger لتحديث remaining_amount تلقائياً
-create or replace function public.update_repair_invoice_remaining() returns trigger as \$\$
+create or replace function public.update_repair_invoice_remaining() returns trigger as $$
 begin
   new.remaining_amount := new.total_amount - new.paid_amount;
   if new.remaining_amount <= 0 then
@@ -910,7 +1086,7 @@ begin
   new.updated_at := now();
   return new;
 end;
-\$\$ language plpgsql;
+$$ language plpgsql;
 
 drop trigger if exists trg_update_repair_invoice_remaining on public.repair_invoices;
 create trigger trg_update_repair_invoice_remaining before insert or update on public.repair_invoices for each row execute function public.update_repair_invoice_remaining();

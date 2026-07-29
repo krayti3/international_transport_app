@@ -1045,6 +1045,18 @@ alter table public.workshop_payments enable row level security;
 alter table public.workshop_payment_allocations enable row level security;
 
 -- 5) سياسات RLS
+drop policy if exists "Authenticated read repair invoices" on public.repair_invoices;
+drop policy if exists "Authenticated insert repair invoices" on public.repair_invoices;
+drop policy if exists "Authenticated update repair invoices" on public.repair_invoices;
+drop policy if exists "Authenticated delete repair invoices" on public.repair_invoices;
+drop policy if exists "Authenticated read workshop payments" on public.workshop_payments;
+drop policy if exists "Authenticated insert workshop payments" on public.workshop_payments;
+drop policy if exists "Authenticated update workshop payments" on public.workshop_payments;
+drop policy if exists "Authenticated delete workshop payments" on public.workshop_payments;
+drop policy if exists "Authenticated read workshop allocations" on public.workshop_payment_allocations;
+drop policy if exists "Authenticated insert workshop allocations" on public.workshop_payment_allocations;
+drop policy if exists "Authenticated delete workshop allocations" on public.workshop_payment_allocations;
+
 create policy "Authenticated read repair invoices" on public.repair_invoices for select to authenticated using (true);
 create policy "Authenticated insert repair invoices" on public.repair_invoices for insert to authenticated with check (true);
 create policy "Authenticated update repair invoices" on public.repair_invoices for update to authenticated using (true) with check (true);
@@ -1058,7 +1070,7 @@ create policy "Authenticated insert workshop allocations" on public.workshop_pay
 create policy "Authenticated delete workshop allocations" on public.workshop_payment_allocations for delete to authenticated using (true);
 
 -- 6) Trigger لتحديث remaining_amount تلقائياً
-create or replace function public.update_repair_invoice_remaining() returns trigger as \$\$
+create or replace function public.update_repair_invoice_remaining() returns trigger as $$
 begin
   new.remaining_amount := new.total_amount - new.paid_amount;
   if new.remaining_amount <= 0 then
@@ -1074,7 +1086,7 @@ begin
   new.updated_at := now();
   return new;
 end;
-\$\$ language plpgsql;
+$$ language plpgsql;
 
 drop trigger if exists trg_update_repair_invoice_remaining on public.repair_invoices;
 create trigger trg_update_repair_invoice_remaining before insert or update on public.repair_invoices for each row execute function public.update_repair_invoice_remaining();
