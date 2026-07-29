@@ -1,13 +1,15 @@
 import 'package:international_transport_app/models/client.dart';
 import 'package:international_transport_app/services/cache_service.dart';
-import 'package:international_transport_app/services/supabase_service.dart';
+import 'package:international_transport_app/services/client_service.dart';
+import 'package:international_transport_app/services/fleet_service.dart';
 
 class CoreRepository {
   CoreRepository._();
   static CoreRepository? _instance;
   static CoreRepository get instance => _instance ??= CoreRepository._();
 
-  final SupabaseService _supabaseService = SupabaseService();
+  final ClientService _clientService = ClientService();
+  final FleetService _fleetService = FleetService();
 
   Future<List<Client>> getClients({bool activeOnly = false}) async {
     final cache = CacheService.instance;
@@ -23,7 +25,7 @@ class CoreRepository {
 
     Future.microtask(() async {
       try {
-        final fresh = await _supabaseService.getClients(activeOnly: activeOnly);
+        final fresh = await _clientService.getClients(activeOnly: activeOnly);
         if (fresh.isNotEmpty) {
           await cache.cacheClients(fresh.map((m) => m.toMap()).toList());
         }
@@ -33,7 +35,7 @@ class CoreRepository {
     });
 
     if (clients.isNotEmpty) return clients;
-    final fresh = await _supabaseService.getClients(activeOnly: activeOnly);
+    final fresh = await _clientService.getClients(activeOnly: activeOnly);
     if (fresh.isNotEmpty) {
       await cache.cacheClients(fresh.map((m) => m.toMap()).toList());
     }
@@ -52,7 +54,7 @@ class CoreRepository {
 
     Future.microtask(() async {
       try {
-        final fresh = await _supabaseService.getTrucks();
+        final fresh = await _fleetService.getTrucks();
         if (fresh.isNotEmpty) {
           await cache.cacheTrucks(fresh.map((m) => Map<String, dynamic>.from(m)).toList());
         }
@@ -62,7 +64,7 @@ class CoreRepository {
     });
 
     if (trucks.isNotEmpty) return trucks;
-    final fresh = await _supabaseService.getTrucks();
+    final fresh = await _fleetService.getTrucks();
     if (fresh.isNotEmpty) {
       await cache.cacheTrucks(fresh.map((m) => Map<String, dynamic>.from(m)).toList());
     }
@@ -81,7 +83,7 @@ class CoreRepository {
 
     Future.microtask(() async {
       try {
-        final fresh = await _supabaseService.getDrivers();
+        final fresh = await _fleetService.getDrivers();
         if (fresh.isNotEmpty) {
           await cache.cacheDrivers(fresh.map((m) => Map<String, dynamic>.from(m)).toList());
         }
@@ -91,7 +93,7 @@ class CoreRepository {
     });
 
     if (drivers.isNotEmpty) return drivers;
-    final fresh = await _supabaseService.getDrivers();
+    final fresh = await _fleetService.getDrivers();
     if (fresh.isNotEmpty) {
       await cache.cacheDrivers(fresh.map((m) => Map<String, dynamic>.from(m)).toList());
     }

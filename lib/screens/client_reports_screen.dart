@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:collection/collection.dart';
 import '../models/client.dart';
-import '../services/supabase_service.dart';
+import '../services/client_service.dart';
+import '../services/fleet_service.dart';
+import '../services/advance_service.dart';
 import '../services/pdf_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/summary_card.dart';
@@ -17,7 +19,9 @@ class ClientReportsScreen extends StatefulWidget {
 }
 
 class _ClientReportsScreenState extends State<ClientReportsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ClientService _clientService = ClientService();
+  final FleetService _fleetService = FleetService();
+  final AdvanceService _advanceService = AdvanceService();
   final _formKey = GlobalKey<FormState>();
 
   List<Client> _clients = [];
@@ -45,9 +49,9 @@ class _ClientReportsScreenState extends State<ClientReportsScreen> {
   }
 
   Future<void> _loadReferenceData() async {
-    final clients = await _supabaseService.getClients();
-    final drivers = await _supabaseService.getDrivers();
-    final trucks = await _supabaseService.getTrucks();
+    final clients = await _clientService.getClients();
+    final drivers = await _fleetService.getDrivers();
+    final trucks = await _fleetService.getTrucks();
 
     if (mounted) {
       setState(() {
@@ -73,14 +77,14 @@ class _ClientReportsScreenState extends State<ClientReportsScreen> {
     setState(() => _isLoadingTrips = true);
 
     try {
-      final trips = await _supabaseService.getTripOrdersByClient(clientId);
+      final trips = await _advanceService.getTripOrdersByClient(clientId);
       final tripIds = trips
           .map((t) => t['trip_id'] as int?)
           .whereType<int>()
           .toSet()
           .toList();
 
-      final advances = await _supabaseService.getAdvancesByIds(tripIds);
+      final advances = await _advanceService.getAdvancesByIds(tripIds);
       final advanceMap = {for (var a in advances) a['id'] as int: a};
 
       final merged = trips.map((trip) {

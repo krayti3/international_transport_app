@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/treasury_service.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -15,7 +16,8 @@ class DriverAdvancesScreen extends StatefulWidget {
 }
 
 class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<Map<String, dynamic>> _advances = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> _cashBoxes = [];
@@ -35,7 +37,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final advances = await _supabaseService.getAdvancesByDriver(widget.driverId);
+    final advances = await _advanceService.getAdvancesByDriver(widget.driverId);
     if (!mounted) return;
     setState(() {
       _advances = advances;
@@ -44,7 +46,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
   }
 
   Future<void> _loadCashBoxes() async {
-    final boxes = await _supabaseService.getCashBoxes();
+    final boxes = await _treasuryService.getCashBoxes();
     if (!mounted) return;
     setState(() {
       _cashBoxes = boxes;
@@ -169,9 +171,9 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                 };
                 try {
                   if (isEdit) {
-                    await _supabaseService.updateAdvance(advance['id'] as int, data);
+                    await _advanceService.updateAdvance(advance['id'] as int, data);
                   } else {
-                    await _supabaseService.addAdvance(data);
+                    await _advanceService.addAdvance(data);
                   }
                   if (!context.mounted) return;
                   Navigator.pop(context);
@@ -212,7 +214,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
     );
     if (confirm != true) return;
     try {
-      await _supabaseService.deleteAdvance(advance['id'] as int);
+      await _advanceService.deleteAdvance(advance['id'] as int);
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف العهدة')));
@@ -385,7 +387,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                       TextButton.icon(
                         onPressed: status != 'settled'
                             ? () async {
-                                await _supabaseService.updateAdvance(advance['id'] as int, {'status': 'settled'});
+                                await _advanceService.updateAdvance(advance['id'] as int, {'status': 'settled'});
                                 await _loadData();
                               }
                             : null,

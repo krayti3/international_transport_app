@@ -149,6 +149,58 @@ class AdvanceService {
     await _writeRow((d) => supabase.from('trip_orders').insert(d), data);
   }
 
+  Future<List<Map<String, dynamic>>> getTripOrders() async {
+    try {
+      final response = await supabase.from('trip_orders').select().order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching trip orders: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTripOrdersByClient(int clientId) async {
+    try {
+      final response = await supabase.from('trip_orders').select().eq('client_id', clientId);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching trip orders by client: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTripOrdersByDriver(int driverId) async {
+    try {
+      final response = await supabase.from('trip_orders').select().eq('driver_id', driverId);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching trip orders by driver: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateTripOrder(int id, Map<String, dynamic> data, {Map<String, dynamic>? localRow}) async {
+    try {
+      if (localRow == null) {
+        await supabase.from('trip_orders').update(data).eq('id', id);
+        return;
+      }
+      await _updateWithLww(() => supabase.from('trip_orders').update(data).eq('id', id), 'trip_orders', localRow);
+    } catch (e) {
+      debugPrint('Error updating trip order: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTripOrder(int id) async {
+    try {
+      await supabase.from('trip_orders').delete().eq('id', id);
+    } catch (e) {
+      debugPrint('Error deleting trip order: $e');
+      rethrow;
+    }
+  }
+
   Future<int> createAdvanceReturning(Map<String, dynamic> data) async {
     try {
       final response = await supabase.from('advances').insert(data).select('id').single();
@@ -196,6 +248,52 @@ class AdvanceService {
       }
     } catch (e) {
       debugPrint('Error syncing advance treasury: $e');
+    }
+  }
+
+  Future<void> notifyAdmins({required String title, required String message}) async {
+    try {
+      final users = await getUsers();
+      final adminIds = users
+          .where((u) => (u['role']?.toString() ?? '') == 'admin')
+          .map((u) => u['id']?.toString())
+          .whereType<String>()
+          .toList();
+      if (adminIds.isEmpty) return;
+      await supabase.from('notifications').insert(
+        adminIds
+            .map((id) => {
+                  'user_id': id,
+                  'title': title,
+                  'message': message,
+                })
+            .toList(),
+      );
+    } catch (e) {
+      debugPrint('Error notifying admins: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUsers() async {
+    try {
+      final response = await supabase.from('users').select();
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching users: $e');
+      return [];
+    }
+  }
+
+  Future<bool> isAdvanceInUse(int advanceId) async {
+    try {
+      final count = await supabase
+          .from('payments')
+          .select()
+          .eq('advance_id', advanceId)
+          .limit(1);
+      return (count as List).isNotEmpty;
+    } catch (_) {
+      return true;
     }
   }
 
@@ -369,4 +467,61 @@ class AdvanceService {
       return [];
     }
   }
+
+  Stream<List<Map<String, dynamic>>> watchNotifications() {
+    return supabase
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .order('created_at');
+  }
+
+  Future<bool> isTripOrderInUse(int orderId) async {
+    try {
+      final count = await supabase.from('trip_orders').select('id').eq('id', orderId).limit(1);
+      return (count as List).isNotEmpty;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTripDocuments(int tripOrderId) async {
+    try {
+      final response = await supabase.from('trip_documents').select().eq('trip_order_id', tripOrderId).order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching trip documents: $e');
+      return [];
+    }
+  }
+
+  Future<void> addTripDocument(Map<String, dynamic> data) async {
+    try { await supabase.from('trip_documents').insert(data); } catch (e) { debugPrint('Error adding trip document: $e'); rethrow; }
+  }
+
+  Future<void> deleteTripDocument(int id) async {
+    try { await supabase.from('trip_documents').delete().eq('id', id); } catch (e) { debugPrint('Error deleting trip document: $e'); rethrow; }
+  }
+
+  Future<String> uploadTripDocument(String fileName, List<int> bytes) async {
+    try {
+      final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final path = 'trip_docs/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      await supabase.storage.from('trip_docs').uploadBinary(path, Uint8List.fromList(bytes));
+      return supabase.storage.from('trip_docs').getPublicUrl(path);
+    } catch (e) {
+      debugPrint('Error uploading trip document: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTripOrdersPage({int offset = 0, int limit = 20}) async {
+    try {
+      final response = await supabase.from('trip_orders').select().order('created_at', ascending: false).range(offset, offset + limit - 1);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching trip orders page: $e');
+      return [];
+    }
+  }
 }
+

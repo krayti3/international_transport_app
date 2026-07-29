@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/ml_text_recognition_service.dart';
-import '../services/supabase_service.dart';
+import '../services/treasury_service.dart';
 
 class FuelReceiptScreen extends StatefulWidget {
   final bool isAdmin;
@@ -13,7 +13,7 @@ class FuelReceiptScreen extends StatefulWidget {
 }
 
 class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final TreasuryService _treasuryService = TreasuryService();
   final _picker = ImagePicker();
   
   File? _imageFile;
@@ -34,7 +34,7 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
   }
 
   Future<void> _loadCashBoxes() async {
-    final boxes = await _supabaseService.getCashBoxes();
+    final boxes = await _treasuryService.getCashBoxes();
     if (mounted) {
       setState(() {
         _cashBoxes = boxes;
@@ -94,7 +94,7 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
       final String truck = _truckController.text.trim().isEmpty ? '' : ' - شاحنة: ${_truckController.text.trim()}';
       final String liters = _litersController.text.trim().isEmpty ? '' : ' (${_litersController.text.trim()} لتر)';
 
-      await _supabaseService.addTreasuryTransaction(
+      await _treasuryService.addTreasuryTransaction(
         amount,
         'trip_expense',
         'تذكرة مازوت: $station$truck$liters',

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
 import 'dart:typed_data';
 import 'package:intl/intl.dart' show DateFormat;
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'document_categories_screen.dart';
 import '../widgets/date_wheel_picker.dart';
@@ -17,7 +17,7 @@ class FleetDocsScreen extends StatefulWidget {
 }
 
 class _FleetDocsScreenState extends State<FleetDocsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
 
   List<Map<String, dynamic>> _trailers = [];
   List<Map<String, dynamic>> _fleetDocuments = [];
@@ -38,8 +38,8 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final trailers = await _supabaseService.getTrailers();
-      final docs = await _supabaseService.getFleetDocuments();
+      final trailers = await _fleetService.getTrailers();
+      final docs = await _fleetService.getFleetDocuments();
       if (!mounted) return;
       setState(() {
         _trailers = widget.trailerId != null
@@ -126,7 +126,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
         : null;
 
     List<Map<String, dynamic>> docTypes = [];
-    await _supabaseService.getDocumentCategories().then((cats) {
+    await _fleetService.getDocumentCategories().then((cats) {
       docTypes.addAll(cats);
     });
     if (!mounted) return;
@@ -181,7 +181,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
                           context,
                           MaterialPageRoute(builder: (_) => const DocumentCategoriesScreen()),
                         );
-                        final cats = await _supabaseService.getDocumentCategories();
+                        final cats = await _fleetService.getDocumentCategories();
                         if (mounted) {
                           setDialogState(() {
                             docTypes = cats;
@@ -286,7 +286,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
                   return;
                 }
                 if (!isEdit) {
-                  final exists = await _supabaseService.hasFleetDocumentType(
+                  final exists = await _fleetService.hasFleetDocumentType(
                     'trailer',
                     selectedVehicleId!,
                     selectedDocType!,
@@ -303,7 +303,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
                 }
                  if (pickedImageBytes != null && selectedVehicleId != null) {
                   try {
-                    attachmentUrl = await _supabaseService.uploadFleetDocImage(
+                    attachmentUrl = await _fleetService.uploadFleetDocImage(
                       entityType: 'trailer',
                       entityId: selectedVehicleId!,
                       fileName: pickedImageName ?? 'doc.jpg',
@@ -325,9 +325,9 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
                 };
                 try {
                   if (isEdit) {
-                    await _supabaseService.updateFleetDocument(doc['id'] as int, data);
+                    await _fleetService.updateFleetDocument(doc['id'] as int, data);
                   } else {
-                    await _supabaseService.addFleetDocument(data);
+                    await _fleetService.addFleetDocument(data);
                   }
                   if (!context.mounted) return;
                   Navigator.pop(context);
@@ -368,7 +368,7 @@ class _FleetDocsScreenState extends State<FleetDocsScreen> {
     );
     if (confirm == true) {
       try {
-        await _supabaseService.deleteFleetDocument(doc['id'] as int);
+        await _fleetService.deleteFleetDocument(doc['id'] as int);
         await _loadData();
       } catch (e) {
         if (!mounted) return;

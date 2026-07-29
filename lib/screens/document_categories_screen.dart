@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/reference_service.dart';
 import 'document_category_detail_screen.dart';
 
 class DocumentCategoriesScreen extends StatefulWidget {
@@ -10,7 +10,7 @@ class DocumentCategoriesScreen extends StatefulWidget {
 }
 
 class _DocumentCategoriesScreenState extends State<DocumentCategoriesScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ReferenceService _referenceService = ReferenceService();
   List<Map<String, dynamic>> _categories = [];
   bool _isLoading = true;
 
@@ -21,7 +21,7 @@ class _DocumentCategoriesScreenState extends State<DocumentCategoriesScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final cats = await _supabaseService.getDocumentCategories();
+    final cats = await _referenceService.getDocumentCategories();
     if (mounted) {
       setState(() {
         _categories = cats;
@@ -55,7 +55,7 @@ class _DocumentCategoriesScreenState extends State<DocumentCategoriesScreen> {
     );
     if (result == null || result.isEmpty) return;
     try {
-      await _supabaseService.addDocumentCategory({'name': result});
+      await _referenceService.addDocumentCategory({'name': result});
       await _loadCategories();
     } catch (e) {
       if (mounted) {
@@ -89,7 +89,7 @@ class _DocumentCategoriesScreenState extends State<DocumentCategoriesScreen> {
     );
     if (result == null || result.isEmpty) return;
     try {
-      await _supabaseService.updateDocumentCategory(id, {'name': result});
+      await _referenceService.updateDocumentCategory(id, {'name': result});
       await _loadCategories();
     } catch (e) {
       if (mounted) {
@@ -99,7 +99,7 @@ class _DocumentCategoriesScreenState extends State<DocumentCategoriesScreen> {
   }
 
   Future<void> _deleteCategory(int id) async {
-    final inUse = await _supabaseService.isDocumentCategoryInUse(id);
+    final inUse = await _referenceService.isDocumentCategoryInUse(id);
     if (inUse) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -126,7 +126,7 @@ class _DocumentCategoriesScreenState extends State<DocumentCategoriesScreen> {
     );
     if (confirm != true) return;
     try {
-      await _supabaseService.deleteDocumentCategory(id);
+      await _referenceService.deleteDocumentCategory(id);
       await _loadCategories();
     } catch (e) {
       if (mounted) {

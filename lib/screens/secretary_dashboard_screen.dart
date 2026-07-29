@@ -1,11 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:decimal/decimal.dart';
 import 'package:collection/collection.dart';
 import 'package:international_transport_app/services/calculation_engine.dart';
-import 'package:international_transport_app/services/supabase_service.dart';
+import 'package:international_transport_app/models/client.dart';
+import 'package:international_transport_app/services/client_service.dart';
+import 'package:international_transport_app/services/advance_service.dart';
 import '../models/trip_order.dart';
 import '../widgets/responsive_layout.dart';
 import '../screens/trip_form_screen.dart';
@@ -20,8 +21,8 @@ class SecretaryDashboardScreen extends StatefulWidget {
 }
 
 class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
-  final _supabase = Supabase.instance.client;
+  final AdvanceService _advanceService = AdvanceService();
+  final ClientService _clientService = ClientService();
 
   List<Map<String, dynamic>> _tripOrders = [];
   List<Map<String, dynamic>> _invoices = [];
@@ -48,9 +49,9 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
 
     try {
       final [clientsRes, ordersRes, invoicesRes] = await Future.wait([
-        _supabase.from('clients').select(),
-        _supabase.from('trip_orders').select(),
-        _supabase.from('invoices').select(),
+        _clientService.getClientsRaw(),
+        _advanceService.getTripOrders(),
+        _clientService.getInvoicesRaw(),
       ]);
 
       final clients = List<Map<String, dynamic>>.from(clientsRes as List);
@@ -95,7 +96,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
         });
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª: $e')),
+            SnackBar(content: Text('خطأ في تحميل البيانات: $e')),
           );
         }
       }
@@ -103,22 +104,22 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   }
 
   Future<void> _deleteTripOrder(int id) async {
-    final inUse = await _supabaseService.isTripOrderInUse(id);
+    final inUse = await _advanceService.isTripOrderInUse(id);
     if (inUse) {
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ù„Ø§ ÙŠÙ…ÙƒÙ† Ø­Ø°Ù Ø£Ù…Ø± Ø§Ù„Ø±Ø­Ù„Ø© Ù„Ø£Ù†Ù‡ Ù…Ø±ØªØ¨Ø· Ø¨Ù…Ø¯ÙÙˆØ¹Ø§Øª Ø£Ùˆ Ø±Ø­Ù„Ø§Øª ÙØ±Ø¹ÙŠØ©')),
+          const SnackBar(content: Text('لا يمكن حذف أمر الرحلة لأنه مرتبط بمدفوعات أو رحلات فرعية')),
         );
       }
       return;
     }
     try {
-      await _supabase.from('trip_orders').delete().eq('id', id);
+      await _advanceService.deleteTripOrder(id);
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ØªÙ… Ø­Ø°Ù Ø£Ù…Ø± Ø§Ù„Ø±Ø­Ù„Ø© Ø¨Ù†Ø¬Ø§Ø­')),
+          const SnackBar(content: Text('تم حذف أمر الرحلة بنجاح')),
         );
       }
       _loadData();
@@ -126,29 +127,29 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ Ø§Ù„Ø­Ø°Ù: $e')),
+          SnackBar(content: Text('خطأ في الحذف: $e')),
         );
       }
     }
   }
 
   Future<void> _deleteInvoice(int id) async {
-    final inUse = await _supabaseService.isInvoiceInUse(id);
+    final inUse = await _clientService.isInvoiceInUse(id);
     if (inUse) {
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ù„Ø§ ÙŠÙ…ÙƒÙ† Ø­Ø°Ù Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ù„Ø£Ù†Ù‡Ø§ Ù…Ø±ØªØ¨Ø·Ø© Ø¨ØªØ®ØµÙŠØµØ§Øª Ø¯ÙØ¹')),
+          const SnackBar(content: Text('لا يمكن حذف الفاتورة لأنها مرتبطة بتخصيصات دفع')),
         );
       }
       return;
     }
     try {
-      await _supabase.from('invoices').delete().eq('id', id);
+      await _clientService.deleteInvoice(id);
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ØªÙ… Ø­Ø°Ù Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø¨Ù†Ø¬Ø§Ø­')),
+          const SnackBar(content: Text('تم حذف الفاتورة بنجاح')),
         );
       }
       _loadData();
@@ -156,7 +157,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ Ø§Ù„Ø­Ø°Ù: $e')),
+          SnackBar(content: Text('خطأ في الحذف: $e')),
         );
       }
     }
@@ -174,36 +175,36 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Ø¥Ø¶Ø§ÙØ© Ø²Ø¨ÙˆÙ† Ø¬Ø¯ÙŠØ¯'),
+          title: const Text('إضافة زبون جديد'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Ø§Ù„Ø§Ø³Ù… / Ø§Ø³Ù… Ø§Ù„Ø´Ø±ÙƒØ©', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'الاسم / اسم الشركة', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: phoneController,
-                  decoration: const InputDecoration(labelText: 'Ø§Ù„Ù‡Ø§ØªÙ', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'الهاتف', border: OutlineInputBorder()),
                   keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: cityController,
-                  decoration: const InputDecoration(labelText: 'Ø§Ù„Ù…Ø¯ÙŠÙ†Ø©', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'المدينة', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: addressController,
-                  decoration: const InputDecoration(labelText: 'Ø§Ù„Ø¹Ù†ÙˆØ§Ù†', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'العنوان', border: OutlineInputBorder()),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ø¥Ù„ØºØ§Ø¡')),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
             ElevatedButton(
               onPressed: isSaving
                   ? null
@@ -215,24 +216,24 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
 
                       if (name.isEmpty || phone.isEmpty || city.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('ÙŠØ±Ø¬Ù‰ Ù…Ù„Ø¡ Ø§Ù„Ø­Ù‚ÙˆÙ„ Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø©')),
+                          const SnackBar(content: Text('يرجى ملء الحقول المطلوبة')),
                         );
                         return;
                       }
 
                       setDialogState(() => isSaving = true);
-                      try {
-                        await _supabase.from('clients').insert({
-                          'name': name,
-                          'phone': phone,
-                          'city': city,
-                          'address': address,
-                        });
+                       try {
+                          await _clientService.addClient(Client(
+                            name: name,
+                            phone: phone,
+                            city: city,
+                            address: address,
+                          ));
                         if (!mounted) return;
                         Navigator.pop(context);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('ØªÙ… Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ø²Ø¨ÙˆÙ† Ø¨Ù†Ø¬Ø§Ø­')),
+                            const SnackBar(content: Text('تم إضافة الزبون بنجاح')),
                           );
                         }
                         _loadData();
@@ -241,14 +242,14 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                         setDialogState(() => isSaving = false);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ Ø§Ù„Ø­ÙØ¸: $e')),
+                            SnackBar(content: Text('خطأ في الحفظ: $e')),
                           );
                         }
                       }
                     },
               child: isSaving
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Ø­ÙØ¸'),
+                  : const Text('حفظ'),
             ),
           ],
         ),
@@ -257,9 +258,9 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   }
 
   Future<void> _openAddInvoiceDialog() async {
-    final clients = await _supabase.from('clients').select('id, name, city, default_bank_account, default_bank_account_id').order('name');
-    final bankAccounts = await _supabase.from('bank_accounts').select().eq('is_active', true);
-    final appSettings = await _supabase.from('app_settings').select('percentage, is_enabled').eq('id', 1).maybeSingle();
+    final clients = await _clientService.getClientsRaw();
+    final bankAccounts = await _clientService.getActiveBankAccounts();
+    final appSettings = await _clientService.getAppSettings();
     
     final clientsList = List<Map<String, dynamic>>.from(clients as List);
     final bankAccountsList = List<Map<String, dynamic>>.from(bankAccounts as List);
@@ -279,19 +280,19 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Ø¥Ø¶Ø§ÙØ© ÙØ§ØªÙˆØ±Ø© Ø¬Ø¯ÙŠØ¯Ø©'),
+          title: const Text('إضافة فاتورة جديدة'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(labelText: 'Ø§Ù„Ø²Ø¨ÙˆÙ†', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'الزبون', border: OutlineInputBorder()),
                   items: clientsList
                       .toList()
                       .sorted((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''))
                       .map((client) {
                         final id = client['id'] as int;
-                        final name = client['name']?.toString() ?? 'Ø¨Ø¯ÙˆÙ† Ø§Ø³Ù…';
+                        final name = client['name']?.toString() ?? 'بدون اسم';
                         final city = client['city']?.toString() ?? '';
                         return DropdownMenuItem<int>(
                           value: id,
@@ -322,7 +323,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¨Ù†ÙƒÙŠ', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'الحساب البنكي', border: OutlineInputBorder()),
                   items: bankAccountsList
                       .toList()
                       .sorted((a, b) => (a['bank_name']?.toString() ?? '').compareTo(b['bank_name']?.toString() ?? ''))
@@ -342,11 +343,11 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                   },
                 ),
                  DropdownButtonFormField<String>(
-                   decoration: const InputDecoration(labelText: 'Ù†ÙˆØ¹ Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¨Ù†ÙƒÙŠ', border: OutlineInputBorder()),
+                   decoration: const InputDecoration(labelText: 'نوع الحساب البنكي', border: OutlineInputBorder()),
                    initialValue: selectedBankAccountType,
                    items: const [
-                     DropdownMenuItem(value: 'moroccan', child: Text('ðŸ‡²ðŸ‡¦ Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ù…ØºØ±Ø¨ÙŠ (MAD)')),
-                     DropdownMenuItem(value: 'european', child: Text('ðŸ‡ªðŸ‡º Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø£ÙˆØ±ÙˆØ¨ÙŠ (EUR)')),
+                     DropdownMenuItem(value: 'moroccan', child: Text('🇲🇦 الحساب المغربي (MAD)')),
+                     DropdownMenuItem(value: 'european', child: Text('🇪🇺 الحساب الأوروبي (EUR)')),
                    ],
                    onChanged: (val) {
                      setDialogState(() {
@@ -361,14 +362,14 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                          ? bankAccountsList.firstWhereOrNull((b) => b['id'].toString() == selectedBankAccountId)
                          : null;
                      final typeLabel = selectedBankAccountType == 'moroccan'
-                         ? 'Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ù…ØºØ±Ø¨ÙŠ (MAD)'
+                         ? 'الحساب المغربي (MAD)'
                          : selectedBankAccountType == 'european'
-                             ? 'Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø£ÙˆØ±ÙˆØ¨ÙŠ (EUR)'
+                             ? 'الحساب الأوروبي (EUR)'
                              : null;
                      final displayText = selectedAccount != null
-                         ? 'Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¨Ù†ÙƒÙŠ Ø§Ù„Ù…Ø­Ø¯Ø¯: ${selectedAccount['bank_name']} (${selectedAccount['currency']})'
+                         ? 'الحساب البنكي المحدد: ${selectedAccount['bank_name']} (${selectedAccount['currency']})'
                          : typeLabel != null
-                             ? 'Ù†ÙˆØ¹ Ø§Ù„Ø­Ø³Ø§Ø¨: $typeLabel'
+                             ? 'نوع الحساب: $typeLabel'
                              : null;
                      if (displayText == null) return const SizedBox.shrink();
                      return Container(
@@ -424,7 +425,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: InputDecoration(
-                    labelText: inputMode == 'HT' ? 'Ø§Ù„Ù…Ø¨Ù„Øº (HT)' : 'Ø§Ù„Ù…Ø¨Ù„Øº (TTC)',
+                    labelText: inputMode == 'HT' ? 'المبلغ (HT)' : 'المبلغ (TTC)',
                     border: const OutlineInputBorder(),
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -445,26 +446,26 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ø¥Ù„ØºØ§Ø¡')),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
             ElevatedButton(
               onPressed: isSaving
                   ? null
                   : () async {
                       if (selectedClientId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('ÙŠØ±Ø¬Ù‰ Ø§Ø®ØªÙŠØ§Ø± Ø§Ù„Ø²Ø¨ÙˆÙ†')),
+                          const SnackBar(content: Text('يرجى اختيار الزبون')),
                         );
                         return;
                       }
                       if (selectedBankAccountType == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('ÙŠØ±Ø¬Ù‰ Ø§Ø®ØªÙŠØ§Ø± Ù†ÙˆØ¹ Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø¨Ù†ÙƒÙŠ')),
+                          const SnackBar(content: Text('يرجى اختيار نوع الحساب البنكي')),
                         );
                         return;
                       }
                       if (amount <= Decimal.zero) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ù…Ø¨Ù„Øº ØµØ­ÙŠØ­')),
+                          const SnackBar(content: Text('يرجى إدخال مبلغ صحيح')),
                         );
                         return;
                       }
@@ -472,20 +473,19 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                       setDialogState(() => isSaving = true);
 
                       try {
-                        final supabaseService = SupabaseService();
-                         await supabaseService.createInvoice(
-                           clientId: selectedClientId!,
-                           amount: amount,
-                           inputMode: inputMode,
-                           bankAccountId: selectedBankAccountId,
-                           bankAccountType: selectedBankAccountType,
-                           bankInfoText: null,
-                         );
+                         await _clientService.createInvoice(
+                            clientId: selectedClientId!,
+                            amount: amount,
+                            inputMode: inputMode,
+                            bankAccountId: selectedBankAccountId,
+                            bankAccountType: selectedBankAccountType,
+                            bankInfoText: null,
+                          );
                         if (!mounted) return;
                         Navigator.pop(context);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('ØªÙ… Ø¥Ø¶Ø§ÙØ© Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø¨Ù†Ø¬Ø§Ø­')),
+                            const SnackBar(content: Text('تم إضافة الفاتورة بنجاح')),
                           );
                         }
                         _loadData();
@@ -494,14 +494,14 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                         setDialogState(() => isSaving = false);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Ø®Ø·Ø£: $e')),
+                            SnackBar(content: Text('خطأ: $e')),
                           );
                         }
                       }
                     },
               child: isSaving
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Ø­ÙØ¸'),
+                  : const Text('حفظ'),
             ),
           ],
         ),
@@ -548,31 +548,31 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   String _statusLabel(String? status) {
     switch (status) {
       case 'active':
-        return 'Ù†Ø´Ø·';
+        return 'نشط';
       case 'pending':
-        return 'Ù‚ÙŠØ¯ Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±';
+        return 'قيد الانتظار';
       case 'completed':
-        return 'Ù…ÙƒØªÙ…Ù„';
+        return 'مكتمل';
       case 'overdue':
-        return 'Ù…ØªØ£Ø®Ø±';
+        return 'متأخر';
       case 'paid':
-        return 'Ù…Ø¯ÙÙˆØ¹';
+        return 'مدفوع';
       case 'partially_paid':
-        return 'Ù…Ø¯ÙÙˆØ¹ Ø¬Ø²Ø¦ÙŠØ§Ù‹';
+        return 'مدفوع جزئياً';
       case 'unpaid':
-        return 'ØºÙŠØ± Ù…Ø¯ÙÙˆØ¹';
+        return 'غير مدفوع';
       default:
-        return status ?? 'â€”';
+        return status ?? '—';
     }
   }
 
   String _clientName(String? clientId) {
-    if (clientId == null) return 'ØºÙŠØ± Ù…Ø­Ø¯Ø¯';
+    if (clientId == null) return 'غير محدد';
     final client = _clients.firstWhere(
       (c) => c['id']?.toString() == clientId.toString(),
       orElse: () => const <String, dynamic>{},
     );
-    return client['name']?.toString() ?? 'ØºÙŠØ± Ù…Ø­Ø¯Ø¯';
+    return client['name']?.toString() ?? 'غير محدد';
   }
 
   @override
@@ -582,7 +582,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Ù„ÙˆØ­Ø© ØªØ­ÙƒÙ… Ø§Ù„Ø³ÙƒØ±ØªÙŠØ±Ø©'),
+        title: const Text('لوحة تحكم السكرتيرة'),
         backgroundColor: colorScheme.surfaceContainerHighest,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
@@ -612,9 +612,9 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                     children: [
                       Icon(Icons.error_outline_rounded, size: 48, color: Theme.of(context).colorScheme.error),
                       const SizedBox(height: 16),
-                      Text('Ø­Ø¯Ø« Ø®Ø·Ø£: $_error'),
+                      Text('حدث خطأ: $_error'),
                       const SizedBox(height: 16),
-                      ElevatedButton.icon(onPressed: _loadData, icon: const Icon(Icons.refresh), label: const Text('Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø©')),
+                      ElevatedButton.icon(onPressed: _loadData, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
                     ],
                   ),
                 )
@@ -645,7 +645,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      'Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡: Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â±Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯Ã˜Â©',
+                                      'ØªÙ†Ø¨ÙŠÙ‡: ØªÙˆØ¬Ø¯ Ø¹Ø¯Ø¯ Ø±Ø³Ù… Ø§Ù„ÙØ§ØªÙˆØ±Ø§Øª Ø§Ù„Ù…ØªØ£Ø®Ø±Ø© Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø©',
                                       style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w500),
                                     ),
                                   ),
@@ -653,7 +653,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                     onPressed: () {
                                       // Navigate to overdue invoices
                                     },
-                                    child: const Text('Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¶Ã˜Â§Ã˜Â±Ã˜Â©'),
+                                    child: const Text('Ø§Ù„Ø¥Ø¶Ø§Ø±Ø©'),
                                   ),
                                 ],
                               ),
@@ -661,7 +661,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
 
                             // Quick Actions bar
                             Text(
-                              'Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â±Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â±Ã™Å Ã˜Â¹Ã˜Â©',
+                              'Ø§Ù„Ø¥Ø±Ø§Øª Ø§Ù„Ø³Ø±ÙŠØ¹Ø©',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -676,7 +676,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 ElevatedButton.icon(
                                   onPressed: () => _openNewTripOrderDialog(context),
                                   icon: const Icon(Icons.add_road_rounded),
-                                  label: const Text('Ã˜ÂªÃ˜Â³Ã™â€žÃ™Å Ã™â€¦ Ã˜Â¹Ã™â€¡Ã˜Â¯Ã˜Â© Ã˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯Ã˜Â©'),
+                                  label: const Text('ØªØ³Ù„ÙŠÙ… Ø¹Ù‡Ø¯Ø© Ø¬Ø¯ÙŠØ¯Ø©'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.teal,
                                     foregroundColor: Colors.white,
@@ -685,7 +685,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 ElevatedButton.icon(
                                   onPressed: _openAddInvoiceDialog,
                                   icon: const Icon(Icons.add_card_rounded),
-                                  label: const Text('Ã˜Â¥Ã™â€ Ã˜Â´Ã˜Â§Ã˜Â¡ Ã™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â© Ã˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯Ã˜Â©'),
+                                  label: const Text('Ø¥Ù†Ø´Ø§Ø¡ ÙØ§ØªÙˆØ±Ø© Ø¬Ø¯ÙŠØ¯Ø©'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Theme.of(context).colorScheme.primary,
                                     foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -694,7 +694,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 ElevatedButton.icon(
                                   onPressed: () => _openSettlePendingTripDialog(context),
                                   icon: const Icon(Icons.check_circle_rounded),
-                                  label: const Text('Ã˜ÂªÃ˜Â³Ã™Ë†Ã™Å Ã˜Â© Ã˜Â±Ã˜Â­Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã™â€žÃ™â€šÃ˜Â©'),
+                                  label: const Text('ØªØ³ÙˆÙŠØ© Ø±Ø­Ù„Ø© Ø§Ù„Ù…Ø¹Ù„Ù‚Ø©'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.orange,
                                     foregroundColor: Colors.white,
@@ -707,7 +707,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                             // Pending Trip Orders Queue
                             if (_tripOrders.any((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending')) ...[
                               Text(
-                                'Ã˜Â§Ã™â€žÃ˜Â±Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂªÃ˜Â§Ã™â€ Ã˜Å¸',
+                                'Ø§Ù„Ø±ØªØ¨ Ø§Ù„Ù…ØªØ§Ù†ØŸ',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -722,8 +722,8 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                         margin: const EdgeInsets.symmetric(vertical: 4),
                                         child: ListTile(
                                           leading: const Icon(Icons.local_shipping_rounded, color: Colors.orange),
-                                          title: Text(order['route']?.toString() ?? 'Ã˜Â±Ã˜Â­Ã™â€žÃ˜Â©'),
-                                          subtitle: Text('Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž: ${_clientName(order["client_id"]?.toString())}'),
+                                          title: Text(order['route']?.toString() ?? 'Ø±Ø­Ù„Ø©'),
+                                          subtitle: Text('Ø§Ù„Ø¹Ù…ÙŠÙ„: ${_clientName(order["client_id"]?.toString())}'),
                                           trailing: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
@@ -740,29 +740,29 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                             showDialog(
                                               context: context,
                                               builder: (context) => AlertDialog(
-                                                title: Text('Ã˜Â£Ã™â€¦Ã˜Â± Ã˜Â±Ã˜Â­Ã™â€žÃ˜Â© #${order['id'] ?? '?'}'),
+                                                title: Text('Ø£Ù…Ø± Ø±Ø­Ù„Ø© #${order['id'] ?? '?'}'),
                                                 content: SingleChildScrollView(
                                                   child: Column(
                                                     mainAxisSize: MainAxisSize.min,
                                                     crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
-                                                      Text('Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž: ${_clientName(order['client_id']?.toString())}'),
-                                                      Text('Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â§Ã˜Â±: ${order['route']?.toString() ?? 'Ã¢â‚¬â€'}'),
-                                                      Text('Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â¹Ã˜Â±: ${NumberFormat('#,##0.00').format(tripOrder.price)} DH'),
-                                                      Text('Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®: ${order['departure_date']?.toString() ?? 'Ã¢â‚¬â€'}'),
-                                                      Text('Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ˜Â©: ${_statusLabel(order['status']?.toString())}'),
-                                                      Text('Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™â€¡: ${order['direction']?.toString() ?? 'outbound'}'),
+                                                      Text('Ø§Ù„Ø¹Ù…ÙŠÙ„: ${_clientName(order['client_id']?.toString())}'),
+                                                      Text('Ø§Ù„Ù…Ø³Ø§Ø±: ${order['route']?.toString() ?? 'â€”'}'),
+                                                      Text('Ø§Ù„Ø³Ø¹Ø±: ${NumberFormat('#,##0.00').format(tripOrder.price)} DH'),
+                                                      Text('Ø§Ù„ØªØ§Ø±ÙŠØ®: ${order['departure_date']?.toString() ?? 'â€”'}'),
+                                                      Text('Ø§Ù„Ø­Ø§Ù„Ø©: ${_statusLabel(order['status']?.toString())}'),
+                                                      Text('Ø§Ù„Ø§ØªØ¬Ø§Ù‡: ${order['direction']?.toString() ?? 'outbound'}'),
                                                     ],
                                                   ),
                                                 ),
                                                 actions: [
-                                                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ã˜Â¥Ã˜ÂºÃ™â€žÃ˜Â§Ã™â€š')),
+                                                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ø¥ØºÙ„Ø§Ù‚')),
                                                   ElevatedButton(
                                                     onPressed: () {
                                                       Navigator.pop(context);
                                                       _settleTripOrder(order['id'] as int);
                                                     },
-                                                    child: const Text('Ã˜ÂªÃ˜Â³Ã™Ë†Ã™Å Ã˜Â©'),
+                                                    child: const Text('ØªØ³ÙˆÙŠØ©'),
                                                   ),
                                                 ],
                                               ),
@@ -788,7 +788,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                     SizedBox(
                                       width: cardWidth,
                                       child: _StatCard(
-                                        title: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡',
+                                        title: 'إجمالي العملاء',
                                         value: '$_totalClients',
                                         icon: Icons.people_rounded,
                                         color: Theme.of(context).colorScheme.primary,
@@ -797,7 +797,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                     SizedBox(
                                       width: cardWidth,
                                       child: _StatCard(
-                                        title: 'Ø£ÙˆØ§Ù…Ø± Ø§Ù„Ø±Ø­Ù„Ø§Øª Ø§Ù„Ù†Ø´Ø·Ø©',
+                                        title: 'أوامر الرحلات النشطة',
                                         value: '$_activeTripOrders',
                                         icon: Icons.local_shipping_rounded,
                                         color: Theme.of(context).colorScheme.tertiary,
@@ -806,7 +806,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                     SizedBox(
                                       width: cardWidth,
                                       child: _StatCard(
-                                        title: 'Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø³ØªØ­Ù‚Ø©',
+                                        title: 'الفواتير المستحقة',
                                         value: '$_outstandingInvoices',
                                         icon: Icons.receipt_long_rounded,
                                         color: Theme.of(context).colorScheme.secondary,
@@ -815,7 +815,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                     SizedBox(
                                       width: cardWidth,
                                       child: _StatCard(
-                                        title: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¨Ø§Ù„Øº Ø§Ù„Ù…Ø³ØªØ­Ù‚Ø©',
+                                        title: 'إجمالي المبالغ المستحقة',
                                         value: '${NumberFormat('#,##0.00').format(_outstandingAmount)} DH',
                                         icon: Icons.attach_money_rounded,
                                         color: Theme.of(context).colorScheme.error,
@@ -836,7 +836,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 ElevatedButton.icon(
                                   onPressed: _openAddClientDialog,
                                   icon: const Icon(Icons.person_add_rounded),
-                                  label: const Text('Ø¥Ø¯Ø®Ø§Ù„ Ø²Ø¨ÙˆÙ† Ø¬Ø¯ÙŠØ¯'),
+                                  label: const Text('إدخال زبون جديد'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.teal,
                                     foregroundColor: Colors.white,
@@ -846,7 +846,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 ElevatedButton.icon(
                                   onPressed: _openAddInvoiceDialog,
                                   icon: const Icon(Icons.add_card_rounded),
-                                  label: const Text('Ø¥Ø¯Ø®Ø§Ù„ ÙØ§ØªÙˆØ±Ø© Ø¬Ø¯ÙŠØ¯Ø©'),
+                                  label: const Text('إدخال فاتورة جديدة'),
                                    style: ElevatedButton.styleFrom(
                                      backgroundColor: Theme.of(context).colorScheme.primary,
                                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -861,7 +861,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                      );
                                    },
                                    icon: const Icon(Icons.add_road_rounded),
-                                   label: const Text('Ø¥Ù†Ø´Ø§Ø¡ Ø£Ù…Ø± Ø±Ø­Ù„Ø© Ø¬Ø¯ÙŠØ¯'),
+                                   label: const Text('إنشاء أمر رحلة جديد'),
                                    style: ElevatedButton.styleFrom(
                                      backgroundColor: Theme.of(context).colorScheme.tertiary,
                                      foregroundColor: Theme.of(context).colorScheme.onTertiary,
@@ -875,7 +875,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
 
                             // Recent Trip Orders
                             Text(
-                              'Ø£ÙˆØ§Ù…Ø± Ø§Ù„Ø±Ø­Ù„Ø§Øª Ø§Ù„Ø£Ø®ÙŠØ±Ø©',
+                              'أوامر الرحلات الأخيرة',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -889,7 +889,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 color: Theme.of(context).colorScheme.surfaceContainer,
                                 child: const Padding(
                                   padding: EdgeInsets.all(32.0),
-                                  child: Center(child: Text('Ù„Ø§ ØªÙˆØ¬Ø¯ Ø£ÙˆØ§Ù…Ø± Ø±Ø­Ù„Ø§Øª')),
+                                  child: Center(child: Text('لا توجد أوامر رحلات')),
                                 ),
                               )
                             else
@@ -898,12 +898,12 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 child: PaginatedDataTable(
                                   columns: const [
                                     DataColumn(label: Text('#')),
-                                    DataColumn(label: Text('Ø§Ù„Ø¹Ù…ÙŠÙ„')),
-                                    DataColumn(label: Text('Ø§Ù„Ù…Ø³Ø§Ø±')),
-                                    DataColumn(label: Text('Ø§Ù„ØªØ§Ø±ÙŠØ®')),
-                                    DataColumn(label: Text('Ø§Ù„Ø­Ø§Ù„Ø©')),
-                                    DataColumn(label: Text('Ø§Ù„Ø³Ø§Ø¦Ù‚')),
-                                    DataColumn(label: Text('Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª')),
+                                    DataColumn(label: Text('العميل')),
+                                    DataColumn(label: Text('المسار')),
+                                    DataColumn(label: Text('التاريخ')),
+                                    DataColumn(label: Text('الحالة')),
+                                    DataColumn(label: Text('السائق')),
+                                    DataColumn(label: Text('إجراءات')),
                                   ],
                                   source: _TripOrdersDataSource(
                                     tripOrders: _tripOrders,
@@ -912,23 +912,23 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                       showDialog(
                                         context: context,
                                         builder: (context) => AlertDialog(
-                                          title: Text('Ø£Ù…Ø± Ø±Ø­Ù„Ø© #${order['id'] ?? '?'}'),
+                                          title: Text('أمر رحلة #${order['id'] ?? '?'}'),
                                           content: SingleChildScrollView(
                                             child: Column(
                                               mainAxisSize: MainAxisSize.min,
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text('Ø§Ù„Ø¹Ù…ÙŠÙ„: ${_clientName(order['client_id']?.toString())}'),
-                                                Text('Ø§Ù„Ù…Ø³Ø§Ø±: ${order['route']?.toString() ?? 'â€”'}'),
-                                                Text('Ø§Ù„Ø³Ø¹Ø±: ${NumberFormat('#,##0.00').format(tripOrder.price)} DH'),
-                                                Text('Ø§Ù„ØªØ§Ø±ÙŠØ®: ${order['departure_date']?.toString() ?? 'â€”'}'),
-                                                Text('Ø§Ù„Ø­Ø§Ù„Ø©: ${_statusLabel(order['status']?.toString())}'),
-                                                Text('Ø§Ù„Ø§ØªØ¬Ø§Ù‡: ${order['direction']?.toString() ?? 'outbound'}'),
+                                                Text('العميل: ${_clientName(order['client_id']?.toString())}'),
+                                                Text('المسار: ${order['route']?.toString() ?? '—'}'),
+                                                Text('السعر: ${NumberFormat('#,##0.00').format(tripOrder.price)} DH'),
+                                                Text('التاريخ: ${order['departure_date']?.toString() ?? '—'}'),
+                                                Text('الحالة: ${_statusLabel(order['status']?.toString())}'),
+                                                Text('الاتجاه: ${order['direction']?.toString() ?? 'outbound'}'),
                                               ],
                                             ),
                                           ),
                                           actions: [
-                                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ø¥ØºÙ„Ø§Ù‚')),
+                                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
                                           ],
                                         ),
                                       );
@@ -943,7 +943,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
 
                             // Recent Invoices
                             Text(
-                              'Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ø£Ø®ÙŠØ±Ø©',
+                              'الفواتير الأخيرة',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -957,7 +957,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 color: Theme.of(context).colorScheme.surfaceContainer,
                                 child: const Padding(
                                   padding: EdgeInsets.all(32.0),
-                                  child: Center(child: Text('Ù„Ø§ ØªÙˆØ¬Ø¯ ÙÙˆØ§ØªÙŠØ±')),
+                                  child: Center(child: Text('لا توجد فواتير')),
                                 ),
                               )
                             else
@@ -966,12 +966,12 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                 child: PaginatedDataTable(
                                   columns: const [
                                     DataColumn(label: Text('#')),
-                                    DataColumn(label: Text('Ø±Ù‚Ù… Ø§Ù„ÙØ§ØªÙˆØ±Ø©')),
-                                    DataColumn(label: Text('Ø§Ù„Ø¹Ù…ÙŠÙ„')),
-                                    DataColumn(label: Text('Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ')),
-                                    DataColumn(label: Text('Ø§Ù„Ù…Ø¯ÙÙˆØ¹')),
-                                    DataColumn(label: Text('Ø§Ù„Ø­Ø§Ù„Ø©')),
-                                    DataColumn(label: Text('Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª')),
+                                    DataColumn(label: Text('رقم الفاتورة')),
+                                    DataColumn(label: Text('العميل')),
+                                    DataColumn(label: Text('المبلغ الإجمالي')),
+                                    DataColumn(label: Text('المدفوع')),
+                                    DataColumn(label: Text('الحالة')),
+                                    DataColumn(label: Text('إجراءات')),
                                   ],
                                   source: _InvoicesDataSource(
                                     invoices: _invoices,
@@ -979,24 +979,24 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                                       showDialog(
                                         context: context,
                                         builder: (context) => AlertDialog(
-                                          title: Text('ÙØ§ØªÙˆØ±Ø© #${invoice['id'] ?? '?'}'),
+                                          title: Text('فاتورة #${invoice['id'] ?? '?'}'),
                                           content: SingleChildScrollView(
                                             child: Column(
                                               mainAxisSize: MainAxisSize.min,
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text('Ø±Ù‚Ù… Ø§Ù„ÙØ§ØªÙˆØ±Ø©: ${invoice['invoice_number']?.toString() ?? 'â€”'}'),
-                                                Text('Ø§Ù„Ø¹Ù…ÙŠÙ„: ${_clientName(invoice['client_id']?.toString())}'),
-                                                Text('Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ: ${NumberFormat('#,##0.00').format((invoice['total_amount'] as num?)?.toDouble() ?? 0.0)} DH'),
-                                                Text('Ø§Ù„Ù…Ø¯ÙÙˆØ¹: ${NumberFormat('#,##0.00').format((invoice['paid_amount'] as num?)?.toDouble() ?? 0.0)} DH'),
-                                                Text('Ø§Ù„Ø­Ø§Ù„Ø©: ${_statusLabel(invoice['status']?.toString())}'),
-                                                Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¥ØµØ¯Ø§Ø±: ${invoice['issue_date']?.toString() ?? 'â€”'}'),
-                                                Text('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø§Ø³ØªØ­Ù‚Ø§Ù‚: ${invoice['due_date']?.toString() ?? 'â€”'}'),
+                                                Text('رقم الفاتورة: ${invoice['invoice_number']?.toString() ?? '—'}'),
+                                                Text('العميل: ${_clientName(invoice['client_id']?.toString())}'),
+                                                Text('المبلغ الإجمالي: ${NumberFormat('#,##0.00').format((invoice['total_amount'] as num?)?.toDouble() ?? 0.0)} DH'),
+                                                Text('المدفوع: ${NumberFormat('#,##0.00').format((invoice['paid_amount'] as num?)?.toDouble() ?? 0.0)} DH'),
+                                                Text('الحالة: ${_statusLabel(invoice['status']?.toString())}'),
+                                                Text('تاريخ الإصدار: ${invoice['issue_date']?.toString() ?? '—'}'),
+                                                Text('تاريخ الاستحقاق: ${invoice['due_date']?.toString() ?? '—'}'),
                                               ],
                                             ),
                                           ),
                                           actions: [
-                                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ø¥ØºÙ„Ø§Ù‚')),
+                                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
                                           ],
                                         ),
                                       );
@@ -1028,7 +1028,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
     if (pendingTrips.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ø§Ù„Ø±ØªØ¨ Ø§Ù„Ù…ØªØ§Ù†ØŸ ØªØ§Ø«ÙŠ')),
+          const SnackBar(content: Text('الرتب المتان؟ تاثي')),
         );
       }
       return;
@@ -1041,11 +1041,11 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
 
   Future<void> _settleTripOrder(int id) async {
     try {
-      await _supabase.from('trip_orders').update({'status': 'completed'}).eq('id', id);
+      await _advanceService.updateTripOrder(id, {'status': 'completed'});
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ØªÙ… ØªØ³ÙˆÙŠØ© Ø§Ù„Ø±Ø­Ù„Ø© Ø¨Ù†Ø¬Ø§Ø­')),
+          const SnackBar(content: Text('تم تسوية الرحلة بنجاح')),
         );
       }
       _loadData();
@@ -1053,7 +1053,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ ØªØ³ÙˆÙŠØ© Ø§Ù„Ø±Ø­Ù„Ø©: $e')),
+          SnackBar(content: Text('خطأ في تسوية الرحلة: $e')),
         );
       }
     }
@@ -1138,23 +1138,23 @@ class _TripOrdersDataSource extends DataTableSource {
     return DataRow.byIndex(
       index: index,
       cells: [
-        DataCell(Text('#${order['id']?.toString() ?? 'â€”'}')),
-        DataCell(Text(order['client_id']?.toString() ?? 'ØºÙŠØ± Ù…Ø­Ø¯Ø¯')),
-        DataCell(Text(order['route']?.toString() ?? 'â€”')),
-        DataCell(Text(order['departure_date']?.toString() ?? 'â€”')),
+        DataCell(Text('#${order['id']?.toString() ?? '—'}')),
+        DataCell(Text(order['client_id']?.toString() ?? 'غير محدد')),
+        DataCell(Text(order['route']?.toString() ?? '—')),
+        DataCell(Text(order['departure_date']?.toString() ?? '—')),
         DataCell(_StatusChip(status: order['status']?.toString())),
-        DataCell(Text(order['driver_id']?.toString() ?? 'â€”')),
+        DataCell(Text(order['driver_id']?.toString() ?? '—')),
         DataCell(
           Row(
             children: [
               IconButton(
                 icon: const Icon(Icons.visibility_rounded, size: 20, color: Colors.blue),
-                tooltip: 'Ø¹Ø±Ø¶',
+                tooltip: 'عرض',
                 onPressed: () => onView(order),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_rounded, size: 20, color: Colors.red),
-                tooltip: 'Ø­Ø°Ù',
+                tooltip: 'حذف',
                 onPressed: () {
                   if (order['id'] != null) onDelete(order['id'] as int);
                 },
@@ -1197,9 +1197,9 @@ class _InvoicesDataSource extends DataTableSource {
     return DataRow.byIndex(
       index: index,
       cells: [
-        DataCell(Text('#${invoice['id']?.toString() ?? 'â€”'}')),
-        DataCell(Text(invoice['invoice_number']?.toString() ?? 'â€”')),
-        DataCell(Text(invoice['client_id']?.toString() ?? 'ØºÙŠØ± Ù…Ø­Ø¯Ø¯')),
+        DataCell(Text('#${invoice['id']?.toString() ?? '—'}')),
+        DataCell(Text(invoice['invoice_number']?.toString() ?? '—')),
+        DataCell(Text(invoice['client_id']?.toString() ?? 'غير محدد')),
         DataCell(Text('${NumberFormat('#,##0.00').format(totalAmount)} DH')),
         DataCell(Text('${NumberFormat('#,##0.00').format(paidAmount)} DH')),
         DataCell(_StatusChip(status: invoice['status']?.toString())),
@@ -1208,12 +1208,12 @@ class _InvoicesDataSource extends DataTableSource {
             children: [
               IconButton(
                 icon: const Icon(Icons.visibility_rounded, size: 20, color: Colors.blue),
-                tooltip: 'Ø¹Ø±Ø¶',
+                tooltip: 'عرض',
                 onPressed: () => onView(invoice),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_rounded, size: 20, color: Colors.red),
-                tooltip: 'Ø­Ø°Ù',
+                tooltip: 'حذف',
                 onPressed: () {
                   if (invoice['id'] != null) onDelete(invoice['id'] as int);
                 },
@@ -1284,21 +1284,21 @@ class _StatusChip extends StatelessWidget {
   String _label(String? status) {
     switch (status) {
       case 'active':
-        return 'Ù†Ø´Ø·';
+        return 'نشط';
       case 'pending':
-        return 'Ù‚ÙŠØ¯ Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±';
+        return 'قيد الانتظار';
       case 'completed':
-        return 'Ù…ÙƒØªÙ…Ù„';
+        return 'مكتمل';
       case 'overdue':
-        return 'Ù…ØªØ£Ø®Ø±';
+        return 'متأخر';
       case 'paid':
-        return 'Ù…Ø¯ÙÙˆØ¹';
+        return 'مدفوع';
       case 'partially_paid':
-        return 'Ù…Ø¯ÙÙˆØ¹ Ø¬Ø²Ø¦ÙŠØ§Ù‹';
+        return 'مدفوع جزئياً';
       case 'unpaid':
-        return 'ØºÙŠØ± Ù…Ø¯ÙÙˆØ¹';
+        return 'غير مدفوع';
       default:
-        return status ?? 'â€”';
+        return status ?? '—';
     }
   }
 }

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
 
 /// Listens to the `notifications` table over Supabase Realtime and shows each
 /// new notification both as an in-app SnackBar (works on Windows & phones) and
@@ -18,7 +18,7 @@ class RealtimeNotifications extends StatefulWidget {
 }
 
 class _RealtimeNotificationsState extends State<RealtimeNotifications> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
   final FlutterLocalNotificationsPlugin _localNotifier =
       FlutterLocalNotificationsPlugin();
   StreamSubscription<List<Map<String, dynamic>>>? _subscription;
@@ -51,7 +51,7 @@ class _RealtimeNotificationsState extends State<RealtimeNotifications> {
   }
 
   void _startListening() {
-    _subscription = _supabaseService.watchNotifications().listen(
+    _subscription = _advanceService.watchNotifications().listen(
       (rows) {
         for (final row in rows) {
           final id = row['id'];

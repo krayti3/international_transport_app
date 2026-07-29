@@ -471,4 +471,119 @@ class FleetService {
   Future<void> markOverdueMaintenances() async {
     try { final today = DateTime.now().toIso8601String().split('T').first; await supabase.from('maintenance_schedule').update({'status': 'overdue'}).eq('is_deleted', false).neq('status', 'completed').neq('status', 'skipped').lt('scheduled_date', today); } catch (e) { debugPrint('Error marking overdue maintenances: $e'); }
   }
+
+  Future<Map<String, dynamic>> calculateDriverSalary({
+    required String driverId,
+    required int month,
+    required int year,
+  }) async {
+    try {
+      final driverResponse = await supabase
+          .from('drivers')
+          .select('base_salary, bonus_percentage')
+          .eq('id', driverId)
+          .maybeSingle();
+
+      final baseSalary = (driverResponse?['base_salary'] as num?)?.toDouble() ?? 0.0;
+      final bonusPercentage = (driverResponse?['bonus_percentage'] as num?)?.toDouble() ?? 0.0;
+
+      final startDate = DateTime(year, month, 1);
+      final endDate = month == 12
+          ? DateTime(year + 1, 1, 1).subtract(const Duration(days: 1))
+          : DateTime(year, month + 1, 1).subtract(const Duration(days: 1));
+
+      final tripsResponse = await supabase
+          .from('trip_orders')
+          .select('id, price, status, departure_date')
+          .eq('driver_id', driverId)
+          .eq('status', 'completed')
+          .gte('departure_date', startDate.toIso8601String().split('T').first)
+          .lte('departure_date', endDate.toIso8601String().split('T').first);
+      final trips = List<Map<String, dynamic>>.from(tripsResponse);
+
+      int completedTrips = trips.length;
+      double totalTripValue = 0.0;
+      for (final trip in trips) {
+        totalTripValue += (trip['price'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      final bonusAmount = totalTripValue * (bonusPercentage / 100);
+      final totalSalary = baseSalary + bonusAmount;
+
+      return {
+        'driver_id': driverId,
+        'base_salary': baseSalary,
+        'bonus_percentage': bonusPercentage,
+        'completed_trips_count': completedTrips,
+        'total_trip_value': totalTripValue,
+        'bonus_amount': bonusAmount,
+        'total_salary': totalSalary,
+      };
+    } catch (e) {
+      debugPrint('Error calculating driver salary: $e');
+      return {'driver_id': driverId, 'total_salary': 0.0};
+    }
+  }
+
+  Future<bool> isDriverInUse(int driverId) async {
+    try {
+      final advances = await supabase.from('advances').select('id').eq('driver_id', driverId).limit(1);
+      if ((advances as List).isNotEmpty) return true;
+      final trips = await supabase.from('trip_orders').select('id').eq('driver_id', driverId).limit(1);
+      if ((trips as List).isNotEmpty) return true;
+      return false;
+    } catch (e) {
+      debugPrint('Error checking if driver is in use: $e');
+      return false;
+    }
+  }
+
+  Future<bool> isTrailerInUse(int trailerId) async {
+    try {
+      final trucks = await supabase.from('trucks').select('id').eq('default_trailer_id', trailerId).limit(1);
+      if ((trucks as List).isNotEmpty) return true;
+      final maintenances = await supabase.from('trailer_maintenances').select('id').eq('trailer_id', trailerId).limit(1);
+      if ((maintenances as List).isNotEmpty) return true;
+      final docs = await supabase.from('fleet_documents').select('id').eq('entity_type', 'trailer').eq('entity_id', trailerId).limit(1);
+      if ((docs as List).isNotEmpty) return true;
+      return false;
+    } catch (e) {
+      debugPrint('Error checking if trailer is in use: $e');
+      return false;
+    }
+  }
+
+  Future<bool> isTruckInUse(int truckId) async {
+    try {
+      final maintenances = await supabase.from('truck_maintenances').select('id').eq('truck_id', truckId).limit(1);
+      if ((maintenances as List).isNotEmpty) return true;
+      final docs = await supabase.from('truck_documents').select('id').eq('truck_id', truckId).limit(1);
+      if ((docs as List).isNotEmpty) return true;
+      final trips = await supabase.from('trip_orders').select('id').eq('truck_id', truckId).limit(1);
+      if ((trips as List).isNotEmpty) return true;
+      return false;
+    } catch (e) {
+      debugPrint('Error checking if truck is in use: $e');
+      return false;
+    }
+  }
+
+  Future<String> uploadFleetDocImage({
+    required String entityType,
+    required int entityId,
+    required String fileName,
+    required List<int> bytes,
+  }) async {
+    try {
+      final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final path = 'fleet_docs/$entityType/$entityId/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      await supabase.storage.from('fleet_docs').uploadBinary(path, Uint8List.fromList(bytes));
+      return supabase.storage.from('fleet_docs').getPublicUrl(path);
+    } catch (e) {
+      debugPrint('Error uploading fleet doc image: $e');
+      rethrow;
+    }
+  }
 }
+
+

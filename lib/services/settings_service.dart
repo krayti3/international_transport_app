@@ -111,10 +111,7 @@ class SettingsService {
 
   Future<void> updateAppSettings(Map<String, dynamic> data) async {
     try {
-      await _writeRow(
-        (d) => supabase.from('app_settings').update(d).eq('id', 1),
-        data,
-      );
+      await supabase.from('app_settings').update(data).eq('id', 1);
     } catch (e) {
       debugPrint('Error updating app settings: $e');
       rethrow;
@@ -148,11 +145,12 @@ class SettingsService {
     }
   }
 
-  Future<String?> uploadCompanyLogo(String filePath) async {
+  Future<String?> uploadCompanyLogo(String fileName, List<int> bytes) async {
     try {
-      final fileName = 'company_logo_${DateTime.now().millisecondsSinceEpoch}.png';
-      await supabase.storage.from('settings').upload(fileName, File(filePath));
-      final url = supabase.storage.from('settings').getPublicUrl(fileName);
+      final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final path = 'settings/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      await supabase.storage.from('settings').uploadBinary(path, Uint8List.fromList(bytes));
+      final url = supabase.storage.from('settings').getPublicUrl(path);
       await updateAppSettings({'company_logo_url': url});
       return url;
     } catch (e) {

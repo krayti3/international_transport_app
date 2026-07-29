@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/advance_service.dart';
 import '../l10n/app_localizations.dart';
 import 'driver_trips_screen.dart';
 import 'driver_advances_screen.dart';
@@ -24,7 +25,8 @@ class DriverDetailsScreen extends StatefulWidget {
 }
 
 class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final AdvanceService _advanceService = AdvanceService();
   bool _isDeleting = false;
   int _tripCount = 0;
   int _advanceCount = 0;
@@ -38,7 +40,7 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
   }
 
   Future<void> _loadTrucks() async {
-    final trucks = await _supabaseService.getTrucks();
+    final trucks = await _fleetService.getTrucks();
     if (mounted) {
       setState(() => _trucks = trucks);
     }
@@ -48,8 +50,8 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
     final driverId = widget.driver['id'] as int?;
     if (driverId == null) return;
 
-    final trips = await _supabaseService.getTripOrders();
-    final advances = await _supabaseService.getAdvances();
+    final trips = await _advanceService.getTripOrdersByDriver(driverId);
+    final advances = await _advanceService.getAdvancesByDriver(driverId);
 
     final driverTrips = trips.where((t) => t['driver_id'] == driverId).toList();
     final driverAdvances = advances.where((a) => a['driver_id'] == driverId).toList();
@@ -63,7 +65,7 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
   }
 
   Future<void> _confirmDelete() async {
-    final inUse = await _supabaseService.isDriverInUse(widget.driver['id'] as int);
+    final inUse = await _fleetService.isDriverInUse(widget.driver['id'] as int);
     if (inUse) {
       if (!mounted) return;
       showDialog(
@@ -105,7 +107,7 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
 
     setState(() => _isDeleting = true);
     try {
-      await _supabaseService.deleteDriver(widget.driver['id'] as int);
+      await _fleetService.deleteDriver(widget.driver['id'] as int);
       if (!mounted) return;
       widget.onDeleted();
       Navigator.pop(context);
@@ -221,7 +223,7 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
                   'bonus_percentage': double.tryParse(bonusController.text.trim()) ?? 0.0,
                   'default_truck_id': defaultTruckId,
                 };
-                await _supabaseService.updateDriver(
+                await _fleetService.updateDriver(
                   widget.driver['id'] as int,
                   data,
                 );

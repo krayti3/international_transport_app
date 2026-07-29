@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:international_transport_app/models/trailer.dart';
 import 'package:international_transport_app/services/sync_service.dart';
+import 'package:international_transport_app/services/fleet_service.dart';
 
 class TrailerRepository {
   final SupabaseClient supabase;
+  final FleetService _fleetService = FleetService();
 
   TrailerRepository(this.supabase);
 
@@ -20,12 +22,9 @@ class TrailerRepository {
 
   Future<List<Trailer>> getTrailers() async {
     try {
-      final response = await supabase.from('trailers').select();
-      final trailers = List<Map<String, dynamic>>.from(response)
-          .map((e) => Trailer.fromMap(e))
-          .toList();
-      await _cacheRows('trailers', response);
-      return trailers;
+      final trailers = await _fleetService.getTrailers();
+      await _cacheRows('trailers', trailers);
+      return trailers.map((e) => Trailer.fromMap(e)).toList();
     } catch (e) {
       debugPrint('Error fetching trailers: $e');
       return [];
@@ -34,7 +33,7 @@ class TrailerRepository {
 
   Future<void> addTrailer(Map<String, dynamic> data) async {
     try {
-      await supabase.from('trailers').insert(data);
+      await _fleetService.addTrailer(data);
     } catch (e) {
       debugPrint('Error adding trailer: $e');
       rethrow;
@@ -43,7 +42,7 @@ class TrailerRepository {
 
   Future<void> updateTrailer(int id, Map<String, dynamic> data) async {
     try {
-      await supabase.from('trailers').update(data).eq('id', id);
+      await _fleetService.updateTrailer(id, data);
     } catch (e) {
       debugPrint('Error updating trailer: $e');
       rethrow;
@@ -52,7 +51,7 @@ class TrailerRepository {
 
   Future<void> deleteTrailer(int id) async {
     try {
-      await supabase.from('trailers').delete().eq('id', id);
+      await _fleetService.deleteTrailer(id);
     } catch (e) {
       debugPrint('Error deleting trailer: $e');
       rethrow;

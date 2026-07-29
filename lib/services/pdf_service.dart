@@ -5,7 +5,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:http/http.dart' as http;
 import 'package:international_transport_app/models/invoice.dart';
-import 'package:international_transport_app/services/supabase_service.dart';
+import 'package:international_transport_app/services/settings_service.dart';
+import 'package:international_transport_app/services/client_service.dart';
 
 class PdfService {
   static PdfService? _instance;
@@ -14,7 +15,7 @@ class PdfService {
 
   static Future<Uint8List?> _fetchLogoBytes() async {
     try {
-      final sysSettings = await SupabaseService().getSystemSettings();
+      final sysSettings = await SettingsService().getSystemSettings();
       final logoUrl = sysSettings?['logo_url']?.toString();
       if (logoUrl == null || logoUrl.isEmpty) return null;
       final response = await http.get(Uri.parse(logoUrl)).timeout(const Duration(seconds: 10));
@@ -458,9 +459,9 @@ class PdfService {
     final paidAmount = invoice.paidAmount?.toDouble() ?? 0.0;
     final remaining = totalAmount - paidAmount;
     final status = invoice.status;
-    final supabaseService = SupabaseService();
+    final clientService = ClientService();
     final client = invoice.clientId.isNotEmpty
-        ? await supabaseService.getClientById(invoice.clientId)
+        ? await clientService.getClientById(invoice.clientId)
         : null;
     final clientName = client?.name ?? 'Unknown';
     final clientPhone = client?.phone ?? '';
@@ -470,7 +471,7 @@ class PdfService {
     final currencySymbol = currency == 'EUR' ? 'â‚¬' : 'DH';
     final bankInfoText = invoice.bankInfoText;
     final bankAccount = invoice.bankAccountId != null
-        ? await supabaseService.getBankAccountById(invoice.bankAccountId!)
+        ? await clientService.getBankAccountById(invoice.bankAccountId!)
         : null;
     final bankName = bankAccount?.bankName ?? '';
     final accountNumber = bankAccount?.accountNumber ?? '';

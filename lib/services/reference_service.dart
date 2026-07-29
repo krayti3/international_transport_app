@@ -222,4 +222,96 @@ class ReferenceService {
       rethrow;
     }
   }
+
+  Future<bool> isDocumentCategoryInUse(int id) async {
+    try {
+      final response = await supabase.from('fleet_documents').select('id').eq('category_id', id).limit(1);
+      return (response as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking if document category is in use: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getFleetDocuments() async {
+    try {
+      final response = await supabase.from('fleet_documents').select().order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching fleet documents: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTruckDocuments() async {
+    try {
+      final response = await supabase.from('truck_documents').select().order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching truck documents: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getVehicleDocumentsByType(String entityType, {int? entityId}) async {
+    try {
+      var query = supabase.from('fleet_documents').select();
+      if (entityType == 'truck') {
+        query = supabase.from('truck_documents').select();
+      }
+      if (entityId != null) {
+        query = query.eq('entity_id', entityId);
+      }
+      final response = await query.order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching vehicle documents by type: $e');
+      return [];
+    }
+  }
+
+  Future<bool> hasTruckDocumentType(int truckId, String type) async {
+    try {
+      final response = await supabase.from('truck_documents').select('id').eq('truck_id', truckId).eq('type', type).limit(1);
+      return (response as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking truck document type: $e');
+      return false;
+    }
+  }
+
+  Future<bool> hasFleetDocumentType(String entityType, int entityId, String categoryId) async {
+    try {
+      final response = await supabase.from('fleet_documents').select('id').eq('entity_type', entityType).eq('entity_id', entityId).eq('category_id', categoryId).limit(1);
+      return (response as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking fleet document type: $e');
+      return false;
+    }
+  }
+
+  Future<void> addFleetDocument(Map<String, dynamic> data) async {
+    try { await supabase.from('fleet_documents').insert(data); } catch (e) { debugPrint('Error adding fleet document: $e'); rethrow; }
+  }
+
+  Future<void> updateFleetDocument(int id, Map<String, dynamic> data) async {
+    try { await supabase.from('fleet_documents').update(data).eq('id', id); } catch (e) { debugPrint('Error updating fleet document: $e'); rethrow; }
+  }
+
+  Future<void> deleteFleetDocument(int id) async {
+    try { await supabase.from('fleet_documents').delete().eq('id', id); } catch (e) { debugPrint('Error deleting fleet document: $e'); rethrow; }
+  }
+
+  Future<void> addTruckDocument(Map<String, dynamic> data) async {
+    try { await supabase.from('truck_documents').insert(data); } catch (e) { debugPrint('Error adding truck document: $e'); rethrow; }
+  }
+
+  Future<void> updateTruckDocument(int id, Map<String, dynamic> data) async {
+    try { await supabase.from('truck_documents').update(data).eq('id', id); } catch (e) { debugPrint('Error updating truck document: $e'); rethrow; }
+  }
+
+  Future<void> deleteTruckDocument(int id) async {
+    try { await supabase.from('truck_documents').delete().eq('id', id); } catch (e) { debugPrint('Error deleting truck document: $e'); rethrow; }
+  }
 }
+

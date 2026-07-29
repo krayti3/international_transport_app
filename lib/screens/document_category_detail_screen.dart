@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
 import 'vehicle_doc_type_screen.dart';
 
 class DocumentCategoryDetailScreen extends StatefulWidget {
@@ -12,7 +12,7 @@ class DocumentCategoryDetailScreen extends StatefulWidget {
 }
 
 class _DocumentCategoryDetailScreenState extends State<DocumentCategoryDetailScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
   List<Map<String, dynamic>> _vehicles = [];
   bool _isLoading = true;
   String? _filter;
@@ -26,7 +26,7 @@ class _DocumentCategoryDetailScreenState extends State<DocumentCategoryDetailScr
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final responseDocs = await _supabaseService.getDocumentsByDocType(widget.docType);
+      final responseDocs = await _fleetService.getDocumentsByDocType(widget.docType);
       if (!mounted) return;
 
       final vehicleMap = <String, Map<String, dynamic>>{};
@@ -51,10 +51,10 @@ class _DocumentCategoryDetailScreenState extends State<DocumentCategoryDetailScr
 
       final trucks = truckIds.isEmpty
           ? <Map<String, dynamic>>[]
-          : await _supabaseService.getTrucks();
+          : await _fleetService.getTrucks();
       final trailers = trailerIds.isEmpty
           ? <Map<String, dynamic>>[]
-          : await _supabaseService.getTrailers();
+          : await _fleetService.getTrailers();
 
       final enriched = <Map<String, dynamic>>[];
       for (final entry in vehicleMap.values) {

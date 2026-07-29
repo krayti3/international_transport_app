@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/supabase_service.dart';
+import '../services/settings_service.dart';
+import '../services/advance_service.dart';
+import '../services/fleet_service.dart';
 
 import '../providers/theme_provider.dart';
 
@@ -64,6 +66,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _supabase = Supabase.instance.client;
+  final SettingsService _settingsService = SettingsService();
+  final AdvanceService _advanceService = AdvanceService();
+  final FleetService _fleetService = FleetService();
 
   int _currentTabIndex = 0;
   String _userRole = 'Driver';
@@ -124,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadRoleFromDatabase() async {
-    final rawRole = await SupabaseService().getUserRole();
+    final rawRole = await _settingsService.getUserRole();
     if (!mounted) return;
     setState(() {
       switch (rawRole?.toLowerCase()) {
@@ -212,8 +217,8 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final bool isAdmin = _userRole == 'Admin';
       final advances = isAdmin
-          ? await SupabaseService().getAllAdvances()
-          : await SupabaseService().getAdvances();
+          ? await _advanceService.getAllAdvances()
+          : await _advanceService.getAdvances();
 
       double totalGiven = 0.0;
       double totalSpent = 0.0;
@@ -240,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadExpiringVisasCount() async {
     try {
-      final visas = await SupabaseService().getExpiringVisas();
+      final visas = await _fleetService.getExpiringVisas();
       if (!mounted) return;
       setState(() {
         _expiringVisas = visas;
@@ -253,9 +258,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadExpiringFleetDocsCount() async {
     try {
-      final trucks = await SupabaseService().getTrucks();
-      final trailers = await SupabaseService().getTrailers();
-      final docs = await SupabaseService().getExpiringFleetDocs();
+      final trucks = await _fleetService.getTrucks();
+      final trailers = await _fleetService.getTrailers();
+      final docs = await _fleetService.getExpiringFleetDocs();
       if (!mounted) return;
       setState(() {
         _trucks = trucks;

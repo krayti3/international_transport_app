@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/fleet_service.dart';
+import '../services/reference_service.dart';
 import '../l10n/app_localizations.dart';
 import 'fleet_docs_screen.dart';
 import 'trailer_maintenance_screen.dart';
@@ -24,7 +26,9 @@ class TrailerDetailsScreen extends StatefulWidget {
 }
 
 class _TrailerDetailsScreenState extends State<TrailerDetailsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final FleetService _fleetService = FleetService();
+  final ReferenceService _referenceService = ReferenceService();
   bool _isDeleting = false;
   bool _hasLinkedRecords = false;
   int _tripCount = 0;
@@ -43,9 +47,9 @@ class _TrailerDetailsScreenState extends State<TrailerDetailsScreen> {
     final trailerId = widget.trailer['id'] as int?;
     if (trailerId == null) return;
 
-    final trips = await _supabaseService.getTripOrders();
-    final maintenances = await _supabaseService.getTrailerMaintenances();
-    final documents = await _supabaseService.getFleetDocuments();
+    final trips = await _advanceService.getTripOrders();
+    final maintenances = await _fleetService.getTrailerMaintenances();
+    final documents = await _referenceService.getFleetDocuments();
 
     final associatedTruckIds = _allTrucks
         .where((t) => t['default_trailer_id'] == trailerId)
@@ -68,7 +72,7 @@ class _TrailerDetailsScreenState extends State<TrailerDetailsScreen> {
 
   Future<void> _loadTrucks() async {
     try {
-      final trucks = await _supabaseService.getTrucks();
+      final trucks = await _fleetService.getTrucks();
       if (mounted) {
         setState(() {
           _allTrucks = trucks;
@@ -84,7 +88,7 @@ class _TrailerDetailsScreenState extends State<TrailerDetailsScreen> {
   }
 
   Future<void> _confirmDelete() async {
-    final inUse = await _supabaseService.isTrailerInUse(widget.trailer['id'] as int);
+    final inUse = await _fleetService.isTrailerInUse(widget.trailer['id'] as int);
     if (inUse) {
       if (!mounted) return;
       showDialog(
@@ -126,7 +130,7 @@ class _TrailerDetailsScreenState extends State<TrailerDetailsScreen> {
 
     setState(() => _isDeleting = true);
     try {
-      await _supabaseService.deleteTrailer(widget.trailer['id'] as int);
+      await _fleetService.deleteTrailer(widget.trailer['id'] as int);
       if (!mounted) return;
       widget.onDeleted();
       Navigator.pop(context);
@@ -191,7 +195,7 @@ class _TrailerDetailsScreenState extends State<TrailerDetailsScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final isUnique = await _supabaseService.checkTrailerPlateUnique(
+                final isUnique = await _fleetService.checkTrailerPlateUnique(
                   plateController.text.trim(),
                   excludeId: widget.trailer['id'] as int?,
                 );
@@ -207,7 +211,7 @@ class _TrailerDetailsScreenState extends State<TrailerDetailsScreen> {
                   'type': typeController.text.trim(),
                   'status': status,
                 };
-                await _supabaseService.updateTrailer(
+                await _fleetService.updateTrailer(
                   widget.trailer['id'] as int,
                   data,
                 );

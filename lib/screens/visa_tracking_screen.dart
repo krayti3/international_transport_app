@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/date_wheel_picker.dart';
 
@@ -12,7 +12,7 @@ class VisaTrackingScreen extends StatefulWidget {
 }
 
 class _VisaTrackingScreenState extends State<VisaTrackingScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
   List<Map<String, dynamic>> _drivers = [];
   bool _isLoading = true;
 
@@ -24,7 +24,7 @@ class _VisaTrackingScreenState extends State<VisaTrackingScreen> {
 
   Future<void> _loadDrivers() async {
     setState(() => _isLoading = true);
-    final drivers = await _supabaseService.getDrivers();
+    final drivers = await _fleetService.getDrivers();
     if (!mounted) return;
     setState(() {
       _drivers = drivers;
@@ -119,7 +119,7 @@ class _VisaTrackingScreenState extends State<VisaTrackingScreen> {
                   return;
                 }
                 try {
-                  await _supabaseService.updateDriverVisa(
+                  await _fleetService.updateDriverVisa(
                   driver!['id'].toString(),
                   visaNumber,
                   expiryDate!,

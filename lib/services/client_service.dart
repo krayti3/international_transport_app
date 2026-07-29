@@ -226,6 +226,37 @@ class ClientService {
     }
   }
 
+  Future<List<BankAccount>> getActiveBankAccounts() async {
+    try {
+      final response = await supabase.from('bank_accounts').select().eq('is_active', true);
+      final bankAccounts = List<Map<String, dynamic>>.from(response).map((e) => BankAccount.fromMap(e)).toList();
+      return bankAccounts;
+    } catch (e) {
+      debugPrint('Error fetching active bank accounts: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getClientsRaw() async {
+    try {
+      final response = await supabase.from('clients').select();
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching clients raw: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getInvoicesRaw() async {
+    try {
+      final response = await supabase.from('invoices').select();
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching invoices raw: $e');
+      return [];
+    }
+  }
+
   Future<BankAccount?> getBankAccountById(String id) async {
     try {
       final response = await supabase
@@ -952,6 +983,30 @@ class ClientService {
     } catch (e) {
       debugPrint('Error computing invoice totals: $e');
       return {'base': baseAmount, 'tva': 0.0, 'total': baseAmount};
+    }
+  }
+
+  Future<bool> isClientInUse(int clientId) async {
+    try {
+      final invoices = await supabase.from('invoices').select('id').eq('client_id', clientId).limit(1);
+      if ((invoices as List).isNotEmpty) return true;
+
+      final trips = await supabase.from('trip_orders').select('id').eq('client_id', clientId).limit(1);
+      if ((trips as List).isNotEmpty) return true;
+
+      return false;
+    } catch (e) {
+      debugPrint('Error checking if client is in use: $e');
+      return false;
+    }
+  }
+
+  Future<bool> isInvoiceInUse(int invoiceId) async {
+    try {
+      final count = await supabase.from('invoice_payments').select('id').eq('invoice_id', invoiceId).limit(1);
+      return (count as List).isNotEmpty;
+    } catch (_) {
+      return true;
     }
   }
 }

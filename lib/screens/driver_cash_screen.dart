@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
 
 class DriverCashScreen extends StatefulWidget {
   final int driverId;
@@ -16,7 +16,7 @@ class DriverCashScreen extends StatefulWidget {
 }
 
 class _DriverCashScreenState extends State<DriverCashScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
   List<Map<String, dynamic>> _advances = [];
   bool _isLoading = true;
 
@@ -28,7 +28,7 @@ class _DriverCashScreenState extends State<DriverCashScreen> {
 
   Future<void> _loadAdvances() async {
     setState(() => _isLoading = true);
-    final advances = await _supabaseService.getAdvancesByDriver(widget.driverId);
+    final advances = await _advanceService.getAdvancesByDriver(widget.driverId);
     if (!mounted) return;
     setState(() {
       _advances = advances;

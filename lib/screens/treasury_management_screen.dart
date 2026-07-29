@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import '../services/supabase_service.dart';
+import '../services/treasury_service.dart';
 import '../services/excel_service.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -19,7 +19,7 @@ class TreasuryManagementScreen extends StatefulWidget {
 }
 
 class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final TreasuryService _treasuryService = TreasuryService();
   final ImagePicker _picker = ImagePicker();
 
   List<Map<String, dynamic>> _transactions = [];
@@ -54,9 +54,9 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final transactions = await _supabaseService.getTreasuryTransactions();
-    final balance = await _supabaseService.getTreasuryBalance();
-    final cashBoxes = await _supabaseService.getCashBoxes();
+    final transactions = await _treasuryService.getTreasuryTransactions();
+    final balance = await _treasuryService.getTreasuryBalance();
+    final cashBoxes = await _treasuryService.getCashBoxes();
     if (!mounted) return;
     setState(() {
       _transactions = transactions;
@@ -176,7 +176,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
           return;
         }
         final bytes = await picked.readAsBytes();
-        final url = await _supabaseService.uploadReceipt(picked.name, bytes);
+        final url = await _treasuryService.uploadReceipt(picked.name, bytes);
         setDialog(() {
           receiptPreview = bytes;
           receiptUrl = url;
@@ -319,7 +319,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                         return;
                       }
                       try {
-                        await _supabaseService.addTreasuryTransaction(
+                        await _treasuryService.addTreasuryTransaction(
                           amount,
                           selectedType!,
                           description,
@@ -431,7 +431,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                 if (!formKey.currentState!.validate()) return;
                 final amount = double.tryParse(amountController.text.trim()) ?? 0;
                 try {
-                  await _supabaseService.addTransfer(
+                  await _treasuryService.addTransfer(
                     amount: amount,
                     fromCashBoxId: int.parse(fromBoxId!),
                     toCashBoxId: int.parse(toBoxId!),

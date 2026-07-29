@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:international_transport_app/services/supabase_service.dart';
+import '../services/workshop_service.dart';
 import '../widgets/date_wheel_picker.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -33,6 +33,7 @@ class _DebtInvoiceFormScreenState extends State<DebtInvoiceFormScreen> {
   List<String> _expenseTypes = [];
   String? _selectedProviderId;
   String? _selectedProviderName;
+  final WorkshopService _workshopService = WorkshopService();
 
   @override
   void initState() {
@@ -48,9 +49,8 @@ class _DebtInvoiceFormScreenState extends State<DebtInvoiceFormScreen> {
   }
 
   Future<void> _loadOptions() async {
-    final supabase = SupabaseService();
-    final providers = await supabase.getProviders();
-    final types = await supabase.getExpenseTypes();
+    final providers = await _workshopService.getProviders();
+    final types = await _workshopService.getExpenseTypes();
     if (!mounted) return;
     setState(() {
       _providers = providers;
@@ -83,9 +83,8 @@ class _DebtInvoiceFormScreenState extends State<DebtInvoiceFormScreen> {
     }
     setState(() => _isSubmitting = true);
     try {
-      final supabase = SupabaseService();
       final amount = double.parse(_amountController.text.trim());
-      final invoiceId = await supabase.insertDebtInvoice(
+      final invoiceId = await _workshopService.insertDebtInvoice(
         workshopId: _selectedProviderId!,
         vehicleType: _vehicleType,
         vehicleId: _vehicleIdController.text.trim(),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/workshop_service.dart';
 import '../widgets/date_wheel_picker.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -20,7 +21,8 @@ class VehicleOilRecordsScreen extends StatefulWidget {
 }
 
 class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final WorkshopService _workshopService = WorkshopService();
   List<Map<String, dynamic>> _records = [];
   String? _truckPlate;
   bool _isLoading = true;
@@ -34,9 +36,9 @@ class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final trucksList = await _supabaseService.getTrucks();
+      final trucksList = await _fleetService.getTrucks();
       final truck = trucksList.firstWhere((t) => (t['id'] as num?)?.toInt() == widget.truckId, orElse: () => <String, dynamic>{'id': widget.truckId});
-      final records = await _supabaseService.getOilChangeRecordsByTruck(widget.truckId);
+      final records = await _fleetService.getOilChangeRecordsByTruck(widget.truckId);
       if (!mounted) return;
       setState(() {
         _truckPlate = (truck['plate']?.toString() ?? truck['plate_number']?.toString()) ?? '#${widget.truckId}';
@@ -62,14 +64,14 @@ class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
     DateTime selectedDate = DateTime.now();
     String? selectedProvider;
 
-    final kmResult = (await _supabaseService.getTrucks()).firstWhere(
+    final kmResult = (await _fleetService.getTrucks()).firstWhere(
       (t) => (t['id'] as num?)?.toInt() == widget.truckId,
       orElse: () => <String, dynamic>{},
     );
     final currentKm = (kmResult['current_km'] as num?)?.toDouble() ?? 0;
     final dailyKmAvg = (kmResult['daily_km_average'] as num?)?.toDouble();
 
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     List<String> providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
 
     void recalculateNext() {
@@ -228,7 +230,7 @@ class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
                       ? double.tryParse(customOilController.text.trim())
                       : selectedOilInterval;
                   final nextDateParsed = DateFormat('dd/MM/yyyy').tryParse(nextDateController.text.trim());
-                  await _supabaseService.addTruckMaintenance({
+                  await _fleetService.addTruckMaintenance({
                     'truck_id': widget.truckId,
                     'expense_type': 'oil_change',
                     'km_at_time': currentKm,
@@ -273,13 +275,13 @@ class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
     DateTime selectedDate = DateTime.now();
     final truckId = widget.truckId;
     final currentKm = (record['km_at_time'] as num?)?.toDouble() ?? 0;
-    final kmResult = (await _supabaseService.getTrucks()).firstWhere(
+    final kmResult = (await _fleetService.getTrucks()).firstWhere(
       (t) => (t['id'] as num?)?.toInt() == truckId,
       orElse: () => <String, dynamic>{},
     );
     final dailyKmAvg = (kmResult['daily_km_average'] as num?)?.toDouble();
 
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     List<String> providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
     final presetIntervals = <double>[7000.0, 10000.0, 15000.0, 20000.0, 25000.0, 30000.0];
     final oilIntervalVal = (record['oil_interval_km'] as num?)?.toDouble();
@@ -466,7 +468,7 @@ class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
                       ? double.tryParse(customOilController.text.trim())
                       : selectedOilInterval;
                   final nextDateParsed = DateFormat('dd/MM/yyyy').tryParse(nextDateController.text.trim());
-                  await _supabaseService.updateTruckMaintenance(record['id'] as int, {
+                  await _fleetService.updateTruckMaintenance(record['id'] as int, {
                     'truck_id': truckId,
                     'expense_type': 'oil_change',
                     'km_at_time': currentKm,
@@ -573,7 +575,7 @@ class _VehicleOilRecordsScreenState extends State<VehicleOilRecordsScreen> {
                                       ),
                                     ).then((confirm) {
                                       if (confirm == true) {
-                                        _supabaseService.deleteTruckMaintenance(record['id'] as int).then((_) {
+                                        _fleetService.deleteTruckMaintenance(record['id'] as int).then((_) {
                                           _loadData();
                                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف السجل')));
                                         });

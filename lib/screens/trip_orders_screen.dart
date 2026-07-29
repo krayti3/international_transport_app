@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat, NumberFormat;
 import 'package:file_picker/file_picker.dart';
 import 'package:collection/collection.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/client_service.dart';
+import '../services/fleet_service.dart';
 import '../widgets/date_wheel_picker.dart';
 import '../widgets/paginated_list_view.dart';
 
@@ -17,7 +19,9 @@ class TripOrdersScreen extends StatefulWidget {
 }
 
 class _TripOrdersScreenState extends State<TripOrdersScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final ClientService _clientService = ClientService();
+  final FleetService _fleetService = FleetService();
 
   List<Map<String, dynamic>> _clients = [];
   List<Map<String, dynamic>> _drivers = [];
@@ -38,9 +42,9 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final clients = await _supabaseService.getClients();
-    final drivers = await _supabaseService.getDrivers();
-    final trucks = await _supabaseService.getTrucks();
+    final clients = await _clientService.getClients();
+    final drivers = await _fleetService.getDrivers();
+    final trucks = await _fleetService.getTrucks();
     
     if (!mounted) return;
     setState(() {
@@ -79,7 +83,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
       (order['price'] as num?)?.toDouble() ?? 0.0;
 
   Future<List<Map<String, dynamic>>> _loadTripDocuments(int tripOrderId) async {
-    return _supabaseService.getTripDocuments(tripOrderId);
+    return _advanceService.getTripDocuments(tripOrderId);
   }
 
   Future<void> _openDocumentsDialog(Map<String, dynamic> trip) async {
@@ -135,7 +139,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                                     );
                                     if (confirm == true) {
                                       try {
-                                        await _supabaseService.deleteTripDocument(doc['id'] as int);
+                                        await _advanceService.deleteTripDocument(doc['id'] as int);
                                         final updated = await _loadTripDocuments(tripId);
                                         if (mounted) {
                                           setDialogState(() {
@@ -211,11 +215,11 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
 
                   if (mounted) setState(() => _isLoading = true);
                   try {
-                    final url = await _supabaseService.uploadTripDocument(
+                    final url = await _advanceService.uploadTripDocument(
                       picked.name,
                       picked.bytes!,
                     );
-                    await _supabaseService.addTripDocument({
+                    await _advanceService.addTripDocument({
                       'trip_order_id': tripId,
                       'file_name': picked.name,
                       'file_url': url,
@@ -395,9 +399,9 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                 };
                 try {
                   if (isEdit) {
-                    await _supabaseService.updateTripOrder(trip['id'] as int, data, localRow: trip);
+                    await _advanceService.updateTripOrder(trip['id'] as int, data, localRow: trip);
                   } else {
-                    await _supabaseService.addTripOrder(data);
+                    await _advanceService.addTripOrder(data);
                   }
                   if (!context.mounted) return;
                   Navigator.pop(context);
@@ -446,7 +450,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
     );
     if (selected == null || selected == current) return;
     try {
-      await _supabaseService.updateTripOrder(
+      await _advanceService.updateTripOrder(
         trip['id'] as int,
         {'status': selected},
         localRow: trip,
@@ -497,7 +501,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                   Expanded(
                     child: PaginatedListView<Map<String, dynamic>>(
                       key: ValueKey(_tripListKey),
-                      fetchPage: (offset, limit) => _supabaseService.getTripOrdersPage(offset: offset, limit: limit),
+                      fetchPage: (offset, limit) => _advanceService.getTripOrdersPage(offset: offset, limit: limit),
                       itemBuilder: (context, trip, index) => _buildTripCard(trip),
                       emptyMessage: 'لا توجد طلبات رحلات مسجلة حالياً.',
                       pageSize: 20,
@@ -621,7 +625,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                     } else if (value == 'delete') {
                       final orderId = order['id'] as int?;
                       if (orderId == null) return;
-                      final inUse = await _supabaseService.isTripOrderInUse(orderId);
+                      final inUse = await _advanceService.isTripOrderInUse(orderId);
                       if (inUse) {
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -649,7 +653,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                       );
                       if (confirm == true) {
                         try {
-                          await _supabaseService.deleteTripOrder(orderId);
+                          await _advanceService.deleteTripOrder(orderId);
                           await _loadData();
                           if (!mounted) return;
                           setState(() => _tripListKey++);

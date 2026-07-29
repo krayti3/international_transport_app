@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/supabase_service.dart';
+import '../services/treasury_service.dart';
 
 class CashBoxLedgerScreen extends StatefulWidget {
   const CashBoxLedgerScreen({super.key, required this.isAdmin});
@@ -12,7 +12,7 @@ class CashBoxLedgerScreen extends StatefulWidget {
 }
 
 class _CashBoxLedgerScreenState extends State<CashBoxLedgerScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<Map<String, dynamic>> _cashBoxes = [];
   List<Map<String, dynamic>> _transactions = [];
   String? _selectedCashBoxId;
@@ -42,7 +42,7 @@ class _CashBoxLedgerScreenState extends State<CashBoxLedgerScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final boxes = await _supabaseService.getCashBoxes();
+    final boxes = await _treasuryService.getCashBoxes();
     if (!mounted) return;
     setState(() {
       _cashBoxes = boxes;
@@ -57,7 +57,7 @@ class _CashBoxLedgerScreenState extends State<CashBoxLedgerScreen> {
     if (_selectedCashBoxId != null && _selectedCashBoxId != 'all') {
       cashBoxId = int.tryParse(_selectedCashBoxId!);
     }
-    final txs = await _supabaseService.getTreasuryTransactions(cashBoxId: cashBoxId);
+    final txs = await _treasuryService.getTreasuryTransactions(cashBoxId: cashBoxId);
     if (!mounted) return;
     setState(() {
       _transactions = txs;

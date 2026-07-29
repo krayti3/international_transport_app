@@ -1,7 +1,8 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/fleet_service.dart';
 import '../widgets/responsive_layout.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -14,7 +15,8 @@ class TripFormScreen extends StatefulWidget {
 }
 
 class _TripFormScreenState extends State<TripFormScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final FleetService _fleetService = FleetService();
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
@@ -47,7 +49,7 @@ class _TripFormScreenState extends State<TripFormScreen> {
   }
 
   Future<void> _loadDrivers() async {
-    final drivers = await _supabaseService.getDrivers();
+    final drivers = await _fleetService.getDrivers();
     if (mounted) {
       setState(() {
         _drivers = drivers;
@@ -76,7 +78,7 @@ class _TripFormScreenState extends State<TripFormScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await _supabaseService.addAdvance({
+      await _advanceService.addAdvance({
         'driver_id': _selectedDriverId,
         'amount_given': amount,
         'date_out': _today(),
@@ -87,7 +89,7 @@ class _TripFormScreenState extends State<TripFormScreen> {
           .where((d) => d['id'] == _selectedDriverId)
           .map((d) => d['name']?.toString() ?? 'بدون اسم')
           .firstOrNull ?? 'بدون اسم';
-      await _supabaseService.notifyAdmins(
+      await _advanceService.notifyAdmins(
         title: 'عهدة جديدة',
         message: 'أضافت السكرتيرة عهدة للسائق $driverName',
       );

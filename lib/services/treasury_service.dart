@@ -790,4 +790,20 @@ class TreasuryService {
       return [];
     }
   }
+
+  Future<String> uploadReceipt(String fileName, List<int> bytes) async {
+    try {
+      final fileExt = fileName.contains('.') ? fileName.split('.').last : 'jpg';
+      final path = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      await supabase.storage.from('receipts').uploadBinary(
+            path,
+            Uint8List.fromList(bytes),
+            fileOptions: const FileOptions(contentType: 'image/*', upsert: true),
+          );
+      return supabase.storage.from('receipts').getPublicUrl(path);
+    } catch (e) {
+      debugPrint('Error uploading receipt: $e');
+      rethrow;
+    }
+  }
 }

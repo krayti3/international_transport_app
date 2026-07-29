@@ -4,7 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../repositories/trip_repository.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/advance_service.dart';
 import '../services/notification_service.dart';
 import '../services/location_service.dart';
 import '../l10n/app_localizations.dart';
@@ -22,7 +23,8 @@ class DriverScreen extends StatefulWidget {
 }
 
 class _DriverScreenState extends State<DriverScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final AdvanceService _advanceService = AdvanceService();
   final TripRepository _tripRepository = TripRepository(Supabase.instance.client);
   final NotificationService _notificationService = NotificationService();
   final LocationService _locationService = LocationService();
@@ -56,7 +58,7 @@ class _DriverScreenState extends State<DriverScreen> {
   }
 
   Future<void> _loadDriverAndTrips() async {
-    final drivers = await _supabaseService.getDrivers();
+    final drivers = await _fleetService.getDrivers();
     final authUserId = Supabase.instance.client.auth.currentUser?.id;
     int? myDriverId;
     String? myName;
@@ -89,7 +91,7 @@ class _DriverScreenState extends State<DriverScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      final allTrips = await _supabaseService.getTripOrdersByDriver(_selectedDriverId!);
+      final allTrips = await _advanceService.getTripOrdersByDriver(_selectedDriverId!);
       if (!mounted) return;
 
       final now = DateTime.now();
@@ -129,7 +131,7 @@ class _DriverScreenState extends State<DriverScreen> {
   Future<void> _checkForNewAdvances() async {
     if (_selectedDriverId == null) return;
     try {
-      final advances = await _supabaseService.getAdvancesByDriver(_selectedDriverId!);
+      final advances = await _advanceService.getAdvancesByDriver(_selectedDriverId!);
       if (!mounted) return;
 
       final latest = advances.isNotEmpty ? advances.first : null;
@@ -245,12 +247,12 @@ class _DriverScreenState extends State<DriverScreen> {
 
       setState(() => _lastPosition = position);
 
-      _supabaseService.updateTruckLocation(
+      _fleetService.updateTruckLocation(
         _selectedDriverId ?? 0,
         position.latitude,
         position.longitude,
       );
-      _supabaseService.recordTruckLocation(
+      _fleetService.recordTruckLocation(
         _selectedDriverId ?? 0,
         position.latitude,
         position.longitude,
@@ -268,12 +270,12 @@ class _DriverScreenState extends State<DriverScreen> {
       _accuracyLabel = _accuracyFromMeters(position.accuracy);
     });
 
-    await _supabaseService.updateTruckLocation(
+    await _fleetService.updateTruckLocation(
       _selectedDriverId ?? 0,
       position.latitude,
       position.longitude,
     );
-    await _supabaseService.recordTruckLocation(
+    await _fleetService.recordTruckLocation(
       _selectedDriverId ?? 0,
       position.latitude,
       position.longitude,

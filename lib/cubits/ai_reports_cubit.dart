@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../services/supabase_service.dart';
+import '../../services/advance_service.dart';
+import '../../services/client_service.dart';
+import '../../services/fleet_service.dart';
+import '../../services/treasury_service.dart';
 import '../../services/ai_analysis_service.dart';
 
 part 'ai_reports_state.dart';
@@ -10,7 +13,10 @@ class AiReportsCubit extends Cubit<AiReportsState> {
     analyze();
   }
 
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final ClientService _clientService = ClientService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
 
   Future<void> analyze() async {
     emit(state.copyWith(isLoading: true, errorMessage: null, isAnalyzing: true));
@@ -27,10 +33,10 @@ class AiReportsCubit extends Cubit<AiReportsState> {
               : DateTime(currentMonth.year, currentMonth.month - 1, 1);
       final previousMonthEnd = currentMonthStart;
 
-      final trips = await _supabaseService.getTripOrders();
-      final invoices = await _supabaseService.getInvoices();
-      final treasuryTxs = await _supabaseService.getTreasuryTransactions();
-      final maintenances = await _supabaseService.getTruckMaintenances();
+      final trips = await _advanceService.getTripOrders();
+      final invoices = await _clientService.getInvoices();
+      final treasuryTxs = await _treasuryService.getTreasuryTransactions();
+      final maintenances = await _fleetService.getTruckMaintenances();
 
       double currentRevenue = 0.0;
       double currentExpenses = 0.0;

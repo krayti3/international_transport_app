@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/supabase_service.dart';
+import '../services/client_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/summary_card.dart';
 
@@ -14,7 +14,7 @@ class AgingReportScreen extends StatefulWidget {
 }
 
 class _AgingReportScreenState extends State<AgingReportScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ClientService _clientService = ClientService();
   List<Map<String, dynamic>> _invoices = [];
   List<Map<String, dynamic>> _clients = [];
   bool _isLoading = true;
@@ -26,8 +26,8 @@ class _AgingReportScreenState extends State<AgingReportScreen> {
   }
 
   Future<void> _loadData() async {
-    final invoices = await _supabaseService.getInvoices();
-    final clients = await _supabaseService.getClients();
+    final invoices = await _clientService.getInvoices();
+    final clients = await _clientService.getClients();
 
     if (mounted) {
       setState(() {

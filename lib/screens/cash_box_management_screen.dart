@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'cash_box_ledger_screen.dart';
-import '../services/supabase_service.dart';
+import '../services/treasury_service.dart';
 
 class CashBoxManagementScreen extends StatefulWidget {
   const CashBoxManagementScreen({super.key});
@@ -11,7 +11,7 @@ class CashBoxManagementScreen extends StatefulWidget {
 }
 
 class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<Map<String, dynamic>> _cashBoxes = [];
   Map<int, Map<String, double>> _balances = {};
   Map<int, List<String>> _operationsCache = {};
@@ -36,14 +36,14 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final boxes = await _supabaseService.getCashBoxes();
-    final balances = await _supabaseService.getCashBoxBalances();
+    final boxes = await _treasuryService.getCashBoxes();
+    final balances = await _treasuryService.getCashBoxBalances();
     if (!mounted) return;
     final opsCache = <int, List<String>>{};
     for (final box in boxes) {
       final id = box['id'] as int?;
       if (id != null) {
-        opsCache[id] = await _supabaseService.getAllowedOperations(id);
+        opsCache[id] = await _treasuryService.getAllowedOperations(id);
       }
     }
     setState(() {
@@ -58,7 +58,7 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
     final boxId = box['id'] as int?;
     if (boxId == null) return;
     final label = box['label']?.toString() ?? '';
-    final allowed = await _supabaseService.getAllowedOperations(boxId);
+    final allowed = await _treasuryService.getAllowedOperations(boxId);
     final selected = <String>{...allowed};
     if (!mounted) return;
 
@@ -93,7 +93,7 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  await _supabaseService.setAllowedOperations(boxId, selected.toList());
+                  await _treasuryService.setAllowedOperations(boxId, selected.toList());
                   if (!context.mounted) return;
                   Navigator.pop(context);
                   if (!mounted) return;
@@ -164,12 +164,12 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
                   'code': codeController.text.trim(),
                   'is_active': isActive,
                 };
-                try {
-                  if (isEdit) {
-                    await _supabaseService.updateCashBox(box['id'] as int, data);
-                  } else {
-                    await _supabaseService.addCashBox(data);
-                  }
+                 try {
+                   if (isEdit) {
+                     await _treasuryService.updateCashBox(box['id'] as int, data);
+                   } else {
+                     await _treasuryService.addCashBox(data);
+                   }
                   if (!context.mounted) return;
                   Navigator.pop(context);
                   await _loadData();
@@ -208,7 +208,7 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
     );
     if (confirm != true) return;
     try {
-      await _supabaseService.deleteCashBox(box['id'] as int);
+      await _treasuryService.deleteCashBox(box['id'] as int);
       await _loadData();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف الصندوق')));
     } catch (e) {
@@ -328,14 +328,14 @@ class _CashBoxManagementScreenState extends State<CashBoxManagementScreen> {
               onPressed: () async {
                 if (!formKey.currentState!.validate()) return;
                 final amount = double.tryParse(amountController.text.trim()) ?? 0;
-                try {
-                  await _supabaseService.addTransfer(
-                    amount: amount,
-                    fromCashBoxId: int.parse(fromBoxId!),
-                    toCashBoxId: int.parse(toBoxId!),
-                    description: description,
-                    currency: transferCurrency,
-                  );
+                 try {
+                   await _treasuryService.addTransfer(
+                     amount: amount,
+                     fromCashBoxId: int.parse(fromBoxId!),
+                     toCashBoxId: int.parse(toBoxId!),
+                     description: description,
+                     currency: transferCurrency,
+                   );
                   if (!context.mounted) return;
                   Navigator.pop(context);
                   if (!mounted) return;

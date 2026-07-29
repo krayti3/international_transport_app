@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/report_service.dart';
 import '../services/excel_service.dart';
 import '../services/pdf_service.dart';
 import '../widgets/summary_card.dart';
@@ -10,9 +10,6 @@ import '../l10n/app_localizations.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
-/// ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ø£Ø±Ø¨Ø§Ø­ Ø§Ù„ØµØ§ÙÙŠØ© Ù„Ù„Ø´Ø±ÙƒØ© â€” Ù„Ù„Ø£Ø¯Ù…Ù† ÙÙ‚Ø·.
-/// ÙŠØ¹Ø±Ø¶ ãØ§Ø±Ø¯ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ± (Ø¨Ø¯ÙˆÙ† TVA) ÙˆØ§Ù„Ù…ØµØ§Ø±ÙŠÙ ÙˆØ£Ø±Ø¨Ø§Ø­ Ø§Ù„Ø´Ø±ÙƒØ© Ù„Ù€ **Ø§Ù„Ø´Ù‡Ø± Ø§Ù„Ø­Ø§Ù„ÙŠ**
-/// Ù…Ø±Ø³Ù… Ø¨ÙŠØ§Ù†ÙŠ ÙŠÙˆØ¶Ø­ Ù†Ø³Ø¨Ø© Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ Ù…Ù‚Ø§Ø±Ù†Ø© Ø¨Ø§Ù„Ø£Ø±Ø¨Ø§Ø­.
 class CompanyProfitReportScreen extends StatefulWidget {
   const CompanyProfitReportScreen({super.key});
 
@@ -21,7 +18,7 @@ class CompanyProfitReportScreen extends StatefulWidget {
 }
 
 class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ReportService _reportService = ReportService();
   Map<String, double> _report = {};
   bool _isLoading = true;
 
@@ -33,10 +30,18 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
 
   Future<void> _loadReport() async {
     setState(() => _isLoading = true);
-    final report = await _supabaseService.getCompanyProfitReport();
+    final reportList = await _reportService.getCompanyProfitReport(startDate: DateTime.now().subtract(const Duration(days: 365)), endDate: DateTime.now());
     if (!mounted) return;
     setState(() {
-      _report = report.map((k, v) => MapEntry(k, (v as num).toDouble()));
+      _report = <String, double>{};
+      for (final item in reportList) {
+        for (final entry in item.entries) {
+          final value = entry.value;
+          if (value is num) {
+            _report[entry.key] = value.toDouble();
+          }
+        }
+      }
       _isLoading = false;
     });
   }
@@ -51,7 +56,7 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('Ø¬Ø§Ø±ÙŠ Ø¥Ù†Ø´Ø§Ø¡ Ù…Ù„Ù Excel...'),
+            Text('جاري إنشاء ملف Excel...'),
           ],
         ),
       ),
@@ -61,11 +66,11 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
       final bytes = await ExcelService.instance.exportFinancialReport(
         _report.map((k, v) => MapEntry(k, v.toDouble())),
       );
-      await ExcelService.instance.shareExcel(bytes, 'ØªÙ‚Ø±ÙŠØ±_Ø§Ù„Ø£Ø±Ø¨Ø§Ø­');
+      await ExcelService.instance.shareExcel(bytes, 'تقرير_الأرباح');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ Ø¥Ù†Ø´Ø§Ø¡ Excel: $e')),
+          SnackBar(content: Text('خطأ في إنشاء Excel: $e')),
         );
       }
     } finally {
@@ -85,7 +90,7 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('Ø¬Ø§Ø±ÙŠ Ø¥Ù†Ø´Ø§Ø¡ Ù…Ù„Ù PDF...'),
+            Text('جاري إنشاء ملف PDF...'),
           ],
         ),
       ),
@@ -94,7 +99,7 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
     try {
       final totalRevenue = _report['total_revenue'] ?? 0.0;
       final totalExpenses = _report['total_expenses'] ?? 0.0;
-    
+
       await PdfService.instance.shareDashboardPdf(
         totalRevenue: totalRevenue,
         totalExpenses: totalExpenses,
@@ -108,7 +113,7 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ø®Ø·Ø£ ÙÙŠ Ø¥Ù†Ø´Ø§Ø¡ PDF: $e')),
+          SnackBar(content: Text('خطأ في إنشاء PDF: $e')),
         );
       }
     } finally {
@@ -122,7 +127,7 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: Text(context.tr('ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ø£Ø±Ø¨Ø§Ø­'))),
+        appBar: AppBar(title: Text(context.tr('تقرير الأرباح'))),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -142,16 +147,16 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ø£Ø±Ø¨Ø§Ø­ Ø§Ù„ØµØ§ÙÙŠØ©')),
+        title: Text(context.tr('تقرير الأرباح الصافية')),
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'ØªØµØ¯ÙŠØ± PDF',
+            tooltip: 'تصدير PDF',
             onPressed: _exportPdf,
           ),
           IconButton(
             icon: const Icon(Icons.table_chart),
-            tooltip: 'ØªØµØ¯ÙŠØ± Excel',
+            tooltip: 'تصدير Excel',
             onPressed: _exportExcel,
           ),
         ],
@@ -163,63 +168,63 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               Text(
-                context.tr('ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ø´Ù‡Ø± Ø§Ù„Ø­Ø§Ù„ÙŠ ({0})', [monthLabel]),
+                context.tr('تقرير الشهر الحالي ({0})', [monthLabel]),
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               SummaryCard(
-                title: context.tr('Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¯Ø§Ø®ÙŠÙ„ (Ù…Ø¹ TVA)'),
+                title: context.tr('إجمالي المداخيل (مع TVA)'),
                 value: '${revenueWithTva.toStringAsFixed(2)} DH',
                 color: Colors.blue,
               ),
               const SizedBox(height: 12),
               SummaryCard(
-                title: context.tr('Ø¶Ø±ÙŠØ¨Ø© TVA'),
+                title: context.tr('ضريبة TVA'),
                 value: '${tvaAmount.toStringAsFixed(2)} DH',
                 color: Colors.purple,
               ),
               const SizedBox(height: 12),
               SummaryCard(
-                title: context.tr('Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¯Ø§Ø®ÙŠÙ„ (Ø¨Ø¯ÙˆÙ† TVA)'),
+                title: context.tr('إجمالي المداخيل (بدون TVA)'),
                 value: '${revenue.toStringAsFixed(2)} DH',
                 color: Colors.indigo,
               ),
               const SizedBox(height: 12),
               SummaryCard(
-                title: context.tr('Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ'),
+                title: context.tr('إجمالي المصاريف'),
                 value: '${totalExpenses.toStringAsFixed(2)} DH',
                 color: Colors.orange,
               ),
               const SizedBox(height: 12),
               SummaryCard(
-                title: context.tr('Ø§Ù„Ø£Ø±Ø¨Ø§Ø­ Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠØ©'),
+                title: context.tr('الأرباح الإجمالية'),
                 value: '${grossProfit.toStringAsFixed(2)} DH',
                 color: Colors.teal,
               ),
               const SizedBox(height: 12),
               SummaryCard(
-                title: context.tr('ØµØ§ÙÙŠ Ø§Ù„Ø£Ø±Ø¨Ø§Ø­'),
+                title: context.tr('صافي الأرباح'),
                 value: '${netProfit.toStringAsFixed(2)} DH',
                 color: netProfit >= 0.0 ? Colors.green : Colors.red,
                 isLarge: true,
               ),
               const SizedBox(height: 24),
               Text(
-                context.tr('Ù†Ø³Ø¨Ø© Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ Ù…Ù‚Ø§Ø¨Ù„ Ø§Ù„Ø£Ø±Ø¨Ø§Ø­'),
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                context.tr('نسبة المصاريف مقارنة بالأرباح'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               SimpleBarChart(expenses: totalExpenses, netProfit: netProfit),
               const SizedBox(height: 24),
               Text(
-                context.tr('ØªÙØ§ØµÙŠÙ„ Ø§Ù„Ù…ØµØ§Ø±ÙŠÙ'),
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                context.tr('تفاصيل المصاريف'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              ExpenseRow(title: context.tr('Ù…ØµØ§Ø±ÙŠÙ ØªØ´ØºÙŠÙ„ Ø§Ù„Ø±Ø­Ù„Ø§Øª'), amount: tripExpense),
-              ExpenseRow(title: context.tr('Ù…ØµØ§Ø±ÙŠÙ Ø§Ù„Ù…ÙƒØªØ¨'), amount: officeExpense),
-              ExpenseRow(title: context.tr('Ø§Ù„Ø£Ø¬ÙˆØ± ÙˆØ§Ù„Ø±ÙˆØ§ØªØ¨'), amount: salary),
-              ExpenseRow(title: context.tr('Ù…ØµØ§Ø±ÙŠÙ ØµÙŠØ§Ù†Ø© Ø§Ù„Ø´Ø§Ø­Ù†Ø§Øª'), amount: truckMaintenance),
+              ExpenseRow(title: context.tr('مصاريف تشغيل الرحلات'), amount: tripExpense),
+              ExpenseRow(title: context.tr('مصاريف المكتب'), amount: officeExpense),
+              ExpenseRow(title: context.tr('الأجور والرواتب'), amount: salary),
+              ExpenseRow(title: context.tr('مصاريف صيانة الشاحنات'), amount: truckMaintenance),
             ],
           ),
         ),
@@ -227,4 +232,3 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
     );
   }
 }
-

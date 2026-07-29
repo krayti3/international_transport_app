@@ -1,7 +1,10 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../models/invoice.dart';
-import '../../services/supabase_service.dart';
+import '../../services/advance_service.dart';
+import '../../services/client_service.dart';
+import '../../services/fleet_service.dart';
+import '../../services/treasury_service.dart';
 
 part 'advanced_dashboard_state.dart';
 
@@ -10,15 +13,18 @@ class AdvancedDashboardCubit extends Cubit<AdvancedDashboardState> {
     loadDashboardData();
   }
 
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final ClientService _clientService = ClientService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
 
   Future<void> loadDashboardData() async {
     emit(state.copyWith(isLoading: true, errorMessage: null));
     try {
-      final trips = await _supabaseService.getTripOrders();
-      final invoices = await _supabaseService.getInvoices();
-      final maintenances = await _supabaseService.getTruckMaintenances();
-      final treasuryTxs = await _supabaseService.getTreasuryTransactions();
+      final trips = await _advanceService.getTripOrders();
+      final invoices = await _clientService.getInvoices();
+      final maintenances = await _fleetService.getTruckMaintenances();
+      final treasuryTxs = await _treasuryService.getTreasuryTransactions();
 
       double totalRevenue = 0.0;
       double totalExpenses = 0.0;

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat, NumberFormat;
 import 'package:collection/collection.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/client_service.dart';
+import '../services/fleet_service.dart';
 import '../widgets/date_wheel_picker.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -17,7 +19,9 @@ class DriverTripsScreen extends StatefulWidget {
 }
 
 class _DriverTripsScreenState extends State<DriverTripsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final ClientService _clientService = ClientService();
+  final FleetService _fleetService = FleetService();
   List<Map<String, dynamic>> _trips = [];
   List<Map<String, dynamic>> _clients = [];
   List<Map<String, dynamic>> _trucks = [];
@@ -36,10 +40,10 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final trips = await _supabaseService.getTripOrdersByDriver(widget.driverId);
-    final clients = await _supabaseService.getClients();
-    final trucks = await _supabaseService.getTrucks();
-    final drivers = await _supabaseService.getDrivers();
+    final trips = await _advanceService.getTripOrdersByDriver(widget.driverId);
+    final clients = await _clientService.getClients();
+    final trucks = await _fleetService.getTrucks();
+    final drivers = await _fleetService.getDrivers();
     if (!mounted) return;
     trips.sort((a, b) {
       final ai = (a['id'] as int?) ?? 0;
@@ -206,9 +210,9 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
                 };
                 try {
                   if (isEdit) {
-                    await _supabaseService.updateTripOrder(trip['id'] as int, data, localRow: trip);
+                    await _advanceService.updateTripOrder(trip['id'] as int, data, localRow: trip);
                   } else {
-                    await _supabaseService.addTripOrder(data);
+                    await _advanceService.addTripOrder(data);
                   }
                   if (!context.mounted) return;
                   Navigator.pop(context);
@@ -257,7 +261,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
     );
     if (selected == null || selected == current) return;
     try {
-      await _supabaseService.updateTripOrder(trip['id'] as int, {'status': selected}, localRow: trip);
+      await _advanceService.updateTripOrder(trip['id'] as int, {'status': selected}, localRow: trip);
       await _loadData();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -289,7 +293,7 @@ class _DriverTripsScreenState extends State<DriverTripsScreen> {
     );
     if (confirm != true) return;
     try {
-      await _supabaseService.deleteTripOrder(trip['id'] as int);
+      await _advanceService.deleteTripOrder(trip['id'] as int);
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف الرحلة')));

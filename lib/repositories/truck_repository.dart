@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:international_transport_app/models/truck.dart';
 import 'package:international_transport_app/services/sync_service.dart';
+import 'package:international_transport_app/services/fleet_service.dart';
 
 class TruckRepository {
   final SupabaseClient supabase;
+  final FleetService _fleetService = FleetService();
 
   TruckRepository(this.supabase);
 
@@ -18,12 +20,9 @@ class TruckRepository {
 
   Future<List<Truck>> getTrucks() async {
     try {
-      final response = await supabase.from('trucks').select();
-      final trucks = List<Map<String, dynamic>>.from(response)
-          .map((e) => Truck.fromMap(e))
-          .toList();
-      await _cacheRows('trucks', response);
-      return trucks;
+      final trucks = await _fleetService.getTrucks();
+      await _cacheRows('trucks', trucks);
+      return trucks.map((e) => Truck.fromMap(e)).toList();
     } catch (e) {
       debugPrint('Error fetching trucks: $e');
       return [];
@@ -32,7 +31,7 @@ class TruckRepository {
 
   Future<void> addTruck(Map<String, dynamic> data) async {
     try {
-      await supabase.from('trucks').insert(data);
+      await _fleetService.addTruck(data);
     } catch (e) {
       debugPrint('Error adding truck: $e');
       rethrow;
@@ -41,7 +40,7 @@ class TruckRepository {
 
   Future<void> updateTruck(int id, Map<String, dynamic> data) async {
     try {
-      await supabase.from('trucks').update(data).eq('id', id);
+      await _fleetService.updateTruck(id, data);
     } catch (e) {
       debugPrint('Error updating truck: $e');
       rethrow;
@@ -50,7 +49,7 @@ class TruckRepository {
 
   Future<void> deleteTruck(int id) async {
     try {
-      await supabase.from('trucks').delete().eq('id', id);
+      await _fleetService.deleteTruck(id);
     } catch (e) {
       debugPrint('Error deleting truck: $e');
       rethrow;
@@ -59,11 +58,7 @@ class TruckRepository {
 
   Future<void> updateTruckLocation(int id, double latitude, double longitude) async {
     try {
-      await supabase.from('trucks').update({
-        'current_latitude': latitude,
-        'current_longitude': longitude,
-        'last_updated': DateTime.now().toIso8601String(),
-      }).eq('id', id);
+      await _fleetService.updateTruckLocation(id, latitude, longitude);
     } catch (e) {
       debugPrint('Error updating truck location: $e');
       rethrow;
@@ -72,12 +67,7 @@ class TruckRepository {
 
   Future<void> recordTruckLocation(int truckId, double latitude, double longitude) async {
     try {
-      await supabase.from('truck_locations').insert({
-        'truck_id': truckId,
-        'latitude': latitude,
-        'longitude': longitude,
-        'recorded_at': DateTime.now().toIso8601String(),
-      });
+      await _fleetService.recordTruckLocation(truckId, latitude, longitude);
     } catch (e) {
       debugPrint('Error recording truck location: $e');
     }
@@ -88,14 +78,7 @@ class TruckRepository {
     int hours = 24,
   }) async {
     try {
-      final since = DateTime.now().subtract(Duration(hours: hours)).toIso8601String();
-      final response = await supabase
-          .from('truck_locations')
-          .select()
-          .eq('truck_id', truckId)
-          .gte('recorded_at', since)
-          .order('recorded_at', ascending: true);
-      return List<Map<String, dynamic>>.from(response);
+      return await _fleetService.getTruckLocationHistory(truckId, hours: hours);
     } catch (e) {
       debugPrint('Error fetching truck location history: $e');
       return [];

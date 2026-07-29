@@ -2,7 +2,9 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' show DateFormat;
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/fleet_service.dart';
+import '../services/reference_service.dart';
 import '../l10n/app_localizations.dart';
 import 'truck_documents_screen.dart';
 import 'oil_change_alerts_screen.dart';
@@ -29,7 +31,9 @@ class TruckDetailsScreen extends StatefulWidget {
 }
 
 class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final FleetService _fleetService = FleetService();
+  final ReferenceService _referenceService = ReferenceService();
   bool _isDeleting = false;
   bool _hasLinkedRecords = false;
   int _tripCount = 0;
@@ -52,10 +56,10 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
     final truckId = widget.truck['id'] as int?;
     if (truckId == null) return;
 
-    final trips = await _supabaseService.getTripOrders();
-    final maintenances = await _supabaseService.getTruckMaintenances();
-    final documents = await _supabaseService.getDocuments();
-    final truckDocuments = await _supabaseService.getTruckDocuments();
+    final trips = await _advanceService.getTripOrders();
+    final maintenances = await _fleetService.getTruckMaintenances();
+    final documents = await _referenceService.getFleetDocuments();
+    final truckDocuments = await _referenceService.getTruckDocuments();
 
     final normalizedTruckDocs = truckDocuments.map((d) {
       final normalized = Map<String, dynamic>.from(d);
@@ -89,7 +93,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
   Future<void> _checkOilRecords() async {
     final truckId = widget.truck['id'] as int?;
     if (truckId == null) return;
-    final records = await _supabaseService.getOilChangeRecordsByTruck(truckId);
+    final records = await _fleetService.getOilChangeRecordsByTruck(truckId);
     if (mounted) {
       setState(() {
         _oilRecordsCount = records.length;
@@ -99,7 +103,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
 
   Future<void> _loadTrailers() async {
     try {
-      final trailers = await _supabaseService.getTrailers();
+      final trailers = await _fleetService.getTrailers();
       if (mounted) {
         setState(() {
           _allTrailers = trailers;
@@ -116,7 +120,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
 
   Future<void> _loadDrivers() async {
     try {
-      final drivers = await _supabaseService.getDrivers();
+      final drivers = await _fleetService.getDrivers();
       if (mounted) {
         setState(() {
           _allDrivers = drivers;
@@ -132,7 +136,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
   }
 
   Future<void> _confirmDelete() async {
-    final inUse = await _supabaseService.isTruckInUse(widget.truck['id'] as int);
+    final inUse = await _fleetService.isTruckInUse(widget.truck['id'] as int);
     if (inUse) {
       if (!mounted) return;
       showDialog(
@@ -174,7 +178,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
 
     setState(() => _isDeleting = true);
     try {
-      await _supabaseService.deleteTruck(widget.truck['id'] as int);
+      await _fleetService.deleteTruck(widget.truck['id'] as int);
       if (!mounted) return;
       widget.onDeleted();
       Navigator.pop(context);
@@ -246,7 +250,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
                   );
                   return;
                 }
-                final isUnique = await _supabaseService.checkTrailerPlateUnique(plate);
+                final isUnique = await _fleetService.checkTrailerPlateUnique(plate);
                 if (!isUnique) {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -255,7 +259,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
                   return;
                 }
                 try {
-                  newTrailerId = await _supabaseService.addTrailer({
+                  newTrailerId = await _fleetService.addTrailer({
                     'plate_number': plate,
                     'type': typeController.text.trim(),
                     'status': status,
@@ -326,7 +330,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
                   return;
                 }
                 try {
-                  newDriverId = await _supabaseService.addDriver({
+                  newDriverId = await _fleetService.addDriver({
                     'name': name,
                     'status': status,
                   });
@@ -599,7 +603,7 @@ class _TruckDetailsScreenState extends State<TruckDetailsScreen> {
                   'empty_weight': double.tryParse(emptyWeightController.text.trim()),
                   'purchase_date': purchaseDate?.toIso8601String().split('T').first,
                 };
-                await _supabaseService.updateTruck(
+                await _fleetService.updateTruck(
                   widget.truck['id'] as int,
                   data,
                 );

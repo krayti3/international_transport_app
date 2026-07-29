@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:international_transport_app/services/sync_service.dart';
+import 'package:international_transport_app/services/fleet_service.dart';
 
 class MaintenanceRepository {
   final SupabaseClient supabase;
+  final FleetService _fleetService = FleetService();
 
   MaintenanceRepository(this.supabase);
 
@@ -27,7 +29,7 @@ class MaintenanceRepository {
 
   Future<void> addMaintenanceSchedule(Map<String, dynamic> data) async {
     try {
-      await supabase.from('maintenance_schedules').insert(data);
+      await _fleetService.insertMaintenanceSchedule(data);
     } catch (e) {
       debugPrint('Error adding maintenance schedule: $e');
       rethrow;
@@ -36,7 +38,7 @@ class MaintenanceRepository {
 
   Future<void> updateMaintenanceSchedule(int id, Map<String, dynamic> data) async {
     try {
-      await supabase.from('maintenance_schedules').update(data).eq('id', id);
+      await _fleetService.updateMaintenanceSchedule(id, data);
     } catch (e) {
       debugPrint('Error updating maintenance schedule: $e');
       rethrow;
@@ -45,7 +47,7 @@ class MaintenanceRepository {
 
   Future<void> deleteMaintenanceSchedule(int id) async {
     try {
-      await supabase.from('maintenance_schedules').delete().eq('id', id);
+      await _fleetService.deleteMaintenanceSchedule(id);
     } catch (e) {
       debugPrint('Error deleting maintenance schedule: $e');
       rethrow;

@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:international_transport_app/services/sync_service.dart';
+import 'package:international_transport_app/services/treasury_service.dart';
 
 class CashBoxRepository {
   final SupabaseClient supabase;
+  final TreasuryService _treasuryService = TreasuryService();
 
   CashBoxRepository(this.supabase);
 
@@ -13,11 +15,7 @@ class CashBoxRepository {
 
   Future<List<Map<String, dynamic>>> getCashBoxes() async {
     try {
-      final response = await supabase
-          .from('cash_boxes')
-          .select()
-          .order('id', ascending: true);
-      final boxes = List<Map<String, dynamic>>.from(response);
+      final boxes = await _treasuryService.getCashBoxes();
       await _cacheRows('cash_boxes', boxes);
       return boxes;
     } catch (e) {

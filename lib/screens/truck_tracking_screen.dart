@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TruckTrackingScreen extends StatefulWidget {
   final bool isAdmin;
@@ -12,7 +12,6 @@ class TruckTrackingScreen extends StatefulWidget {
 }
 
 class _TruckTrackingScreenState extends State<TruckTrackingScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
   final MapController _mapController = MapController();
 
   static const LatLng _initialCenter = LatLng(35.1686, -2.9335);
@@ -20,14 +19,20 @@ class _TruckTrackingScreenState extends State<TruckTrackingScreen> {
   int? _selectedTruckId;
 
   Stream<List<Map<String, dynamic>>> _getTrucksStream() {
-    return _supabaseService.supabase
+    return Supabase.instance.client
         .from('trucks')
         .stream(primaryKey: ['id'])
         .order('id');
   }
 
   Future<List<LatLng>> _getPolyline(int truckId) async {
-    final history = await _supabaseService.getTruckLocationHistory(truckId, hours: 24);
+    final response = await Supabase.instance.client
+        .from('truck_locations')
+        .select()
+        .eq('truck_id', truckId)
+        .order('created_at', ascending: true)
+        .limit(100);
+    final history = List<Map<String, dynamic>>.from(response);
     return history
         .where((p) {
           final lat = (p['latitude'] as num?)?.toDouble();

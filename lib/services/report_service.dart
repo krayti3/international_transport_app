@@ -113,17 +113,33 @@ class ReportService {
     }
   }
 
-  Future<Map<String, dynamic>> getOwnerDashboard() async {
+  Future<Map<String, dynamic>> getOwnerDashboard({String period = 'all'}) async {
     try {
       final now = DateTime.now();
-      final startOfMonth = DateTime(now.year, now.month, 1);
-      final endOfMonth = DateTime(now.year, now.month + 1, 1);
+      DateTime startDate;
+      DateTime endDate;
+
+      switch (period) {
+        case 'week':
+          startDate = now.subtract(const Duration(days: 7));
+          endDate = now;
+          break;
+        case 'month':
+          startDate = DateTime(now.year, now.month, 1);
+          endDate = DateTime(now.year, now.month + 1, 1);
+          break;
+        case 'all':
+        default:
+          startDate = DateTime(2000);
+          endDate = DateTime(2100);
+          break;
+      }
 
       final invoicesResponse = await supabase
           .from('invoices')
-          .select('total_amount, paid_amount, status')
-          .gte('issue_date', startOfMonth.toIso8601String().split('T').first)
-          .lt('issue_date', endOfMonth.toIso8601String().split('T').first);
+          .select('total_amount, paid_amount, status, issue_date')
+          .gte('issue_date', startDate.toIso8601String().split('T').first)
+          .lt('issue_date', endDate.toIso8601String().split('T').first);
       final invoices = List<Map<String, dynamic>>.from(invoicesResponse);
 
       double totalRevenue = 0.0;
@@ -163,7 +179,7 @@ class ReportService {
         'trucks_count': trucksCount,
         'drivers_count': driversCount,
         'clients_count': clientsCount,
-        'month': DateFormat('MMMM yyyy', 'ar_MA').format(now),
+        'month': period == 'all' ? 'الكل' : period == 'week' ? 'أسبوعي' : DateFormat('MMMM yyyy', 'ar_MA').format(now),
       };
     } catch (e) {
       debugPrint('Error fetching owner dashboard: $e');
