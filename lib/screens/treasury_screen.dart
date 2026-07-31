@@ -769,10 +769,10 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
 
   Widget _buildFinanceCard(String title, String value, IconData icon,
       Color color,
-      {bool fullWidth = false, double height = 50}) {
+      {bool fullWidth = false, double? height}) {
     final colorScheme = Theme.of(context).colorScheme;
     final cardWidget = Container(
-      height: height,
+      height: height ?? 70,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,

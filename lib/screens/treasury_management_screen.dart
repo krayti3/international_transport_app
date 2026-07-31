@@ -26,6 +26,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
   List<Map<String, dynamic>> _cashBoxes = [];
   double _balance = 0.0;
   bool _isLoading = true;
+  String? _selectedCashBoxId;
 
   static const Map<String, String> _typeLabels = {
     'capital_injection': 'تزويد رأس مال',
@@ -49,13 +50,13 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadData(cashBoxId: _selectedCashBoxId != null ? int.tryParse(_selectedCashBoxId!) : null);
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({int? cashBoxId}) async {
     setState(() => _isLoading = true);
-    final transactions = await _supabaseService.getTreasuryTransactions();
-    final balance = await _supabaseService.getTreasuryBalance();
+    final transactions = await _supabaseService.getTreasuryTransactions(cashBoxId: cashBoxId);
+    final balance = await _supabaseService.getTreasuryBalance(cashBoxId: cashBoxId);
     final cashBoxes = await _supabaseService.getCashBoxes();
     if (!mounted) return;
     setState(() {
@@ -89,6 +90,38 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
   }
 
   Color _getColor(String type) => _isPositiveType(type) ? Colors.green : Colors.red;
+
+  Widget _buildCashBoxSelector() {
+    if (_cashBoxes.isEmpty) return const SizedBox.shrink();
+    return DropdownButtonFormField<String>(
+      decoration: const InputDecoration(
+        labelText: 'الصندوق',
+      ),
+      isExpanded: true,
+      initialValue: _selectedCashBoxId,
+      items: [
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text('الكل'),
+        ),
+        ..._cashBoxes.map((b) {
+          final id = b['id'] as int?;
+          final label = b['label']?.toString() ?? b['code']?.toString() ?? '';
+          return DropdownMenuItem<String>(
+            value: id?.toString(),
+            child: Text(label),
+          );
+        }),
+      ],
+      onChanged: (val) {
+        setState(() {
+          _selectedCashBoxId = val;
+        });
+        final cashBoxId = val != null ? int.tryParse(val) : null;
+        _loadData(cashBoxId: cashBoxId);
+      },
+    );
+  }
 
   String _formatAmount(double amount, String type) {
     final prefix = _isPositiveType(type) ? '+' : '-';
@@ -330,7 +363,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('تم تسجيل المعاملة بنجاح')),
                         );
-                        await _loadData();
+                         await _loadData(cashBoxId: _selectedCashBoxId != null ? int.tryParse(_selectedCashBoxId!) : null);
                       } catch (e) {
                         if (!mounted) return;
                         setDialog(() => isSubmitting = false);
@@ -442,7 +475,7 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('تم التحويل بنجاح'), backgroundColor: Colors.green),
                   );
-                  await _loadData();
+                   await _loadData(cashBoxId: _selectedCashBoxId != null ? int.tryParse(_selectedCashBoxId!) : null);
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -485,6 +518,10 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: _buildCashBoxSelector(),
+                ),
                 Card(
                   margin: const EdgeInsets.all(16),
                   elevation: 4,
@@ -495,8 +532,12 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       children: [
-                        const Text('رصيد الخزينة الحالي',
-                            style: TextStyle(fontSize: 16, color: Colors.grey)),
+                        Text(
+                          _selectedCashBoxId == null
+                              ? 'رصيد الخزينة الحالي'
+                              : 'رصيد ${_cashBoxes.firstWhere((b) => b['id'].toString() == _selectedCashBoxId, orElse: () => {})['label'] ?? 'الخزينة'}',
+                          style: const TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
                         const SizedBox(height: 12),
                          Text(
                            '${NumberFormat('#,###.00').format(_balance)} DH',
@@ -520,7 +561,10 @@ class _TreasuryManagementScreenState extends State<TreasuryManagementScreen> {
                   child: _transactions.isEmpty
                       ? const Center(child: Text('لا يوجد معاملات حالياً'))
                       : RefreshIndicator(
-                          onRefresh: _loadData,
+                          onRefresh: () async {
+                            final cashBoxId = _selectedCashBoxId != null ? int.tryParse(_selectedCashBoxId!) : null;
+                            await _loadData(cashBoxId: cashBoxId);
+                          },
                           child: ListView.builder(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             itemCount: _transactions.length,
