@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import '../widgets/date_wheel_picker.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
 import '../services/maintenance_service.dart';
 import '../models/maintenance_schedule.dart';
 
@@ -18,7 +18,7 @@ class MaintenanceScheduleScreen extends StatefulWidget {
 }
 
 class _MaintenanceScheduleScreenState extends State<MaintenanceScheduleScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
   final MaintenanceService _maintenanceService = MaintenanceService();
   List<Map<String, dynamic>> _vehicles = [];
   List<MaintenanceSchedule> _schedules = [];
@@ -39,8 +39,8 @@ class _MaintenanceScheduleScreenState extends State<MaintenanceScheduleScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final trucks = await _supabaseService.getTrucks();
-    final trailers = await _supabaseService.getTrailers();
+    final trucks = await _fleetService.getTrucks();
+    final trailers = await _fleetService.getTrailers();
     final schedules = await _maintenanceService.getMaintenanceSchedules(
       vehicleType: widget.vehicleType ?? _filterVehicleType,
       vehicleId: widget.vehicleId,
@@ -214,9 +214,9 @@ class _MaintenanceScheduleScreenState extends State<MaintenanceScheduleScreen> {
                   };
                   try {
                     if (isEdit) {
-                      await _supabaseService.updateMaintenanceSchedule(schedule.id!, data);
+                      await _fleetService.updateMaintenanceSchedule(schedule.id!, data);
                     } else {
-                      await _supabaseService.insertMaintenanceSchedule(data);
+                      await _fleetService.insertMaintenanceSchedule(data);
                     }
                     if (!context.mounted) return;
                     Navigator.pop(context);

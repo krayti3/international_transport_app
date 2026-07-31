@@ -6,7 +6,8 @@ import 'package:collection/collection.dart';
 import '../models/client.dart';
 import '../models/bank_account.dart';
 import '../providers/invoice_provider.dart';
-import '../services/supabase_service.dart';
+import '../services/client_service.dart';
+import '../services/settings_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/date_wheel_picker.dart';
 
@@ -19,7 +20,8 @@ class InvoiceFormScreen extends StatefulWidget {
 
 class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _supabaseService = SupabaseService();
+  final ClientService _clientService = ClientService();
+  final SettingsService _settingsService = SettingsService();
 
   Client? _selectedClient;
   String? _selectedBankAccountType;
@@ -143,7 +145,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
   Widget _buildClientSelector() {
     return FutureBuilder<List<Client>>(
-      future: _supabaseService.getClients(activeOnly: true),
+      future: _clientService.getClients(activeOnly: true),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -203,7 +205,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   Widget _buildBankAccountsSelector() {
     final invoiceProvider = Provider.of<InvoiceProvider>(context, listen: false);
     return FutureBuilder<List<BankAccount>>(
-      future: _supabaseService.getBankAccounts(),
+      future: _clientService.getBankAccounts(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -399,7 +401,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       }
 
       try {
-        final newInvoice = await _supabaseService.createInvoice(
+        final newInvoice = await _settingsService.createInvoice(
           clientId: _selectedClient!.id!,
           amount: amount,
           inputMode: invoiceProvider.inputMode,

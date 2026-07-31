@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
 import 'vehicle_expense_screen.dart';
 
 class ExpenseCategoryDetailScreen extends StatefulWidget {
@@ -11,7 +11,7 @@ class ExpenseCategoryDetailScreen extends StatefulWidget {
 }
 
 class _ExpenseCategoryDetailScreenState extends State<ExpenseCategoryDetailScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
   List<Map<String, dynamic>> _vehicles = [];
   bool _isLoading = true;
 
@@ -24,7 +24,7 @@ class _ExpenseCategoryDetailScreenState extends State<ExpenseCategoryDetailScree
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final maintenances = await _supabaseService.getMaintenancesByExpenseType(widget.expenseType);
+      final maintenances = await _fleetService.getMaintenancesByExpenseType(widget.expenseType);
       final truckIds = <int>{};
       final trailerIds = <int>{};
       for (final m in maintenances) {
@@ -34,8 +34,8 @@ class _ExpenseCategoryDetailScreenState extends State<ExpenseCategoryDetailScree
         if (vType == 'truck') truckIds.add(vId);
         if (vType == 'trailer') trailerIds.add(vId);
       }
-      final trucks = truckIds.isEmpty ? <Map<String, dynamic>>[] : await _supabaseService.getTrucks();
-      final trailers = trailerIds.isEmpty ? <Map<String, dynamic>>[] : await _supabaseService.getTrailers();
+      final trucks = truckIds.isEmpty ? <Map<String, dynamic>>[] : await _fleetService.getTrucks();
+      final trailers = trailerIds.isEmpty ? <Map<String, dynamic>>[] : await _fleetService.getTrailers();
 
       final grouped = <String, Map<String, dynamic>>{};
       for (final m in maintenances) {

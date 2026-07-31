@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:collection/collection.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/treasury_service.dart';
+import '../services/workshop_service.dart';
 import 'vehicle_oil_records_screen.dart';
 import '../widgets/date_wheel_picker.dart';
 
@@ -18,7 +20,9 @@ class OilChangeAlertsScreen extends StatefulWidget {
 }
 
 class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
+  final WorkshopService _workshopService = WorkshopService();
   List<Map<String, dynamic>> _trucks = [];
   List<Map<String, dynamic>> _oilRecords = [];
   bool _isLoading = true;
@@ -32,9 +36,9 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
 
   Future<void> _loadAlerts() async {
     setState(() => _isLoading = true);
-    final trucks = await _supabaseService.getTrucks();
-    final records = await _supabaseService.getOilChangeRecords();
-    final cashBoxes = await _supabaseService.getCashBoxes();
+    final trucks = await _fleetService.getTrucks();
+    final records = await _fleetService.getOilChangeRecords();
+    final cashBoxes = await _treasuryService.getCashBoxes();
     if (!mounted) return;
     setState(() {
       _trucks = widget.truckId != null
@@ -67,7 +71,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
     final nextKmController = TextEditingController();
     final nextDateController = TextEditingController();
     DateTime selectedDate = DateTime.now();
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     List<String> providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
 
     final trucks = _trucks;
@@ -268,7 +272,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
                       ? double.tryParse(customOilController.text.trim())
                       : selectedOilInterval;
                   final nextDateParsed = DateFormat('dd/MM/yyyy').tryParse(nextDateController.text.trim());
-                  await _supabaseService.addTruckMaintenance({
+                  await _fleetService.addTruckMaintenance({
                     'truck_id': truckIdToSave,
                     'expense_type': 'oil_change',
                     'km_at_time': currentKm,
@@ -313,7 +317,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
     final nextKmController = TextEditingController();
     final nextDateController = TextEditingController();
     DateTime selectedDate = DateTime.now();
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     List<String> providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
     final truckId = (record['truck_id'] as num?)?.toInt() ?? widget.truckId;
 
@@ -527,7 +531,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
                       ? double.tryParse(customOilController.text.trim())
                       : selectedOilInterval;
                   final nextDateParsed = DateFormat('dd/MM/yyyy').tryParse(nextDateController.text.trim());
-                   await _supabaseService.updateTruckMaintenance(record['id'] as int, {
+                   await _fleetService.updateTruckMaintenance(record['id'] as int, {
                      'truck_id': truckId,
                      'expense_type': 'oil_change',
                      'km_at_time': currentKm,
@@ -733,7 +737,7 @@ class _OilChangeAlertsScreenState extends State<OilChangeAlertsScreen> {
                                           ),
                                         );
                                         if (confirm == true) {
-                                          await _supabaseService.deleteTruckMaintenance(record['id'] as int);
+                                          await _fleetService.deleteTruckMaintenance(record['id'] as int);
                                           await _loadAlerts();
                                         }
                                       }

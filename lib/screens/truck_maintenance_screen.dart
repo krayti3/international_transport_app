@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/workshop_service.dart';
+import '../services/treasury_service.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'expense_categories_screen.dart';
 import 'providers_screen.dart';
@@ -20,7 +22,9 @@ class TruckMaintenanceScreen extends StatefulWidget {
 }
 
 class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final WorkshopService _workshopService = WorkshopService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<Map<String, dynamic>> _trucks = [];
   List<Map<String, dynamic>> _maintenances = [];
   bool _isLoading = true;
@@ -44,14 +48,14 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final trucks = await _supabaseService.getTrucks();
-    final maintenances = await _supabaseService.getTruckMaintenancesFiltered(
+    final trucks = await _fleetService.getTrucks();
+    final maintenances = await _fleetService.getTruckMaintenancesFiltered(
       paymentStatus: _filterPaymentStatus,
       fromDate: _filterFromDate,
       toDate: _filterToDate,
     );
-    final expenseTypes = await _supabaseService.getExpenseCategories();
-    final cashBoxes = await _supabaseService.getCashBoxes();
+    final expenseTypes = await _workshopService.getExpenseCategories();
+    final cashBoxes = await _treasuryService.getCashBoxes();
     if (mounted) {
       setState(() {
         _trucks = widget.truckId != null
@@ -147,7 +151,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                       ),
                     );
                     if (confirm == true) {
-                      await _supabaseService.deleteTruckMaintenance(m['id'] as int);
+                      await _fleetService.deleteTruckMaintenance(m['id'] as int);
                       await _loadData();
                     }
                   }
@@ -301,7 +305,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
     String paymentStatus =
         maintenance?['payment_status']?.toString() ?? 'owner_cash';
 
-    final cats = await _supabaseService.getExpenseCategories();
+    final cats = await _workshopService.getExpenseCategories();
     final seen = <String>{};
     _expenseTypes = cats.where((c) {
       final name = c['name']?.toString() ?? '';
@@ -309,7 +313,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
       seen.add(name);
       return true;
     }).toList();
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     List<String> providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
     TextEditingController amountController = TextEditingController(
       text: maintenance?['amount']?.toString() ?? '',
@@ -421,7 +425,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                                 context,
                                 MaterialPageRoute(builder: (_) => const ExpenseCategoriesScreen()),
                               );
-                              final cats = await _supabaseService.getExpenseCategories();
+                              final cats = await _workshopService.getExpenseCategories();
                               if (mounted) {
                                 setDialogState(() {
                                   final seen = <String>{};
@@ -498,7 +502,7 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                                   context,
                                   MaterialPageRoute(builder: (_) => const ProvidersScreen()),
                                 );
-                                final providers = await _supabaseService.getProviders();
+                                final providers = await _workshopService.getProviders();
                                 if (mounted) {
                                   setDialogState(() {
                                     providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
@@ -598,17 +602,33 @@ class _TruckMaintenanceScreenState extends State<TruckMaintenanceScreen> {
                                   ? null
                                   : selectedProvider,
                            'maintenance_date': maintenanceDate?.toIso8601String() ?? DateTime.now().toIso8601String(),
-                        };
-                        if (isEdit) {
-                          await _supabaseService.updateTruckMaintenance(
-                            maintenance['id'] as int,
-                            data,
+                             'currency': 'MAD',
+                         };
+                         int? maintenanceId;
+                         if (isEdit) {
+                           await _fleetService.updateTruckMaintenance(
+                             maintenance['id'] as int,
+                             data,
+                           );
+                           maintenanceId = maintenance['id'] as int?;
+                         } else {
+                           await _fleetService.addTruckMaintenance(data);
+                         }
+                          // Create treasury transaction based on payment status
+                          final amount = double.tryParse(amountController.text.trim()) ?? 0.0;
+                          if (amount > 0 && paymentStatus != 'on_credit') {
+                          await _treasuryService.recordMaintenanceTreasuryTransaction(
+                            amount: amount,
+                            paymentStatus: paymentStatus,
+                            currency: 'MAD',
+                            description: descController.text.trim().isEmpty
+                                ? expenseType
+                                : descController.text.trim(),
+                            maintenanceId: maintenanceId,
                           );
-                        } else {
-                          await _supabaseService.addTruckMaintenance(data);
-                        }
-                        if (!context.mounted) return;
-                        Navigator.pop(context);
+                          }
+                         if (!context.mounted) return;
+                         Navigator.pop(context);
                         await _loadData();
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(

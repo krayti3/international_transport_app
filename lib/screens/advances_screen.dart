@@ -2,7 +2,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
 import 'package:intl/intl.dart' show NumberFormat;
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/fleet_service.dart';
+import '../services/treasury_service.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -15,7 +17,9 @@ class AdvancesScreen extends StatefulWidget {
 }
 
 class _AdvancesScreenState extends State<AdvancesScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<Map<String, dynamic>> _advances = [];
   List<Map<String, dynamic>> _drivers = [];
   final Map<int, String> _driverNames = {};
@@ -37,9 +41,9 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final advances = await _supabaseService.getAdvances();
-    final drivers = await _supabaseService.getDrivers();
-    final cashBoxes = await _supabaseService.getCashBoxes();
+    final advances = await _advanceService.getAdvances();
+    final drivers = await _fleetService.getDrivers();
+    final cashBoxes = await _treasuryService.getCashBoxes();
     _driverNames.clear();
     for (final driver in drivers) {
       final id = driver['id'] as int?;
@@ -352,8 +356,8 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                       'date_return': advance['date_return'],
                       'notes': advance['notes'],
                     };
-                    await _supabaseService.updateAdvance(id, data);
-                    await _supabaseService.syncAdvanceTreasury(id);
+                    await _advanceService.updateAdvance(id, data);
+                    await _advanceService.syncAdvanceTreasury(id, 'update');
                     if (!context.mounted) return;
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -364,7 +368,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                           label: 'تراجع',
                           onPressed: () async {
                             try {
-                              await _supabaseService.updateAdvance(id, previous);
+                              await _advanceService.updateAdvance(id, previous);
                               if (mounted) await _loadData();
                             } catch (e) {
                               if (mounted) {
@@ -379,10 +383,8 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                     );
                     await _loadData();
                   } else {
-                    final created = await _supabaseService.createAdvanceReturning(data);
-                    if (created != null && created['id'] != null) {
-                      await _supabaseService.syncAdvanceTreasury(created['id'] as int);
-                    }
+                    final createdId = await _advanceService.createAdvanceReturning(data);
+                    await _advanceService.syncAdvanceTreasury(createdId, 'create');
                     if (!context.mounted) return;
                     Navigator.pop(context);
                     await _loadData();
@@ -405,7 +407,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
   Future<void> _confirmDelete(Map<String, dynamic> advance) async {
     final id = advance['id'] as int?;
     if (id == null) return;
-    final inUse = await _supabaseService.isAdvanceInUse(id);
+    final inUse = await _advanceService.isAdvanceInUse(id);
     if (inUse) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -432,7 +434,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
       ),
     );
     if (confirm == true) {
-      await _supabaseService.deleteAdvance(id);
+      await _advanceService.deleteAdvance(id);
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -443,7 +445,7 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
               label: 'تراجع',
               onPressed: () async {
                 try {
-                  await _supabaseService.restoreAdvance(id);
+                  await _advanceService.restoreAdvance(id);
                   if (mounted) await _loadData();
                 } catch (e) {
                   if (mounted) {
@@ -583,9 +585,9 @@ class _AdvancesScreenState extends State<AdvancesScreen> {
                   'status': 'settled',
                 };
                 try {
-                  await _supabaseService.updateAdvance(advance['id'], data);
-                  await _supabaseService.syncAdvanceTreasury(advance['id']);
-                  await _supabaseService.notifyAdmins(
+                  await _advanceService.updateAdvance(advance['id'], data);
+                  await _advanceService.syncAdvanceTreasury(advance['id'], 'update');
+                  await _advanceService.notifyAdmins(
                     title: 'تسوية عهدة',
                     message:
                         'قامت السكرتيرة بتسوية عهدة السائق ${_driverName(advance['driver_id'] as int?)}',

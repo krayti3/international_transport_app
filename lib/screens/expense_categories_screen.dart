@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/workshop_service.dart';
 import 'expense_category_detail_screen.dart';
 
 class ExpenseCategoriesScreen extends StatefulWidget {
@@ -10,7 +10,7 @@ class ExpenseCategoriesScreen extends StatefulWidget {
 }
 
 class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final WorkshopService _workshopService = WorkshopService();
   List<Map<String, dynamic>> _categories = [];
   bool _isLoading = true;
 
@@ -21,7 +21,7 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final cats = await _supabaseService.getExpenseCategories();
+    final cats = await _workshopService.getExpenseCategories();
     if (mounted) {
       setState(() {
         _categories = cats;
@@ -55,7 +55,7 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
     );
     if (result == null || result.isEmpty) return;
     try {
-      await _supabaseService.addExpenseCategory(result);
+      await _workshopService.addExpenseCategory(result);
       await _loadCategories();
     } catch (e) {
       if (mounted) {
@@ -89,7 +89,7 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
     );
     if (result == null || result.isEmpty) return;
     try {
-      await _supabaseService.updateExpenseCategory(id, {'name': result});
+      await _workshopService.updateExpenseCategory(id, {'name': result});
       await _loadCategories();
     } catch (e) {
       if (mounted) {
@@ -99,7 +99,7 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
   }
 
   Future<void> _deleteCategory(int id) async {
-    final inUse = await _supabaseService.isExpenseCategoryInUse(id);
+    final inUse = await _workshopService.isExpenseCategoryInUse(id);
     if (inUse) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -126,7 +126,7 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
     );
     if (confirm != true) return;
     try {
-      await _supabaseService.deleteExpenseCategory(id);
+      await _workshopService.deleteExpenseCategory(id);
       await _loadCategories();
     } catch (e) {
       if (mounted) {

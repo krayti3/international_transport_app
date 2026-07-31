@@ -2,13 +2,14 @@
 
 ## Context
 You are working on an existing Flutter + Supabase international transport management application. The app uses:
-- **Flutter** with **Provider** for state management (ChangeNotifier pattern)
+- **Flutter** with **flutter_bloc (Cubit)** for feature state management (BlocConsumer pattern)
+- **Provider** only for cross-widget state (ThemeProvider, LocaleProvider)
 - **Supabase** (PostgreSQL) as backend with Row Level Security (RLS)
+- **Repository Pattern** — 13 repositories in `lib/repositories/` injected via `RepositoryProvider`
 - Hand-written Dart models with `fromMap`/`toMap`/`copyWith`
-- A monolithic `SupabaseService` class (~2120 lines) containing all CRUD and business logic
-- Existing tables: `clients`, `invoices`, `payments`, `payment_invoice_allocations`, `app_settings`, `trip_orders`, `users`
+- Existing tables: `clients`, `invoices`, `payments`, `payment_invoice_allocations`, `app_settings`, `trip_orders`, `users`, `bank_accounts`
 - **No ORM** (no freezed, no json_serializable)
-- All monetary values currently use `double` (this must change to `Decimal` for financial accuracy)
+- All monetary values use `Decimal` type (from `decimal` package)
 - The app supports Arabic/French/English localization
 
 ## Business Requirements
@@ -227,9 +228,9 @@ Create **`lib/services/calculation_engine.dart`** with the following requirement
 
 **Important:** All calculations must use `Decimal` to avoid floating-point precision errors. Import `package:decimal/decimal.dart`.
 
-### Task 4: SupabaseService Updates
+### Task 4: Repository Updates
 
-Update **`lib/services/supabase_service.dart`** with the following methods:
+Update **`lib/repositories/invoice_repository.dart`** with the following methods:
 
 1. **Add bank account CRUD methods:**
    ```dart
@@ -270,7 +271,7 @@ Update **`lib/services/supabase_service.dart`** with the following methods:
 
 ### Task 5: UI Implementation
 
-Update/create the following screens following the existing pattern (StatefulWidget + setState, direct `SupabaseService()` instantiation):
+Update/create the following screens following the existing cubit pattern (`StatelessWidget` + `BlocConsumer`):
 
 1. **Update `lib/screens/invoice_form_screen.dart`** (or create if it doesn't exist):
    - Add a **HT/TTC toggle switch** at the top of the form
@@ -283,7 +284,7 @@ Update/create the following screens following the existing pattern (StatefulWidg
      - **TVA Amount** (calculated, read-only)
      - **TTC Amount** (editable if mode is TTC, read-only if HT)
    - Add validation: amounts must be > 0
-   - On save, call `SupabaseService.createInvoice()` with proper parameters
+   - On save, dispatch `CreateInvoiceEvent` to `InvoicesCubit`
 
 2. **Update `lib/screens/clients_screen.dart`** (or create client_form_screen.dart):
    - Add field to select default bank account when creating/editing a client
@@ -302,47 +303,54 @@ Update/create the following screens following the existing pattern (StatefulWidg
 
 ### Task 6: State Management
 
-Since the app uses `Provider` (ChangeNotifier), create:
+Since the app uses `flutter_bloc` (Cubit pattern), create:
 
-1. **`lib/providers/invoice_provider.dart`**:
+1. **`lib/cubits/invoice_cubit.dart`** + **`lib/cubits/invoice_state.dart`**:
    ```dart
-   class InvoiceProvider extends ChangeNotifier {
+   class InvoiceCubit extends Cubit<InvoiceState> {
+     final InvoiceRepository _invoiceRepository;
+     final BankAccountRepository _bankAccountRepository;
+     final SettingsRepository _settingsRepository;
+
+     InvoiceCubit(this._invoiceRepository, this._bankAccountRepository, this._settingsRepository)
+         : super(InvoiceInitial());
+
      BankAccount? _selectedBankAccount;
      String _inputMode = 'HT';
      Decimal _tvaRate = Decimal.zero;
      InvoiceCalculation? _calculation;
-     
+
      // Getters
      BankAccount? get selectedBankAccount => _selectedBankAccount;
      String get inputMode => _inputMode;
      Decimal get tvaRate => _tvaRate;
      InvoiceCalculation? get calculation => _calculation;
-     
+
      // Methods
      void setInputMode(String mode) {
        _inputMode = mode;
        _recalculate();
-       notifyListeners();
+       emit(state.copyWith(inputMode: mode));
      }
-     
+
      void setBankAccount(BankAccount? account) {
        _selectedBankAccount = account;
-       notifyListeners();
+       emit(state.copyWith(selectedBankAccount: account));
      }
-     
+
      void setTvaRate(Decimal rate) {
        _tvaRate = rate;
        _recalculate();
-       notifyListeners();
+       emit(state.copyWith(tvaRate: rate));
      }
-     
+
      void _recalculate() {
        // Recalculate invoice amounts based on current input
      }
    }
    ```
 
-2. **Update `lib/main.dart`** to add `InvoiceProvider` to the MultiProvider list.
+2. **Update `lib/main.dart`** to add `InvoiceCubit` to the `MultiBlocProvider` list.
 
 ### Task 7: Migration & Data Consistency
 
@@ -363,9 +371,10 @@ Since the app uses `Provider` (ChangeNotifier), create:
 
 2. **Existing Patterns:** Follow the existing codebase patterns:
    - Hand-written models (no code generation)
-   - Direct `SupabaseService()` instantiation in screens
-   - `StatefulWidget` + `setState` for UI state
-   - `Provider` for cross-widget state sharing
+   - `StatelessWidget` + `BlocConsumer` for feature UI state
+   - `RepositoryProvider` for data access (repositories in `lib/repositories/`)
+   - `BlocProvider` for feature state management (cubits in `lib/cubits/`)
+   - `Provider` only for cross-widget state (`ThemeProvider`, `LocaleProvider`)
    - Arabic/French/English localization using existing `l10n/` structure
 
 3. **Error Handling:** Use try-catch blocks with user-friendly Arabic/French error messages.
@@ -386,12 +395,12 @@ Please implement ALL of the above in the following order:
 1. Database migration SQL files
 2. Updated Dart models
 3. `CalculationEngine` service
-4. Updated `SupabaseService` with new methods
+4. Updated `InvoiceRepository` with new methods
 5. Bank account management screens
 6. Updated invoice form with HT/TTC toggle and bank account selection
 7. Updated client form with default bank account
 8. PDF service updates
-9. Provider for invoice state management
+9. `InvoiceCubit` for invoice state management
 10. Migration script to backfill existing data
 
 ## Testing Requirements
@@ -409,7 +418,6 @@ After implementation, verify:
 ## Notes
 
 - The `app_settings` table currently has a `percentage` column used for TVA. This will be your source of truth for TVA rates.
-- The existing `computeInvoiceTotals` method in `SupabaseService` currently uses `double`. You must update it to use `Decimal`.
-- Do NOT change the state management architecture (keep Provider, don't introduce Riverpod/Bloc).
+- The existing `computeInvoiceTotals` method in `InvoiceRepository` currently uses `double`. You must update it to use `Decimal`.
 - The existing `invoices_screen.dart` must continue to work without breaking changes.
 - All new UI strings must be added to the localization files (`l10n/tr_*.dart`).

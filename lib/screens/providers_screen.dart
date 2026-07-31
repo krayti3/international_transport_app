@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/workshop_service.dart';
 
 class ProvidersScreen extends StatefulWidget {
   const ProvidersScreen({super.key});
@@ -9,7 +9,7 @@ class ProvidersScreen extends StatefulWidget {
 }
 
 class _ProvidersScreenState extends State<ProvidersScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final WorkshopService _workshopService = WorkshopService();
   List<Map<String, dynamic>> _providers = [];
   bool _isLoading = true;
 
@@ -20,7 +20,7 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
   }
 
   Future<void> _loadProviders() async {
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     if (mounted) {
       setState(() {
         _providers = providers;
@@ -54,7 +54,7 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
     );
     if (result == null || result.isEmpty) return;
     try {
-      await _supabaseService.addProvider(result);
+      await _workshopService.addProvider({'name': result});
       await _loadProviders();
     } catch (e) {
       if (mounted) {
@@ -88,7 +88,7 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
     );
     if (result == null || result.isEmpty) return;
     try {
-      await _supabaseService.updateProvider(id, {'name': result});
+      await _workshopService.updateProvider(id, {'name': result});
       await _loadProviders();
     } catch (e) {
       if (mounted) {
@@ -98,7 +98,7 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
   }
 
   Future<void> _deleteProvider(int id) async {
-    final inUse = await _supabaseService.isProviderInUse(id);
+    final inUse = await _workshopService.isProviderInUse(id);
     if (inUse) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -125,7 +125,7 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
     );
     if (confirm != true) return;
     try {
-      await _supabaseService.deleteProvider(id);
+      await _workshopService.deleteProvider(id);
       await _loadProviders();
     } catch (e) {
       if (mounted) {

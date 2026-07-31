@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+﻿import 'package:flutter/material.dart';
+import '../services/report_service.dart';
 import '../services/excel_service.dart';
+import '../services/pdf_service.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/simple_bar_chart.dart';
 import '../widgets/expense_row.dart';
@@ -9,9 +10,6 @@ import '../l10n/app_localizations.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
-/// تقرير الأرباح الصافية للشركة — للأدمن فقط.
-/// يعرض مداخيل الفواتير (بدون TVA) والمصاريف وأرباح الشركة لـ **الشهر الحالي**
-/// مع رسم بياني يوضح نسبة المصاريف مقارنة بالأرباح.
 class CompanyProfitReportScreen extends StatefulWidget {
   const CompanyProfitReportScreen({super.key});
 
@@ -20,7 +18,7 @@ class CompanyProfitReportScreen extends StatefulWidget {
 }
 
 class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ReportService _reportService = ReportService();
   Map<String, double> _report = {};
   bool _isLoading = true;
 
@@ -32,10 +30,18 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
 
   Future<void> _loadReport() async {
     setState(() => _isLoading = true);
-    final report = await _supabaseService.getCompanyProfitReport();
+    final reportList = await _reportService.getCompanyProfitReport(startDate: DateTime.now().subtract(const Duration(days: 365)), endDate: DateTime.now());
     if (!mounted) return;
     setState(() {
-      _report = report.map((k, v) => MapEntry(k, (v as num).toDouble()));
+      _report = <String, double>{};
+      for (final item in reportList) {
+        for (final entry in item.entries) {
+          final value = entry.value;
+          if (value is num) {
+            _report[entry.key] = value.toDouble();
+          }
+        }
+      }
       _isLoading = false;
     });
   }
@@ -74,6 +80,49 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
     }
   }
 
+  Future<void> _exportPdf() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('جاري إنشاء ملف PDF...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final totalRevenue = _report['total_revenue'] ?? 0.0;
+      final totalExpenses = _report['total_expenses'] ?? 0.0;
+
+      await PdfService.instance.shareDashboardPdf(
+        totalRevenue: totalRevenue,
+        totalExpenses: totalExpenses,
+        netProfit: _report['net_profit'] ?? 0.0,
+        outstandingInvoices: 0.0,
+        monthlyRevenue: [],
+        expensesByCategory: [],
+        invoicesByStatus: [],
+        tripsByMonth: [],
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في إنشاء PDF: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -100,6 +149,11 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
       appBar: AppBar(
         title: Text(context.tr('تقرير الأرباح الصافية')),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: 'تصدير PDF',
+            onPressed: _exportPdf,
+          ),
           IconButton(
             icon: const Icon(Icons.table_chart),
             tooltip: 'تصدير Excel',
@@ -156,15 +210,15 @@ class _CompanyProfitReportScreenState extends State<CompanyProfitReportScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                context.tr('نسبة المصاريف مقابل الأرباح'),
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                context.tr('نسبة المصاريف مقارنة بالأرباح'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               SimpleBarChart(expenses: totalExpenses, netProfit: netProfit),
               const SizedBox(height: 24),
               Text(
                 context.tr('تفاصيل المصاريف'),
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               ExpenseRow(title: context.tr('مصاريف تشغيل الرحلات'), amount: tripExpense),

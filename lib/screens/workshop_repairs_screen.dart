@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:decimal/decimal.dart';
 import 'package:international_transport_app/models/repair_invoice.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/supabase_service.dart';
+import '../services/workshop_service.dart';
+import '../services/fleet_service.dart';
+import '../services/treasury_service.dart';
 import '../services/workshop_payment_service.dart';
 import 'repair_invoice_form_screen.dart';
 import 'workshop_payment_preview_screen.dart';
@@ -29,7 +31,9 @@ class WorkshopRepairInvoicesScreen extends StatefulWidget {
 
 class _WorkshopRepairInvoicesScreenState
     extends State<WorkshopRepairInvoicesScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final WorkshopService _workshopService = WorkshopService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<RepairInvoice> _invoices = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> _expensesOnCredit = [];
@@ -51,14 +55,14 @@ class _WorkshopRepairInvoicesScreenState
   }
 
   Future<void> _loadWorkshopOptions() async {
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     if (mounted) {
       setState(() => _workshopOptions = providers);
     }
   }
 
   Future<void> _loadCashBoxes() async {
-    final boxes = await _supabaseService.getCashBoxes();
+    final boxes = await _treasuryService.getCashBoxes();
     if (mounted) {
       setState(() => _cashBoxes = boxes);
     }
@@ -67,7 +71,7 @@ class _WorkshopRepairInvoicesScreenState
   Future<void> _loadInvoices() async {
     setState(() => _isLoading = true);
     final invoices =
-        await _supabaseService.getRepairInvoices(workshopId: _effectiveWorkshopId);
+        await _workshopService.getRepairInvoices(workshopId: _effectiveWorkshopId);
     setState(() {
       _invoices = invoices;
       _isLoading = false;
@@ -76,7 +80,7 @@ class _WorkshopRepairInvoicesScreenState
 
   Future<void> _loadExpensesOnCredit() async {
     final combined = <Map<String, dynamic>>[];
-    final truckExpenses = await _supabaseService.getTruckMaintenancesFiltered(
+    final truckExpenses = await _fleetService.getTruckMaintenancesFiltered(
       paymentStatus: 'on_credit',
     );
     for (final row in truckExpenses) {
@@ -85,7 +89,7 @@ class _WorkshopRepairInvoicesScreenState
       doc['vehicle_id'] = doc['truck_id'];
       combined.add(doc);
     }
-    final trailerExpenses = await _supabaseService.getTrailerMaintenancesFiltered(
+    final trailerExpenses = await _fleetService.getTrailerMaintenancesFiltered(
       paymentStatus: 'on_credit',
     );
     for (final row in trailerExpenses) {
@@ -403,7 +407,7 @@ class _WorkshopRepairInvoicesScreenState
     required String workshopName,
   }) async {
     try {
-      await _supabaseService.recordWorkshopPayment(
+      await _workshopService.recordWorkshopPayment(
         workshopId: workshopId,
         amount: amount,
         method: method,
@@ -468,9 +472,9 @@ class _WorkshopRepairInvoicesScreenState
     if (id == null) return;
     try {
       if (vehicleType == 'شاحنة') {
-        await _supabaseService.updateTruckMaintenance(id, {'payment_status': newStatus});
+        await _fleetService.updateTruckMaintenance(id, {'payment_status': newStatus});
       } else {
-        await _supabaseService.updateTrailerMaintenance(id, {'payment_status': newStatus});
+        await _fleetService.updateTrailerMaintenance(id, {'payment_status': newStatus});
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -559,9 +563,9 @@ class _WorkshopRepairInvoicesScreenState
         final vehicleType = expense['vehicle_type']?.toString() ?? '';
         if (id == null) continue;
         if (vehicleType == 'شاحنة') {
-          await _supabaseService.updateTruckMaintenance(id, {'payment_status': newStatus});
+          await _fleetService.updateTruckMaintenance(id, {'payment_status': newStatus});
         } else {
-          await _supabaseService.updateTrailerMaintenance(id, {'payment_status': newStatus});
+          await _fleetService.updateTrailerMaintenance(id, {'payment_status': newStatus});
         }
       }
 

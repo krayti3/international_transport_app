@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/supabase_service.dart';
+import '../services/settings_service.dart';
+import '../services/advance_service.dart';
+import '../services/fleet_service.dart';
 
 import '../providers/theme_provider.dart';
 
 import '../widgets/role_guard.dart';
+import 'advanced_dashboard_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'treasury_screen.dart';
 import 'fuel_receipt_screen.dart';
@@ -33,7 +36,8 @@ import 'trailers_screen.dart';
 import 'providers_screen.dart';
 import 'expense_workshop_report_screen.dart';
 import 'truck_documents_screen.dart';
-import 'clients_screen.dart';
+import '../features/clients/screens/clients_screen.dart';
+import 'driver_screen.dart';
 import 'driver_tasks_screen.dart';
 import 'fleet_docs_screen.dart';
 import 'expense_categories_screen.dart';
@@ -42,7 +46,15 @@ import 'workshop_repairs_screen.dart';
 import 'trailer_maintenance_screen.dart';
 import 'maintenance_schedule_screen.dart';
 import 'driver_cash_screen.dart';
+import 'visa_tracking_screen.dart';
 import 'cash_box_management_screen.dart';
+import 'bank_accounts_screen.dart';
+import 'chat_screen.dart';
+import 'debt_invoice_form_screen.dart';
+import 'ai_reports_screen.dart';
+import 'invoice_form_screen.dart';
+import 'repair_invoice_form_screen.dart';
+import 'truck_maintenance_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -54,6 +66,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _supabase = Supabase.instance.client;
+  final SettingsService _settingsService = SettingsService();
+  final AdvanceService _advanceService = AdvanceService();
+  final FleetService _fleetService = FleetService();
 
   int _currentTabIndex = 0;
   String _userRole = 'Driver';
@@ -73,6 +88,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _expiringTrailerDocs = [];
   List<Map<String, dynamic>> _trucks = [];
   List<Map<String, dynamic>> _trailers = [];
+  Map<String, dynamic>? _currentTrip;
+  bool _isLoadingTrip = false;
 
   @override
   void initState() {
@@ -112,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadRoleFromDatabase() async {
-    final rawRole = await SupabaseService().getUserRole();
+    final rawRole = await _settingsService.getUserRole();
     if (!mounted) return;
     setState(() {
       switch (rawRole?.toLowerCase()) {
@@ -134,6 +151,60 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadAdvancesSummary();
       _loadExpiringVisasCount();
       _loadExpiringFleetDocsCount();
+    } else {
+      _loadCurrentTrip();
+    }
+  }
+
+  Future<void> _loadCurrentTrip() async {
+    if (!mounted) return;
+    setState(() => _isLoadingTrip = true);
+    try {
+      final authUser = _supabase.auth.currentUser;
+      if (authUser == null) {
+        if (!mounted) return;
+        setState(() {
+          _currentTrip = null;
+          _isLoadingTrip = false;
+        });
+        return;
+      }
+
+      final driverIdResponse = await _supabase
+          .from('drivers')
+          .select('id')
+          .eq('user_id', authUser.id)
+          .maybeSingle();
+
+      final driverId = driverIdResponse?['id'] as int?;
+
+      if (driverId == null) {
+        if (!mounted) return;
+        setState(() {
+          _currentTrip = null;
+          _isLoadingTrip = false;
+        });
+        return;
+      }
+
+      final activeTrip = await _supabase
+          .from('trip_orders')
+          .select()
+          .eq('driver_id', driverId)
+          .eq('status', 'قيد التنفيذ')
+          .maybeSingle();
+
+      if (!mounted) return;
+      setState(() {
+        _currentTrip = activeTrip;
+        _isLoadingTrip = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _currentTrip = null;
+        _isLoadingTrip = false;
+      });
     }
   }
 
@@ -146,8 +217,8 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final bool isAdmin = _userRole == 'Admin';
       final advances = isAdmin
-          ? await SupabaseService().getAllAdvances()
-          : await SupabaseService().getAdvances();
+          ? await _advanceService.getAllAdvances()
+          : await _advanceService.getAdvances();
 
       double totalGiven = 0.0;
       double totalSpent = 0.0;
@@ -174,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadExpiringVisasCount() async {
     try {
-      final visas = await SupabaseService().getExpiringVisas();
+      final visas = await _fleetService.getExpiringVisas();
       if (!mounted) return;
       setState(() {
         _expiringVisas = visas;
@@ -187,9 +258,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadExpiringFleetDocsCount() async {
     try {
-      final trucks = await SupabaseService().getTrucks();
-      final trailers = await SupabaseService().getTrailers();
-      final docs = await SupabaseService().getExpiringFleetDocs();
+      final trucks = await _fleetService.getTrucks();
+      final trailers = await _fleetService.getTrailers();
+      final docs = await _fleetService.getExpiringFleetDocs();
       if (!mounted) return;
       setState(() {
         _trucks = trucks;
@@ -353,6 +424,116 @@ class _HomeScreenState extends State<HomeScreen> {
     context.read<ThemeProvider>().toggleThemeForCurrentUser(userId);
   }
 
+  Widget _buildCurrentTripCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final isSmall = MediaQuery.of(context).size.width < 400;
+
+    if (_isLoadingTrip) {
+      return Container(
+        margin: EdgeInsets.fromLTRB(isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 6 : 8),
+        padding: EdgeInsets.all(isSmall ? 14 : 16),
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(isSmall ? 14 : 16),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_currentTrip == null) {
+      return Container(
+        margin: EdgeInsets.fromLTRB(isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 6 : 8),
+        padding: EdgeInsets.all(isSmall ? 14 : 16),
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(isSmall ? 14 : 16),
+        ),
+        child: Text(
+          'لا توجد رحلة نشطة حالياً',
+          style: TextStyle(
+            fontSize: isSmall ? 14 : 15,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onPrimaryContainer,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final trip = _currentTrip!;
+    final route = trip['route']?.toString() ?? 'غير محدد';
+    final departureDateStr = trip['departure_date']?.toString() ?? '';
+    final notes = trip['notes']?.toString() ?? '';
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 10 : 12, isSmall ? 6 : 8),
+      padding: EdgeInsets.all(isSmall ? 14 : 16),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(isSmall ? 14 : 16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.15),
+            blurRadius: isSmall ? 8 : 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.navigation_rounded, color: colorScheme.primary, size: isSmall ? 20 : 22),
+              SizedBox(width: isSmall ? 6 : 8),
+              Expanded(
+                child: Text(
+                  'الرحلة الحالية',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: isSmall ? 14 : 15,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: isSmall ? 10 : 12),
+          _TripInfoRow(icon: Icons.route_rounded, label: 'المسار', value: route, isSmall: isSmall),
+          if (departureDateStr.isNotEmpty) ...[
+            SizedBox(height: isSmall ? 6 : 8),
+            _TripInfoRow(
+              icon: Icons.calendar_today_rounded,
+              label: 'تاريخ الانطلاق',
+              value: dateFormat.format(DateTime.tryParse(departureDateStr) ?? DateTime.now()),
+              isSmall: isSmall,
+            ),
+          ],
+          if (notes.isNotEmpty) ...[
+            SizedBox(height: isSmall ? 6 : 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.notes_rounded, color: colorScheme.primary, size: isSmall ? 16 : 18),
+                SizedBox(width: isSmall ? 6 : 8),
+                Expanded(
+                  child: Text(
+                    notes,
+                    style: TextStyle(
+                      fontSize: isSmall ? 12 : 13,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildAdvancesDashboardCard() {
     final colorScheme = Theme.of(context).colorScheme;
     final numberFormat = NumberFormat('#,###.00');
@@ -457,9 +638,10 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     final List<Widget> driverTabs = [
-      DriverTasksScreen(),
+      DriverScreen(),
       const FuelReceiptScreen(isAdmin: false),
       TruckTrackingScreen(isAdmin: isAdmin),
+      const ChatScreen(),
     ];
 
     final Widget activeBody = isAdmin
@@ -469,10 +651,10 @@ class _HomeScreenState extends State<HomeScreen> {
             : driverTabs[_currentTabIndex];
 
     final String appBarTitle = isAdmin
-        ? (_currentTabIndex == 0 ? 'نظام النقل الدولي' : _currentTabIndex == 1 ? 'الصندوق المالي المركزي' : 'تتبع الشاحنات مباشر')
+        ? (_currentTabIndex == 0 ? 'نظام النقل الدولي' : _currentTabIndex == 1 ? 'الصندوق المالي المركزي' : _currentTabIndex == 3 ? 'دردشة داخلية' : 'تتبع الشاحنات مباشر')
         : isSecretary
-            ? (_currentTabIndex == 0 ? 'لوحة السكرتيرة' : _currentTabIndex == 1 ? 'الصندوق المالي المركزي' : 'تتبع الشاحنات مباشر')
-            : (_currentTabIndex == 0 ? 'مهامي اليوم' : _currentTabIndex == 1 ? 'مسح تذكرة وقود ذكية' : 'خريطة الطريق والـ GPS');
+            ? (_currentTabIndex == 0 ? 'لوحة السكرتيرة' : _currentTabIndex == 1 ? 'الصندوق المالي المركزي' : _currentTabIndex == 3 ? 'دردشة داخلية' : 'تتبع الشاحنات مباشر')
+            : (_currentTabIndex == 0 ? 'رحلاتي' : _currentTabIndex == 1 ? 'مسح تذكرة وقود ذكية' : _currentTabIndex == 3 ? 'دردشة داخلية' : 'خريطة الطريق والـ GPS');
 
     final bool showDashboard = (isAdmin || isSecretary) && !isDriver;
 
@@ -565,11 +747,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const OwnerDashboardScreen())));
               }),
-              _buildDrawerItem(Icons.dashboard_customize_rounded, 'لوحة التحكم والتحليلات', () {
-                Navigator.pop(context);
-                setState(() => _currentTabIndex = 0);
-              }),
-              _buildDrawerItem(Icons.pie_chart_rounded, 'تقرير أرباح الشركة', () {
+_buildDrawerItem(Icons.dashboard_customize_rounded, 'لوحة التحكم والتحليلات', () {
+                 Navigator.pop(context);
+                 setState(() => _currentTabIndex = 0);
+               }),
+               _buildDrawerItem(Icons.analytics_rounded, 'لوحة التحليلات المتقدمة', () {
+                 Navigator.pop(context);
+                 Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancedDashboardScreen()));
+               }),
+               _buildDrawerItem(Icons.pie_chart_rounded, 'تقرير أرباح الشركة', () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => RoleGuard(allowedRoles: ['admin'], child: const CompanyProfitReportScreen())));
               }),
@@ -598,6 +784,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => CurrentTripsScreen(isAdmin: isAdmin)));
               }),
+              _buildDrawerItem(Icons.calendar_today_rounded, 'مهام اليوم', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => DriverTasksScreen()));
+              }),
             ]),
 
             _buildDrawerSection('الفواتير والمدفوعات', [
@@ -616,6 +806,14 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildDrawerItem(Icons.timeline_rounded, 'تقرير العمر', () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const AgingReportScreen()));
+              }),
+              _buildDrawerItem(Icons.note_add_rounded, 'نموذج فاتورة', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoiceFormScreen()));
+              }),
+              _buildDrawerItem(Icons.money_off_rounded, 'نموذج فاتورة الدين', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DebtInvoiceFormScreen()));
               }),
               _buildDrawerItem(Icons.analytics_rounded, 'تقارير العملاء', () {
                 Navigator.pop(context);
@@ -646,6 +844,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const CashBoxManagementScreen()));
                 }),
+              _buildDrawerItem(Icons.account_balance_rounded, 'الحسابات البنكية', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const BankAccountsScreen()));
+              }),
             ]),
 
             _buildDrawerSection('السائقين', [
@@ -663,9 +865,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (driverId == null) return;
                 Navigator.push(context, MaterialPageRoute(builder: (_) => DriverCashScreen(driverId: int.tryParse(driverId) ?? 0, driverName: _userRole == 'driver' ? 'السائق' : 'سائق')));
               }),
+_buildDrawerItem(Icons.verified_rounded, 'تتبع صلاحية الفيزا', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaTrackingScreen()));
+              }),
             ]),
 
-            _buildDrawerSection('الأسطول والمركبات', [
+              _buildDrawerSection('الأسطول والمركبات', [
               _buildNestedDrawerGroup('الشاحنات', [
                 _buildNestedDrawerItem(Icons.local_shipping_rounded, 'قائمة الشاحنات', () {
                   Navigator.pop(context);
@@ -682,6 +888,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildNestedDrawerItem(Icons.calendar_month_rounded, 'جدول الصيانة الدورية', () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const MaintenanceScheduleScreen(isAdmin: true)));
+                }),
+                _buildNestedDrawerItem(Icons.build_rounded, 'صيانة الشاحنات', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => TruckMaintenanceScreen(isAdmin: isAdmin)));
                 }),
               ]),
               _buildNestedDrawerGroup('المقطورات', [
@@ -722,6 +932,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     workshopName: 'جميع الورش',
                   )));
                 }),
+                _buildNestedDrawerItem(Icons.note_add_rounded, 'نموذج فاتورة إصلاح', () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const RepairInvoiceFormScreen(
+                    workshopId: '',
+                    workshopName: '',
+                  )));
+                }),
               ]),
             ]),
 
@@ -733,6 +950,20 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildDrawerItem(Icons.document_scanner_rounded, 'مسح تذاكر المازوت (AI OCR)', () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => FuelReceiptScreen(isAdmin: isAdmin)));
+              }),
+            ]),
+
+            _buildDrawerSection('التواصل', [
+              _buildDrawerItem(Icons.chat_bubble_rounded, 'دردشة داخلية', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
+              }),
+            ]),
+
+            _buildDrawerSection('التحليلات والتقارير', [
+              _buildDrawerItem(Icons.auto_graph_rounded, 'تقارير ذكية (AI)', () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AiReportsScreen()));
               }),
             ]),
 
@@ -759,14 +990,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       body: SafeArea(
-        child: showDashboard
+        child: isDriver
             ? Column(
                 children: [
-                  _buildAdvancesDashboardCard(),
+                  _buildCurrentTripCard(),
                   Expanded(child: activeBody),
                 ],
               )
-            : activeBody,
+            : showDashboard
+                ? Column(
+                    children: [
+                      _buildAdvancesDashboardCard(),
+                      Expanded(child: activeBody),
+                    ],
+                  )
+                : activeBody,
       ),
 
       bottomNavigationBar: BottomNavigationBar(
@@ -777,7 +1015,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        selectedLabelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: isDriver && MediaQuery.of(context).size.width < 400 ? 11 : 12),
         elevation: 10,
         type: BottomNavigationBarType.fixed,
         items: isAdmin
@@ -792,10 +1030,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_rounded), label: 'الخزينة'),
                     BottomNavigationBarItem(icon: Icon(Icons.explore_rounded), label: 'التتبع'),
                   ]
-                : const [
-                    BottomNavigationBarItem(icon: Icon(Icons.assignment_turned_in_rounded), label: 'مهامي'),
-                    BottomNavigationBarItem(icon: Icon(Icons.document_scanner_rounded), label: 'مسح التذكرة'),
-                    BottomNavigationBarItem(icon: Icon(Icons.map_rounded), label: 'موقعي'),
+                : [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.local_shipping_rounded, size: MediaQuery.of(context).size.width < 400 ? 20 : 22),
+                      label: 'رحلاتي',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.document_scanner_rounded, size: MediaQuery.of(context).size.width < 400 ? 20 : 22),
+                      label: 'مسح التذكرة',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.map_rounded, size: MediaQuery.of(context).size.width < 400 ? 20 : 22),
+                      label: 'موقعي',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.chat_bubble_rounded, size: MediaQuery.of(context).size.width < 400 ? 20 : 22),
+                      label: 'الدردشة',
+                    ),
                   ],
       ),
     );
@@ -936,6 +1187,38 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TripInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isSmall;
+
+  const _TripInfoRow({required this.icon, required this.label, required this.value, this.isSmall = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final iconSize = isSmall ? 16.0 : 18.0;
+    final fontSize = isSmall ? 12.0 : 13.0;
+
+    return Row(
+      children: [
+        Icon(icon, color: colorScheme.primary, size: iconSize),
+        SizedBox(width: isSmall ? 6 : 8),
+        Expanded(
+          child: Text(
+            '$label: $value',
+            style: TextStyle(
+              fontSize: fontSize,
+              color: colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

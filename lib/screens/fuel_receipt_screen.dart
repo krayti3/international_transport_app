@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import '../services/supabase_service.dart';
+import '../services/ml_text_recognition_service.dart';
+import '../services/treasury_service.dart';
 
 class FuelReceiptScreen extends StatefulWidget {
   final bool isAdmin;
@@ -13,7 +13,7 @@ class FuelReceiptScreen extends StatefulWidget {
 }
 
 class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final TreasuryService _treasuryService = TreasuryService();
   final _picker = ImagePicker();
   
   File? _imageFile;
@@ -34,7 +34,7 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
   }
 
   Future<void> _loadCashBoxes() async {
-    final boxes = await _supabaseService.getCashBoxes();
+    final boxes = await _treasuryService.getCashBoxes();
     if (mounted) {
       setState(() {
         _cashBoxes = boxes;
@@ -59,42 +59,14 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
   }
 
   Future<void> _processReceiptWithAI(String path) async {
-    final inputImage = InputImage.fromFilePath(path);
-    final textRecognizer = TextRecognizer();
-
     try {
-      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
-      
-      String detectedStation = "";
-      String detectedAmount = "";
-      String detectedLiters = "";
-
-      for (TextBlock block in recognizedText.blocks) {
-        for (TextLine line in block.lines) {
-          String text = line.text.toUpperCase();
-
-          if (detectedStation.isEmpty && 
-              (text.contains('AFRIQUIA') || text.contains('TOTAL') || text.contains('SHELL') || text.contains('REPSOL') || text.contains('PETROM'))) {
-            detectedStation = line.text;
-          }
-
-          if (text.contains('L') || text.contains('LTR') || text.contains('LITERS')) {
-            final match = RegExp(r'(\d+[\.,]\d+)').firstMatch(text);
-            if (match != null && detectedLiters.isEmpty) {
-              detectedLiters = match.group(0)!.replaceAll(',', '.');
-            }
-          }
-
-          if (text.contains('TOTAL') || text.contains('EUR') || text.contains(' NET ') || text.contains('TOTAL TTC')) {
-            final match = RegExp(r'(\d+[\.,]\d+)').firstMatch(text);
-            if (match != null) {
-              detectedAmount = match.group(0)!.replaceAll(',', '.');
-            }
-          }
-        }
-      }
+      final result = await MlTextRecognitionService.instance.parseFuelReceipt(path);
 
       setState(() {
+        final detectedStation = result['station'] ?? "";
+        final detectedAmount = result['amount'] ?? "";
+        final detectedLiters = result['liters'] ?? "";
+
         if (detectedStation.isNotEmpty) _stationController.text = detectedStation;
         if (detectedAmount.isNotEmpty) _amountController.text = detectedAmount;
         if (detectedLiters.isNotEmpty) _litersController.text = detectedLiters;
@@ -105,8 +77,6 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
     } catch (e) {
       setState(() => _isScanning = false);
       _showSnackBar('فشل الذكاء الاصطناعي في قراءة النص: $e', Colors.orange);
-    } finally {
-      textRecognizer.close();
     }
   }
 
@@ -124,7 +94,7 @@ class _FuelReceiptScreenState extends State<FuelReceiptScreen> {
       final String truck = _truckController.text.trim().isEmpty ? '' : ' - شاحنة: ${_truckController.text.trim()}';
       final String liters = _litersController.text.trim().isEmpty ? '' : ' (${_litersController.text.trim()} لتر)';
 
-      await _supabaseService.addTreasuryTransaction(
+      await _treasuryService.addTreasuryTransaction(
         amount,
         'trip_expense',
         'تذكرة مازوت: $station$truck$liters',

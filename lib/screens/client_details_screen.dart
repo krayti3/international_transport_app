@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/client_service.dart';
+import '../services/advance_service.dart';
 import '../models/client.dart';
 import '../l10n/app_localizations.dart';
 
@@ -22,7 +23,8 @@ class ClientDetailsScreen extends StatefulWidget {
 }
 
 class _ClientDetailsScreenState extends State<ClientDetailsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ClientService _clientService = ClientService();
+  final AdvanceService _advanceService = AdvanceService();
   bool _isDeleting = false;
   bool _hasLinkedRecords = false;
   int _invoiceCount = 0;
@@ -38,10 +40,10 @@ class _ClientDetailsScreenState extends State<ClientDetailsScreen> {
     final clientId = widget.client['id'] as int?;
     if (clientId == null) return;
 
-    final invoices = await _supabaseService.getInvoices();
-    final trips = await _supabaseService.getTripOrders();
+    final invoices = await _clientService.getInvoices();
+    final trips = await _advanceService.getTripOrdersByClient(clientId);
 
-    final clientInvoices = invoices.where((inv) => inv['client_id'] == clientId).toList();
+    final clientInvoices = invoices.where((inv) => inv.clientId == clientId.toString()).toList();
     final clientTrips = trips.where((trip) => trip['client_id'] == clientId).toList();
 
     if (mounted) {
@@ -54,7 +56,7 @@ class _ClientDetailsScreenState extends State<ClientDetailsScreen> {
   }
 
   Future<void> _confirmDelete() async {
-    final inUse = await _supabaseService.isClientInUse(widget.client['id'] as int);
+    final inUse = await _clientService.isClientInUse(widget.client['id'] as int);
     if (inUse) {
       if (!mounted) return;
       showDialog(
@@ -96,7 +98,7 @@ class _ClientDetailsScreenState extends State<ClientDetailsScreen> {
 
     setState(() => _isDeleting = true);
     try {
-      await _supabaseService.deleteClient(widget.client['id'] as int);
+      await _clientService.deleteClient(widget.client['id'] as int);
       if (!mounted) return;
       widget.onDeleted();
       Navigator.pop(context);
@@ -172,15 +174,15 @@ class _ClientDetailsScreenState extends State<ClientDetailsScreen> {
                 );
                 return;
               }
-              final updatedClient = Client.fromMap(widget.client).copyWith(
-                name: name,
-                phone: phoneController.text.trim(),
-                address: addressController.text.trim(),
-                city: cityController.text.trim(),
-                nomContact: nomContactController.text.trim(),
-                adresseFacturation: adresseFactController.text.trim(),
-              );
-              await _supabaseService.updateClient(updatedClient);
+               final updatedClient = Client.fromMap(widget.client).copyWith(
+                 name: name,
+                 phone: phoneController.text.trim(),
+                 address: addressController.text.trim(),
+                 city: cityController.text.trim(),
+                 nomContact: nomContactController.text.trim(),
+                 adresseFacturation: adresseFactController.text.trim(),
+               );
+               await _clientService.updateClient(updatedClient);
               if (!context.mounted) return;
               Navigator.pop(context);
               widget.onUpdated();

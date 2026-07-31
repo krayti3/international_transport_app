@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:collection/collection.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/client_service.dart';
+import '../services/fleet_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/date_wheel_picker.dart';
 
@@ -15,7 +17,9 @@ class InternationalTripScreen extends StatefulWidget {
 }
 
 class _InternationalTripScreenState extends State<InternationalTripScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final ClientService _clientService = ClientService();
+  final FleetService _fleetService = FleetService();
   final _formKey = GlobalKey<FormState>();
   final _scrollController = ScrollController();
 
@@ -67,10 +71,10 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
   }
 
   Future<void> _loadData() async {
-    final drivers = await _supabaseService.getDrivers();
-    final trucks = await _supabaseService.getTrucks();
-    final trailers = await _supabaseService.getTrailers();
-    final clients = await _supabaseService.getClients();
+    final drivers = await _fleetService.getDrivers();
+    final trucks = await _fleetService.getTrucks();
+    final trailers = await _fleetService.getTrailers();
+    final clients = await _clientService.getClients();
 
     if (mounted) {
       setState(() {
@@ -93,7 +97,7 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
       final outboundPrice = double.tryParse(_outboundPriceController.text.trim()) ?? 0.0;
       final returnPrice = double.tryParse(_returnPriceController.text.trim()) ?? 0.0;
 
-      final advance = await _supabaseService.createAdvanceReturning({
+      final advanceId = await _advanceService.createAdvanceReturning({
         'driver_id': _driverId,
         'truck_id': _truckId,
         'trailer_id': _trailerId,
@@ -103,13 +107,9 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
         'notes': _notesController.text.trim(),
       });
 
-      if (advance == null || advance['id'] == null) {
-        throw Exception('فشل في إنشاء المهمة');
-      }
+      final tripId = advanceId;
 
-      final tripId = advance['id'] as int;
-
-      await _supabaseService.addTripOrder({
+      await _advanceService.addTripOrder({
         'trip_id': tripId,
         'client_id': _outboundClientId,
         'direction': 'outbound',
@@ -121,7 +121,7 @@ class _InternationalTripScreenState extends State<InternationalTripScreen> {
         'driver_id': _driverId,
       });
 
-      await _supabaseService.addTripOrder({
+      await _advanceService.addTripOrder({
         'trip_id': tripId,
         'client_id': _returnClientId,
         'direction': 'return',

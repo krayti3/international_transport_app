@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/report_service.dart';
 import '../widgets/summary_card.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -12,7 +12,7 @@ class OwnerDashboardScreen extends StatefulWidget {
 }
 
 class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ReportService _reportService = ReportService();
   Map<String, dynamic> _data = {};
   bool _isLoading = true;
   String _period = 'all'; // all, week, month
@@ -31,7 +31,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final data = await _supabaseService.getOwnerDashboard(period: _period);
+    final data = await _reportService.getOwnerDashboard(period: _period);
     if (mounted) {
       setState(() {
         _data = data;

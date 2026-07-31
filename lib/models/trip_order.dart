@@ -1,4 +1,4 @@
-
+﻿
 class TripOrder {
   final int? id;
   final String clientId;
@@ -11,6 +11,7 @@ class TripOrder {
   final int? tripId;
   final String direction;
   final double specificExpenses;
+  final bool isSynced;
 
   const TripOrder({
     this.id,
@@ -24,6 +25,7 @@ class TripOrder {
     this.tripId,
     this.direction = 'outbound',
     this.specificExpenses = 0.0,
+    this.isSynced = true,
   });
 
   factory TripOrder.fromMap(Map<String, dynamic> map) {
@@ -39,6 +41,7 @@ class TripOrder {
       tripId: map['trip_id'] as int?,
       direction: map['direction']?.toString() ?? 'outbound',
       specificExpenses: (map['specific_expenses'] as num?)?.toDouble() ?? 0.0,
+      isSynced: map['is_synced'] as bool? ?? true,
     );
   }
 
@@ -55,6 +58,7 @@ class TripOrder {
       if (tripId != null) 'trip_id': tripId,
       'direction': direction,
       'specific_expenses': specificExpenses,
+      'is_synced': isSynced,
     };
   }
 
@@ -70,19 +74,21 @@ class TripOrder {
     int? tripId,
     String? direction,
     double? specificExpenses,
-  }) {
+        bool? isSynced,
+    }) {
     return TripOrder(
-      id: id ?? this.id,
-      clientId: clientId ?? this.clientId,
-      route: route ?? this.route,
-      price: price ?? this.price,
-      departureDate: departureDate ?? this.departureDate,
-      status: status ?? this.status,
-      truckId: truckId ?? this.truckId,
-      driverId: driverId ?? this.driverId,
-      tripId: tripId ?? this.tripId,
-      direction: direction ?? this.direction,
+    id: id ?? this.id,
+    clientId: clientId ?? this.clientId,
+    route: route ?? this.route,
+    price: price ?? this.price,
+    departureDate: departureDate ?? this.departureDate,
+    status: status ?? this.status,
+    truckId: truckId ?? this.truckId,
+    driverId: driverId ?? this.driverId,
+    tripId: tripId ?? this.tripId,
+    direction: direction ?? this.direction,
       specificExpenses: specificExpenses ?? this.specificExpenses,
+        isSynced: isSynced ?? this.isSynced,
     );
   }
 
@@ -96,3 +102,4 @@ class TripOrder {
   @override
   String toString() => 'TripOrder(id: $id, route: $route, price: $price, status: $status, tripId: $tripId, direction: $direction, specificExpenses: $specificExpenses)';
 }
+

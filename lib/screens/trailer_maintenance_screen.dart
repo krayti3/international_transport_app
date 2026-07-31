@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/treasury_service.dart';
+import '../services/workshop_service.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'providers_screen.dart';
 
@@ -16,7 +18,9 @@ class TrailerMaintenanceScreen extends StatefulWidget {
 }
 
 class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
+  final WorkshopService _workshopService = WorkshopService();
   List<Map<String, dynamic>> _trailers = [];
   List<Map<String, dynamic>> _maintenances = [];
   bool _isLoading = true;
@@ -40,12 +44,12 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final trailers = await _supabaseService.getTrailers();
+    final trailers = await _fleetService.getTrailers();
     final maintenances = widget.trailerId != null
-        ? await _supabaseService.getTrailerMaintenancesByTrailer(widget.trailerId!)
-        : await _supabaseService.getTrailerMaintenances();
-    final expenseTypes = await _supabaseService.getExpenseTypes();
-    final cashBoxes = await _supabaseService.getCashBoxes();
+        ? await _fleetService.getTrailerMaintenancesByTrailer(widget.trailerId!)
+        : await _fleetService.getTrailerMaintenances();
+    final expenseTypes = await _workshopService.getExpenseTypes();
+    final cashBoxes = await _treasuryService.getCashBoxes();
     if (mounted) {
       setState(() {
         _trailers = widget.trailerId != null
@@ -150,7 +154,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
                       ),
                     );
                     if (confirm == true) {
-                      await _supabaseService.deleteTrailerMaintenance(m['id'] as int);
+                      await _fleetService.deleteTrailerMaintenance(m['id'] as int);
                       await _loadData();
                     }
                   }
@@ -315,7 +319,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
     String? selectedProvider =
         maintenance?['provider_name']?.toString() ?? '';
 
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     if (!mounted) return;
     List<String> providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
 
@@ -472,7 +476,7 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
                                 context,
                                 MaterialPageRoute(builder: (_) => const ProvidersScreen()),
                               );
-                              final providers = await _supabaseService.getProviders();
+                              final providers = await _workshopService.getProviders();
                               if (mounted) {
                                 setDialogState(() {
                                   providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
@@ -558,12 +562,12 @@ class _TrailerMaintenanceScreenState extends State<TrailerMaintenanceScreen> {
                           'maintenance_date': DateTime.now().toIso8601String(),
                         };
                         if (isEdit) {
-                          await _supabaseService.updateTrailerMaintenance(
+                          await _fleetService.updateTrailerMaintenance(
                             maintenance['id'] as int,
                             data,
                           );
                         } else {
-                          await _supabaseService.addTrailerMaintenance(data);
+                          await _fleetService.addTrailerMaintenance(data);
                         }
                         if (!context.mounted) return;
                         Navigator.pop(context);

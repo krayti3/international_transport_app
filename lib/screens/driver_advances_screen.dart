@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/treasury_service.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -15,7 +16,8 @@ class DriverAdvancesScreen extends StatefulWidget {
 }
 
 class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<Map<String, dynamic>> _advances = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> _cashBoxes = [];
@@ -35,7 +37,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final advances = await _supabaseService.getAdvancesByDriver(widget.driverId);
+    final advances = await _advanceService.getAdvancesByDriver(widget.driverId);
     if (!mounted) return;
     setState(() {
       _advances = advances;
@@ -44,7 +46,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
   }
 
   Future<void> _loadCashBoxes() async {
-    final boxes = await _supabaseService.getCashBoxes();
+    final boxes = await _treasuryService.getCashBoxes();
     if (!mounted) return;
     setState(() {
       _cashBoxes = boxes;
@@ -169,9 +171,9 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                 };
                 try {
                   if (isEdit) {
-                    await _supabaseService.updateAdvance(advance['id'] as int, data);
+                    await _advanceService.updateAdvance(advance['id'] as int, data);
                   } else {
-                    await _supabaseService.addAdvance(data);
+                    await _advanceService.addAdvance(data);
                   }
                   if (!context.mounted) return;
                   Navigator.pop(context);
@@ -212,7 +214,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
     );
     if (confirm != true) return;
     try {
-      await _supabaseService.deleteAdvance(advance['id'] as int);
+      await _advanceService.deleteAdvance(advance['id'] as int);
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف العهدة')));
@@ -228,6 +230,7 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final settled = _advances.where((a) => (a['status']?.toString() ?? '') == 'settled').toList();
+    final isSmall = MediaQuery.of(context).size.width < 400;
 
     return DefaultTabController(
       length: 2,
@@ -253,20 +256,27 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
             ? const Center(child: CircularProgressIndicator())
             : TabBarView(
                 children: [
-                  _buildList(_advances, isDark),
-                  _buildList(settled, isDark),
+                  _buildList(_advances, isDark, isSmall: isSmall),
+                  _buildList(settled, isDark, isSmall: isSmall),
                 ],
               ),
       ),
     );
   }
 
-  Widget _buildList(List<Map<String, dynamic>> advances, bool isDark) {
+  Widget _buildList(List<Map<String, dynamic>> advances, bool isDark, {bool isSmall = false}) {
+    final padding = isSmall ? 10.0 : 12.0;
+    final cardPadding = isSmall ? 12.0 : 14.0;
+    final amountFont = isSmall ? 16.0 : 18.0;
+    final statusFont = isSmall ? 11.0 : 12.0;
+    final iconSize = isSmall ? 13.0 : 14.0;
+    final detailFont = isSmall ? 12.0 : 13.0;
+
     if (advances.isEmpty) {
-      return Center(child: Text('لا توجد عهود', style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600])));
+      return Center(child: Text('لا توجد عهود', style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600], fontSize: isSmall ? 14 : null)));
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(padding),
       itemCount: advances.length,
       itemBuilder: (context, index) {
         final advance = advances[index];
@@ -280,14 +290,14 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
         final remaining = given - spent - (returned ?? 0.0);
 
         return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4),
+          margin: EdgeInsets.symmetric(vertical: isSmall ? 4 : 6),
           color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(isSmall ? 10 : 12),
             side: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(cardPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -296,80 +306,80 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                     Expanded(
                       child: Text(
                         '${given.toStringAsFixed(2)} DH',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.primary),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: amountFont, color: Theme.of(context).colorScheme.primary),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: EdgeInsets.symmetric(horizontal: isSmall ? 8 : 10, vertical: isSmall ? 3 : 4),
                       decoration: BoxDecoration(
                         color: _statusColor(status).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(isSmall ? 6 : 8),
                       ),
-                      child: Text(_statusLabel(status), style: TextStyle(fontSize: 12, color: _statusColor(status), fontWeight: FontWeight.w600)),
+                      child: Text(_statusLabel(status), style: TextStyle(fontSize: statusFont, color: _statusColor(status), fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: isSmall ? 6 : 8),
                 Row(
                   children: [
-                    Icon(Icons.login, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text('انطلاق: $dateOut', style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[300] : Colors.grey[700])),
+                    Icon(Icons.login, size: iconSize, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                    SizedBox(width: isSmall ? 3 : 4),
+                    Text('انطلاق: $dateOut', style: TextStyle(fontSize: detailFont, color: isDark ? Colors.grey[300] : Colors.grey[700])),
                   ],
                 ),
                 if (dateReturn.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: isSmall ? 3 : 4),
                   Row(
                     children: [
-                      Icon(Icons.exit_to_app, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text('عودة: $dateReturn', style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[300] : Colors.grey[700])),
+                      Icon(Icons.exit_to_app, size: iconSize, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                      SizedBox(width: isSmall ? 3 : 4),
+                      Text('عودة: $dateReturn', style: TextStyle(fontSize: detailFont, color: isDark ? Colors.grey[300] : Colors.grey[700])),
                     ],
                   ),
                 ],
                 if (spent > 0) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: isSmall ? 3 : 4),
                   Row(
                     children: [
-                      Icon(Icons.receipt_long, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text('مصروف: ${spent.toStringAsFixed(2)} DH', style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[300] : Colors.grey[700])),
+                      Icon(Icons.receipt_long, size: iconSize, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                      SizedBox(width: isSmall ? 3 : 4),
+                      Text('مصروف: ${spent.toStringAsFixed(2)} DH', style: TextStyle(fontSize: detailFont, color: isDark ? Colors.grey[300] : Colors.grey[700])),
                     ],
                   ),
                 ],
                 if (returned != null) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: isSmall ? 3 : 4),
                   Row(
                     children: [
-                      Icon(Icons.money, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text('مرتجع: ${returned.toDouble().toStringAsFixed(2)} DH', style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[300] : Colors.grey[700])),
+                      Icon(Icons.money, size: iconSize, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                      SizedBox(width: isSmall ? 3 : 4),
+                      Text('مرتجع: ${returned.toDouble().toStringAsFixed(2)} DH', style: TextStyle(fontSize: detailFont, color: isDark ? Colors.grey[300] : Colors.grey[700])),
                     ],
                   ),
                 ],
                 if (remaining != 0) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: isSmall ? 3 : 4),
                   Row(
                     children: [
-                      Icon(Icons.account_balance_wallet_rounded, size: 14, color: remaining > 0 ? Colors.green : Colors.red),
-                      const SizedBox(width: 4),
-                      Text('الباقي: ${remaining.toStringAsFixed(2)} DH', style: TextStyle(fontSize: 13, color: remaining > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.w600)),
+                      Icon(Icons.account_balance_wallet_rounded, size: iconSize, color: remaining > 0 ? Colors.green : Colors.red),
+                      SizedBox(width: isSmall ? 3 : 4),
+                      Text('الباقي: ${remaining.toStringAsFixed(2)} DH', style: TextStyle(fontSize: detailFont, color: remaining > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ],
                 if (notes.isNotEmpty) ...[
-                  const SizedBox(height: 6),
+                  SizedBox(height: isSmall ? 4 : 6),
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: EdgeInsets.all(isSmall ? 6 : 8),
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF2A2A2A) : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(isSmall ? 6 : 8),
                     ),
-                    child: Text(notes, style: TextStyle(fontSize: 13, color: isDark ? Colors.grey[300] : Colors.grey[700])),
+                    child: Text(notes, style: TextStyle(fontSize: detailFont, color: isDark ? Colors.grey[300] : Colors.grey[700])),
                   ),
                 ],
                 if (widget.isAdmin) ...[
-                  const SizedBox(height: 10),
+                  SizedBox(height: isSmall ? 8 : 10),
                   const Divider(height: 1),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -377,21 +387,21 @@ class _DriverAdvancesScreenState extends State<DriverAdvancesScreen> {
                       TextButton.icon(
                         onPressed: status != 'settled'
                             ? () async {
-                                await _supabaseService.updateAdvance(advance['id'] as int, {'status': 'settled'});
+                                await _advanceService.updateAdvance(advance['id'] as int, {'status': 'settled'});
                                 await _loadData();
                               }
                             : null,
-                        icon: const Icon(Icons.check_circle, size: 18),
+                        icon: Icon(Icons.check_circle, size: iconSize),
                         label: const Text('تسوية'),
                       ),
                       TextButton.icon(
                         onPressed: () => _openAdvanceDialog(advance: advance),
-                        icon: const Icon(Icons.edit, size: 18),
+                        icon: Icon(Icons.edit, size: iconSize),
                         label: const Text('تعديل'),
                       ),
                       TextButton.icon(
                         onPressed: () => _confirmDelete(advance),
-                        icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                        icon: Icon(Icons.delete, size: iconSize, color: Colors.red),
                         label: const Text('حذف', style: TextStyle(color: Colors.red)),
                       ),
                     ],

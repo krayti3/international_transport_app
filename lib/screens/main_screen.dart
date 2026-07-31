@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/settings_service.dart';
 import 'home_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -10,7 +10,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final SettingsService _settingsService = SettingsService();
 
   bool _isLoading = true;
 
@@ -22,7 +22,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _init() async {
     // نضمن وجود صف الملف الشخصي في قاعدة البيانات قبل عرض المنظومة.
-    await _supabaseService.ensureUserProfile();
+    await _settingsService.ensureUserProfile();
     if (mounted) {
       setState(() => _isLoading = false);
     }

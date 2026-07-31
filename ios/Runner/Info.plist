@@ -45,8 +45,10 @@
 	<true/>
  	<key>UIApplicationSupportsIndirectInputEvents</key>
  	<true/>
- 	<key>NSCameraUsageDescription</key>
- 	<string>مطلوب لتصوير فواتير المازوت والوقود</string>
+<key>NSFaceIDUsageDescription</key>
+	<string>نحتاج إلى استخدام Face ID لتسجيل الدخول بسرعة وأمان</string>
+  <key>NSCameraUsageDescription</key>
+  <string>مطلوب لتصوير فواتير المازوت والوقود</string>
  	<key>NSPhotoLibraryUsageDescription</key>
  	<string>مطلوب لاختيار صور فواتير المازوت من المعرض</string>
  </dict>

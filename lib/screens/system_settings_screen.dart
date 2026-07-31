@@ -2,7 +2,8 @@ import 'dart:typed_data';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/supabase_service.dart';
+import '../services/secure_storage_service.dart';
+import '../services/settings_service.dart';
 import '../widgets/language_switcher.dart';
 import '../widgets/responsive_layout.dart';
 
@@ -16,7 +17,7 @@ class SystemSettingsScreen extends StatefulWidget {
 }
 
 class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final SettingsService _settingsService = SettingsService();
   final ImagePicker _picker = ImagePicker();
 
   final _companyNameController = TextEditingController();
@@ -65,8 +66,8 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     setState(() => _isLoading = true);
     try {
       final results = await Future.wait<dynamic>([
-        _supabaseService.getSystemSettings(),
-        _supabaseService.getAppSettings(),
+        _settingsService.getSystemSettings(),
+        _settingsService.getAppSettings(),
       ]);
       final Map<String, dynamic>? sysSettings = results[0] as Map<String, dynamic>?;
       final Map<String, dynamic>? appSettings = results[1] as Map<String, dynamic>?;
@@ -103,7 +104,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
         return;
       }
       final bytes = await picked.readAsBytes();
-      final url = await _supabaseService.uploadCompanyLogo(picked.name, bytes);
+      final url = await _settingsService.uploadCompanyLogo(picked.name, bytes);
       setState(() {
         _logoBytes = bytes;
         _logoUrl = url;
@@ -136,11 +137,11 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await _supabaseService.updateSystemSettings(data);
-      await _supabaseService.updateAppSettings(
-        _tvaEnabled,
-        Decimal.parse(_tvaPercentage.toStringAsFixed(2)).toDouble(),
-      );
+      await _settingsService.updateSystemSettings(data);
+      await _settingsService.updateAppSettings({
+        'is_enabled': _tvaEnabled,
+        'percentage': Decimal.parse(_tvaPercentage.toStringAsFixed(2)).toDouble(),
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم حفظ إعدادات النظام بنجاح'), backgroundColor: Colors.green),
@@ -456,6 +457,38 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        _buildSectionCard(
+                          title: 'المصادقة الحيوية',
+                          icon: Icons.fingerprint_rounded,
+                          children: [
+                            FutureBuilder<bool>(
+                              future: SecureStorageService().isBiometricEnabled(),
+                              builder: (context, snapshot) {
+                                final isEnabled = snapshot.data ?? false;
+                                return SwitchListTile(
+                                  title: const Text('الدخول بالبصمة / الوجه'),
+                                  subtitle: const Text('تسجيل الدخول بسرعة باستخدام بصمة الإصبع أو الوجه'),
+                                  value: isEnabled,
+                                  onChanged: (value) async {
+                                    if (value) {
+                                      final email = await _askForEmail(context);
+                                      final password = await _askForPassword(context);
+                                      if (email != null && password != null) {
+                                        await SecureStorageService().saveCredentials(email, password);
+                                        await SecureStorageService().saveBiometricEnabled(true);
+                                      }
+                                    } else {
+                                      await SecureStorageService().saveBiometricEnabled(false);
+                                      await SecureStorageService().clearCredentials();
+                                    }
+                                    if (mounted) setState(() {});
+                                  },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 32),
                       ],
                     ),
@@ -464,6 +497,64 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Future<String?> _askForEmail(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('البريد الإلكتروني'),
+        content: TextFormField(
+          controller: controller,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'البريد الإلكتروني',
+            prefixIcon: Icon(Icons.email),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _askForPassword(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('كلمة المرور'),
+        content: TextFormField(
+          controller: controller,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'كلمة المرور',
+            prefixIcon: Icon(Icons.lock),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
     );
   }
 

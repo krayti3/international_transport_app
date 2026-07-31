@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:decimal/decimal.dart';
 import 'package:collection/collection.dart';
 import 'package:international_transport_app/services/calculation_engine.dart';
-import 'package:international_transport_app/services/supabase_service.dart';
+import 'package:international_transport_app/models/client.dart';
+import 'package:international_transport_app/services/client_service.dart';
+import 'package:international_transport_app/services/advance_service.dart';
 import '../models/trip_order.dart';
 import '../widgets/responsive_layout.dart';
 import '../screens/trip_form_screen.dart';
@@ -19,8 +21,8 @@ class SecretaryDashboardScreen extends StatefulWidget {
 }
 
 class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
-  final _supabase = Supabase.instance.client;
+  final AdvanceService _advanceService = AdvanceService();
+  final ClientService _clientService = ClientService();
 
   List<Map<String, dynamic>> _tripOrders = [];
   List<Map<String, dynamic>> _invoices = [];
@@ -47,9 +49,9 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
 
     try {
       final [clientsRes, ordersRes, invoicesRes] = await Future.wait([
-        _supabase.from('clients').select(),
-        _supabase.from('trip_orders').select(),
-        _supabase.from('invoices').select(),
+        _clientService.getClientsRaw(),
+        _advanceService.getTripOrders(),
+        _clientService.getInvoicesRaw(),
       ]);
 
       final clients = List<Map<String, dynamic>>.from(clientsRes as List);
@@ -102,7 +104,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   }
 
   Future<void> _deleteTripOrder(int id) async {
-    final inUse = await _supabaseService.isTripOrderInUse(id);
+    final inUse = await _advanceService.isTripOrderInUse(id);
     if (inUse) {
       if (!mounted) return;
       if (context.mounted) {
@@ -113,7 +115,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
       return;
     }
     try {
-      await _supabase.from('trip_orders').delete().eq('id', id);
+      await _advanceService.deleteTripOrder(id);
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -132,7 +134,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   }
 
   Future<void> _deleteInvoice(int id) async {
-    final inUse = await _supabaseService.isInvoiceInUse(id);
+    final inUse = await _clientService.isInvoiceInUse(id);
     if (inUse) {
       if (!mounted) return;
       if (context.mounted) {
@@ -143,7 +145,7 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
       return;
     }
     try {
-      await _supabase.from('invoices').delete().eq('id', id);
+      await _clientService.deleteInvoice(id);
       if (!mounted) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -220,13 +222,13 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                       }
 
                       setDialogState(() => isSaving = true);
-                      try {
-                        await _supabase.from('clients').insert({
-                          'name': name,
-                          'phone': phone,
-                          'city': city,
-                          'address': address,
-                        });
+                       try {
+                          await _clientService.addClient(Client(
+                            name: name,
+                            phone: phone,
+                            city: city,
+                            address: address,
+                          ));
                         if (!mounted) return;
                         Navigator.pop(context);
                         if (context.mounted) {
@@ -256,9 +258,9 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
   }
 
   Future<void> _openAddInvoiceDialog() async {
-    final clients = await _supabase.from('clients').select('id, name, city, default_bank_account, default_bank_account_id').order('name');
-    final bankAccounts = await _supabase.from('bank_accounts').select().eq('is_active', true);
-    final appSettings = await _supabase.from('app_settings').select('percentage, is_enabled').eq('id', 1).maybeSingle();
+    final clients = await _clientService.getClientsRaw();
+    final bankAccounts = await _clientService.getActiveBankAccounts();
+    final appSettings = await _clientService.getAppSettings();
     
     final clientsList = List<Map<String, dynamic>>.from(clients as List);
     final bankAccountsList = List<Map<String, dynamic>>.from(bankAccounts as List);
@@ -471,15 +473,14 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                       setDialogState(() => isSaving = true);
 
                       try {
-                        final supabaseService = SupabaseService();
-                         await supabaseService.createInvoice(
-                           clientId: selectedClientId!,
-                           amount: amount,
-                           inputMode: inputMode,
-                           bankAccountId: selectedBankAccountId,
-                           bankAccountType: selectedBankAccountType,
-                           bankInfoText: null,
-                         );
+                         await _clientService.createInvoice(
+                            clientId: selectedClientId!,
+                            amount: amount,
+                            inputMode: inputMode,
+                            bankAccountId: selectedBankAccountId,
+                            bankAccountType: selectedBankAccountType,
+                            bankInfoText: null,
+                          );
                         if (!mounted) return;
                         Navigator.pop(context);
                         if (context.mounted) {
@@ -586,7 +587,23 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
       ),
-      body: _isLoading
+      body: CallbackShortcuts(
+          bindings: {
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyN): () {
+              if (mounted) _openNewTripOrderDialog(context);
+            },
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyI): () {
+              if (mounted) _openAddInvoiceDialog();
+            },
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyS): () {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Overdue invoices found')),
+                );
+              }
+            },
+          },
+          child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
@@ -611,6 +628,155 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                          // Overdue invoice alert banner
+                          if (_invoices.any((inv) => (inv['status'] ?? '').toString().toLowerCase() == 'overdue'))
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.1),
+                                border: Border.all(color: Colors.red),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'ØªÙ†Ø¨ÙŠÙ‡: ØªÙˆØ¬Ø¯ Ø¹Ø¯Ø¯ Ø±Ø³Ù… Ø§Ù„ÙØ§ØªÙˆØ±Ø§Øª Ø§Ù„Ù…ØªØ£Ø®Ø±Ø© Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø©',
+                                      style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      // Navigate to overdue invoices
+                                    },
+                                    child: const Text('Ø§Ù„Ø¥Ø¶Ø§Ø±Ø©'),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Quick Actions bar
+                            Text(
+                              'Ø§Ù„Ø¥Ø±Ø§Øª Ø§Ù„Ø³Ø±ÙŠØ¹Ø©',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: () => _openNewTripOrderDialog(context),
+                                  icon: const Icon(Icons.add_road_rounded),
+                                  label: const Text('ØªØ³Ù„ÙŠÙ… Ø¹Ù‡Ø¯Ø© Ø¬Ø¯ÙŠØ¯Ø©'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.teal,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: _openAddInvoiceDialog,
+                                  icon: const Icon(Icons.add_card_rounded),
+                                  label: const Text('Ø¥Ù†Ø´Ø§Ø¡ ÙØ§ØªÙˆØ±Ø© Ø¬Ø¯ÙŠØ¯Ø©'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Theme.of(context).colorScheme.primary,
+                                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => _openSettlePendingTripDialog(context),
+                                  icon: const Icon(Icons.check_circle_rounded),
+                                  label: const Text('ØªØ³ÙˆÙŠØ© Ø±Ø­Ù„Ø© Ø§Ù„Ù…Ø¹Ù„Ù‚Ø©'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Pending Trip Orders Queue
+                            if (_tripOrders.any((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending')) ...[
+                              Text(
+                                'Ø§Ù„Ø±ØªØ¨ Ø§Ù„Ù…ØªØ§Ù†ØŸ',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ..._tripOrders
+                                  .where((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending')
+                                  .take(5)
+                                  .map((order) => Card(
+                                        margin: const EdgeInsets.symmetric(vertical: 4),
+                                        child: ListTile(
+                                          leading: const Icon(Icons.local_shipping_rounded, color: Colors.orange),
+                                          title: Text(order['route']?.toString() ?? 'Ø±Ø­Ù„Ø©'),
+                                          subtitle: Text('Ø§Ù„Ø¹Ù…ÙŠÙ„: ${_clientName(order["client_id"]?.toString())}'),
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                NumberFormat('#,##0.00').format((order['price'] as num?)?.toDouble() ?? 0.0),
+                                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              const Icon(Icons.arrow_forward_ios, size: 16),
+                                            ],
+                                          ),
+                                          onTap: () {
+                                            final tripOrder = TripOrder.fromMap(order);
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => AlertDialog(
+                                                title: Text('Ø£Ù…Ø± Ø±Ø­Ù„Ø© #${order['id'] ?? '?'}'),
+                                                content: SingleChildScrollView(
+                                                  child: Column(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text('Ø§Ù„Ø¹Ù…ÙŠÙ„: ${_clientName(order['client_id']?.toString())}'),
+                                                      Text('Ø§Ù„Ù…Ø³Ø§Ø±: ${order['route']?.toString() ?? 'â€”'}'),
+                                                      Text('Ø§Ù„Ø³Ø¹Ø±: ${NumberFormat('#,##0.00').format(tripOrder.price)} DH'),
+                                                      Text('Ø§Ù„ØªØ§Ø±ÙŠØ®: ${order['departure_date']?.toString() ?? 'â€”'}'),
+                                                      Text('Ø§Ù„Ø­Ø§Ù„Ø©: ${_statusLabel(order['status']?.toString())}'),
+                                                      Text('Ø§Ù„Ø§ØªØ¬Ø§Ù‡: ${order['direction']?.toString() ?? 'outbound'}'),
+                                                    ],
+                                                  ),
+                                                ),
+                                                actions: [
+                                                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ø¥ØºÙ„Ø§Ù‚')),
+                                                  ElevatedButton(
+                                                    onPressed: () {
+                                                      Navigator.pop(context);
+                                                      _settleTripOrder(order['id'] as int);
+                                                    },
+                                                    child: const Text('ØªØ³ÙˆÙŠØ©'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      )),
+                            ]
+                            else ...[
+                              const SizedBox.shrink(),
+                            ],
+
+                            const SizedBox(height: 28),
+
                             // Summary cards row
                             LayoutBuilder(
                               builder: (context, constraints) {
@@ -846,9 +1012,54 @@ class _SecretaryDashboardScreenState extends State<SecretaryDashboardScreen> {
                     ],
                   ),
                 ),
+              )
     );
   }
+
+  Future<void> _openNewTripOrderDialog(BuildContext context) async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TripFormScreen()),
+    );
+  }
+
+  Future<void> _openSettlePendingTripDialog(BuildContext context) async {
+    final pendingTrips = _tripOrders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending').toList();
+    if (pendingTrips.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('الرتب المتان؟ تاثي')),
+        );
+      }
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TripFormScreen()),
+    );
+  }
+
+  Future<void> _settleTripOrder(int id) async {
+    try {
+      await _advanceService.updateTripOrder(id, {'status': 'completed'});
+      if (!mounted) return;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تسوية الرحلة بنجاح')),
+        );
+      }
+      _loadData();
+    } catch (e) {
+      if (!mounted) return;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في تسوية الرحلة: $e')),
+        );
+      }
+    }
+  }
 }
+
 
 class _StatCard extends StatelessWidget {
   final String title;
@@ -1091,3 +1302,7 @@ class _StatusChip extends StatelessWidget {
     }
   }
 }
+
+
+
+

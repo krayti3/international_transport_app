@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/treasury_service.dart';
 import 'workshop_repairs_screen.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -12,7 +13,8 @@ class ExpenseWorkshopReportScreen extends StatefulWidget {
 }
 
 class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<Map<String, dynamic>> _allExpenses = [];
   List<Map<String, dynamic>> _debts = [];
   bool _isLoading = true;
@@ -29,9 +31,9 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final truckMaintenances = await _supabaseService.getTruckMaintenances();
-    final trailerMaintenances = await _supabaseService.getTrailerMaintenances();
-    final cashBoxes = await _supabaseService.getCashBoxes();
+    final truckMaintenances = await _fleetService.getTruckMaintenances();
+    final trailerMaintenances = await _fleetService.getTrailerMaintenances();
+    final cashBoxes = await _treasuryService.getCashBoxes();
 
     final combined = <Map<String, dynamic>>[];
     for (final row in truckMaintenances) {
@@ -141,9 +143,9 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
         if (id == null) continue;
 
         if (vehicleType == 'شاحنة') {
-          await _supabaseService.updateTruckMaintenance(id, {'payment_status': newStatus});
+          await _fleetService.updateTruckMaintenance(id, {'payment_status': newStatus});
         } else {
-          await _supabaseService.updateTrailerMaintenance(id, {'payment_status': newStatus});
+          await _fleetService.updateTrailerMaintenance(id, {'payment_status': newStatus});
         }
         successCount++;
       } catch (e) {
@@ -183,9 +185,9 @@ class _ExpenseWorkshopReportScreenState extends State<ExpenseWorkshopReportScree
       if (id == null) return;
 
       if (vehicleType == 'شاحنة') {
-        await _supabaseService.updateTruckMaintenance(id, {'payment_status': newStatus});
+        await _fleetService.updateTruckMaintenance(id, {'payment_status': newStatus});
       } else {
-        await _supabaseService.updateTrailerMaintenance(id, {'payment_status': newStatus});
+        await _fleetService.updateTrailerMaintenance(id, {'payment_status': newStatus});
       }
 
       if (!mounted) return;

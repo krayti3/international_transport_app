@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/treasury_service.dart';
 
 class DriverSalaryScreen extends StatefulWidget {
   final bool isAdmin;
@@ -12,7 +13,8 @@ class DriverSalaryScreen extends StatefulWidget {
 }
 
 class _DriverSalaryScreenState extends State<DriverSalaryScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
   final SupabaseClient _supabase = Supabase.instance.client;
 
   final _driverNameController = TextEditingController();
@@ -38,7 +40,7 @@ class _DriverSalaryScreenState extends State<DriverSalaryScreen> {
   }
 
   Future<void> _loadCashBoxes() async {
-    final boxes = await _supabaseService.getCashBoxes();
+    final boxes = await _treasuryService.getCashBoxes();
     if (mounted) {
       setState(() {
         _cashBoxes = boxes;
@@ -49,7 +51,7 @@ class _DriverSalaryScreenState extends State<DriverSalaryScreen> {
 
   Future<void> _loadDrivers() async {
     setState(() => _isCalculating = true);
-    final drivers = await _supabaseService.getDrivers();
+    final drivers = await _fleetService.getDrivers();
     if (!mounted) return;
     setState(() {
       _drivers = drivers;
@@ -63,7 +65,7 @@ class _DriverSalaryScreenState extends State<DriverSalaryScreen> {
     for (final driver in _drivers) {
       final driverId = driver['id']?.toString() ?? '';
       if (driverId.isEmpty) continue;
-      final result = await _supabaseService.calculateDriverSalary(
+      final result = await _fleetService.calculateDriverSalary(
         driverId: driverId,
         month: _selectedMonth,
         year: _selectedYear,
@@ -117,7 +119,7 @@ class _DriverSalaryScreenState extends State<DriverSalaryScreen> {
         salaryData,
       );
 
-      await _supabaseService.addTreasuryTransaction(
+      await _treasuryService.addTreasuryTransaction(
         netSalary,
         'salary',
         'صرف راتب وشهرية السائق: $driverName ($monthLabel)',

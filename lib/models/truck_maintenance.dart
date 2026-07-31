@@ -10,6 +10,7 @@ class TruckMaintenance {
   final String? providerName;
   final String paymentStatus;
   final DateTime? maintenanceDate;
+  final String currency;
 
   const TruckMaintenance({
     this.id,
@@ -23,6 +24,7 @@ class TruckMaintenance {
     this.providerName,
     this.paymentStatus = 'paid_by_owner',
     this.maintenanceDate,
+    this.currency = 'MAD',
   });
 
   factory TruckMaintenance.fromMap(Map<String, dynamic> map) {
@@ -38,8 +40,9 @@ class TruckMaintenance {
       providerName: map['provider_name']?.toString(),
       paymentStatus: map['payment_status']?.toString() ?? 'paid_by_owner',
       maintenanceDate: map['maintenance_date'] != null ? DateTime.tryParse(map['maintenance_date'].toString()) : null,
-    );
-  }
+        currency: map['currency']?.toString() ?? 'MAD',
+        );
+   }
 
   Map<String, dynamic> toMap() {
     return {
@@ -53,8 +56,9 @@ class TruckMaintenance {
       if (providerName != null && providerName!.isNotEmpty) 'provider_name': providerName,
       'payment_status': paymentStatus,
       if (maintenanceDate != null) 'maintenance_date': maintenanceDate!.toIso8601String(),
-    };
-  }
+        'currency': currency,
+        };
+   }
 
   TruckMaintenance copyWith({
     int? id,
@@ -68,6 +72,7 @@ class TruckMaintenance {
     String? providerName,
     String? paymentStatus,
     DateTime? maintenanceDate,
+    String? currency,
   }) {
     return TruckMaintenance(
       id: id ?? this.id,
@@ -81,6 +86,7 @@ class TruckMaintenance {
       providerName: providerName ?? this.providerName,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       maintenanceDate: maintenanceDate ?? this.maintenanceDate,
+      currency: currency ?? this.currency,
     );
   }
 

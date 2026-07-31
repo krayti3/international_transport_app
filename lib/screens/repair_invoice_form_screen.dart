@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:decimal/decimal.dart';
 import 'package:international_transport_app/models/repair_invoice.dart';
-import '../services/supabase_service.dart';
+import '../services/workshop_service.dart';
 import '../widgets/date_wheel_picker.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -68,7 +68,7 @@ class _RepairInvoiceFormScreenState
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
     try {
-      final supabase = SupabaseService();
+      final workshopService = WorkshopService();
       final totalAmount = Decimal.parse(_totalAmountController.text.trim());
       final paidAmount = _paidAmountController.text.trim().isEmpty
           ? Decimal.zero
@@ -99,12 +99,12 @@ class _RepairInvoiceFormScreenState
       );
 
       if (widget.existingInvoice != null) {
-        await supabase.updateRepairInvoice(
+        await workshopService.updateRepairInvoice(
           widget.existingInvoice!.id!,
           invoice.toMap(),
         );
       } else {
-        await supabase.insertRepairInvoice(invoice);
+        await workshopService.insertRepairInvoice(invoice);
       }
 
       if (!mounted) return;

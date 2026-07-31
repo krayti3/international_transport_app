@@ -169,6 +169,7 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final todayFormatted = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    final isSmall = MediaQuery.of(context).size.width < 400;
 
     return Scaffold(
       appBar: AppBar(
@@ -179,30 +180,32 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _tasks.isEmpty
               ? SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.all(isSmall ? 20 : 24),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const SizedBox(height: 80),
                       Icon(
                         Icons.check_circle_outline_rounded,
-                        size: 96,
+                        size: isSmall ? 80 : 96,
                         color: theme.colorScheme.primary.withValues(alpha: 0.4),
                       ),
-                      const SizedBox(height: 24),
+                      SizedBox(height: isSmall ? 20 : 24),
                       Text(
                         'لا توجد مهام مطلوبة اليوم',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w600,
+                          fontSize: isSmall ? 17 : null,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: isSmall ? 10 : 12),
                       Text(
                         'استمتع بيومك!',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: isSmall ? 14 : null,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -212,17 +215,17 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
               : RefreshIndicator(
                   onRefresh: _loadData,
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(isSmall ? 16 : 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Card(
                           elevation: 4,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(isSmall ? 14 : 16),
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.all(20),
+                            padding: EdgeInsets.all(isSmall ? 16 : 20),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -233,9 +236,10 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
                                       child: Icon(
                                         Icons.person_rounded,
                                         color: theme.colorScheme.onPrimaryContainer,
+                                        size: isSmall ? 22 : 26,
                                       ),
                                     ),
-                                    const SizedBox(width: 16),
+                                    SizedBox(width: isSmall ? 12 : 16),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,13 +248,15 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
                                             _driverName ?? 'سائق',
                                             style: theme.textTheme.titleLarge?.copyWith(
                                               fontWeight: FontWeight.bold,
+                                              fontSize: isSmall ? 17 : null,
                                             ),
                                           ),
-                                          const SizedBox(height: 4),
+                                          SizedBox(height: isSmall ? 3 : 4),
                                           Text(
                                             todayFormatted,
                                             style: theme.textTheme.bodyMedium?.copyWith(
                                               color: theme.colorScheme.onSurfaceVariant,
+                                              fontSize: isSmall ? 13 : null,
                                             ),
                                           ),
                                         ],
@@ -258,21 +264,22 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 16),
+                                SizedBox(height: isSmall ? 14 : 16),
                                 Row(
                                   children: [
                                     Icon(
                                       Icons.trending_up_rounded,
                                       color: theme.colorScheme.primary,
-                                      size: 20,
+                                      size: isSmall ? 18 : 20,
                                     ),
-                                    const SizedBox(width: 8),
+                                    SizedBox(width: isSmall ? 6 : 8),
                                     Expanded(
                                       child: Text(
                                         'أكمل مهامك وابقَ في القمة!',
                                         style: theme.textTheme.bodyLarge?.copyWith(
                                           fontWeight: FontWeight.w600,
                                           color: theme.colorScheme.primary,
+                                          fontSize: isSmall ? 15 : null,
                                         ),
                                       ),
                                     ),
@@ -282,14 +289,15 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: isSmall ? 20 : 24),
                         Text(
                           'مهام اليوم',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
+                            fontSize: isSmall ? 17 : null,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: isSmall ? 12 : 16),
                         ..._tasks.map((task) {
                           final clientId = task['client_id']?.toString() ?? '';
                           final clientName = _clientNames[clientId] ?? 'بدون عميل';
@@ -300,12 +308,12 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
 
                           return Card(
                             elevation: 3,
-                            margin: const EdgeInsets.only(bottom: 16),
+                            margin: EdgeInsets.only(bottom: isSmall ? 12 : 16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(isSmall ? 14 : 16),
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(20),
+                              padding: EdgeInsets.all(isSmall ? 16 : 20),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -316,6 +324,7 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
                                           route,
                                           style: theme.textTheme.titleLarge?.copyWith(
                                             fontWeight: FontWeight.bold,
+                                            fontSize: isSmall ? 16 : null,
                                           ),
                                         ),
                                       ),
@@ -325,56 +334,56 @@ class _DriverTasksScreenState extends State<DriverTasksScreen> {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
+                                  SizedBox(height: isSmall ? 10 : 12),
                                   Row(
                                     children: [
                                       Icon(
                                         Icons.business_rounded,
-                                        size: 20,
+                                        size: isSmall ? 18 : 20,
                                         color: theme.colorScheme.onSurfaceVariant,
                                       ),
-                                      const SizedBox(width: 8),
+                                      SizedBox(width: isSmall ? 6 : 8),
                                       Text(
                                         clientName,
-                                        style: theme.textTheme.bodyLarge,
+                                        style: theme.textTheme.bodyLarge?.copyWith(fontSize: isSmall ? 14 : null),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
+                                  SizedBox(height: isSmall ? 6 : 8),
                                   Row(
                                     children: [
                                       Icon(
                                         Icons.schedule_rounded,
-                                        size: 20,
+                                        size: isSmall ? 18 : 20,
                                         color: theme.colorScheme.onSurfaceVariant,
                                       ),
-                                      const SizedBox(width: 8),
+                                      SizedBox(width: isSmall ? 6 : 8),
                                       Text(
                                         'وقت الانطلاق: $departureTime',
-                                        style: theme.textTheme.bodyLarge,
+                                        style: theme.textTheme.bodyLarge?.copyWith(fontSize: isSmall ? 14 : null),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 16),
+                                  SizedBox(height: isSmall ? 14 : 16),
                                   SizedBox(
                                     width: double.infinity,
-                                    height: 56,
+                                    height: isSmall ? 54 : 56,
                                     child: ElevatedButton.icon(
                                       onPressed: () => _confirmCompletion(task),
-                                      icon: const Icon(Icons.check_circle_rounded),
-                                      label: const Text(
+                                      icon: Icon(Icons.check_circle_rounded, size: isSmall ? 20 : 22),
+                                      label: Text(
                                         'تأكيد الإنجاز',
                                         style: TextStyle(
-                                          fontSize: 16,
+                                          fontSize: isSmall ? 15 : 16,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: theme.colorScheme.primary,
                                         foregroundColor: theme.colorScheme.onPrimary,
-                                        minimumSize: const Size(double.infinity, 56),
+                                        minimumSize: Size(double.infinity, isSmall ? 54 : 56),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(isSmall ? 10 : 12),
                                         ),
                                       ),
                                     ),

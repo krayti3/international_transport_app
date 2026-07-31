@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat, NumberFormat;
 import 'package:file_picker/file_picker.dart';
 import 'package:collection/collection.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/client_service.dart';
+import '../services/fleet_service.dart';
 import '../widgets/date_wheel_picker.dart';
+import '../widgets/paginated_list_view.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -16,13 +19,15 @@ class TripOrdersScreen extends StatefulWidget {
 }
 
 class _TripOrdersScreenState extends State<TripOrdersScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final ClientService _clientService = ClientService();
+  final FleetService _fleetService = FleetService();
 
-  List<Map<String, dynamic>> _tripOrders = [];
   List<Map<String, dynamic>> _clients = [];
   List<Map<String, dynamic>> _drivers = [];
   List<Map<String, dynamic>> _trucks = [];
   bool _isLoading = true;
+  int _tripListKey = 0;
 
   // الحالات المعتمدة (عربية) لتبقى متوافقة مع باقي شاشات المشروع.
   static const String kPending = 'قيد الانتظار';
@@ -37,18 +42,12 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final tripOrders = await _supabaseService.getTripOrders();
-    final clients = await _supabaseService.getClients();
-    final drivers = await _supabaseService.getDrivers();
-    final trucks = await _supabaseService.getTrucks();
+    final clients = await _clientService.getClients();
+    final drivers = await _fleetService.getDrivers();
+    final trucks = await _fleetService.getTrucks();
+    
     if (!mounted) return;
-    tripOrders.sort((a, b) {
-      final ai = (a['id'] as int?) ?? 0;
-      final bi = (b['id'] as int?) ?? 0;
-      return bi.compareTo(ai);
-    });
     setState(() {
-      _tripOrders = tripOrders;
       _clients = clients.map((c) => c.toMap()).toList();
       _drivers = drivers;
       _trucks = trucks;
@@ -84,7 +83,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
       (order['price'] as num?)?.toDouble() ?? 0.0;
 
   Future<List<Map<String, dynamic>>> _loadTripDocuments(int tripOrderId) async {
-    return _supabaseService.getTripDocuments(tripOrderId);
+    return _advanceService.getTripDocuments(tripOrderId);
   }
 
   Future<void> _openDocumentsDialog(Map<String, dynamic> trip) async {
@@ -140,7 +139,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                                     );
                                     if (confirm == true) {
                                       try {
-                                        await _supabaseService.deleteTripDocument(doc['id'] as int);
+                                        await _advanceService.deleteTripDocument(doc['id'] as int);
                                         final updated = await _loadTripDocuments(tripId);
                                         if (mounted) {
                                           setDialogState(() {
@@ -216,11 +215,11 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
 
                   if (mounted) setState(() => _isLoading = true);
                   try {
-                    final url = await _supabaseService.uploadTripDocument(
+                    final url = await _advanceService.uploadTripDocument(
                       picked.name,
                       picked.bytes!,
                     );
-                    await _supabaseService.addTripDocument({
+                    await _advanceService.addTripDocument({
                       'trip_order_id': tripId,
                       'file_name': picked.name,
                       'file_url': url,
@@ -400,14 +399,15 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                 };
                 try {
                   if (isEdit) {
-                    await _supabaseService.updateTripOrder(trip['id'] as int, data, localRow: trip);
+                    await _advanceService.updateTripOrder(trip['id'] as int, data, localRow: trip);
                   } else {
-                    await _supabaseService.addTripOrder(data);
+                    await _advanceService.addTripOrder(data);
                   }
                   if (!context.mounted) return;
                   Navigator.pop(context);
                   await _loadData();
                   if (!mounted) return;
+                  setState(() => _tripListKey++);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(isEdit ? 'تم تحديث الرحلة' : 'تم تسجيل طلب الرحلة بنجاح'),
@@ -450,13 +450,14 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
     );
     if (selected == null || selected == current) return;
     try {
-      await _supabaseService.updateTripOrder(
+      await _advanceService.updateTripOrder(
         trip['id'] as int,
         {'status': selected},
         localRow: trip,
       );
       await _loadData();
       if (!mounted) return;
+      setState(() => _tripListKey++);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('تم تحديث الحالة إلى: $selected'), backgroundColor: Colors.green),
       );
@@ -470,13 +471,6 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final total = _tripOrders.length;
-    final completed = _tripOrders
-        .where((t) => (t['status']?.toString() ?? '') == kCompleted)
-        .length;
-    final active = total - completed;
-    final totalValue = _tripOrders.fold<double>(0, (sum, t) => sum + _priceOf(t));
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('إدارة طلبات الرحلات'),
@@ -495,32 +489,6 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // بطاقات إحصائية بأرقام حقيقية من قاعدة البيانات.
-                  Row(
-                    children: [
-                      _buildStatCard(
-                        'رحلات قيد التنفيذ',
-                        '$active',
-                        Icons.local_shipping_rounded,
-                        Theme.of(context).colorScheme.secondary,
-                      ),
-                      const SizedBox(width: 12),
-                      _buildStatCard(
-                        'إجمالي الطلبات',
-                        '$total',
-                        Icons.analytics_rounded,
-                        Theme.of(context).colorScheme.tertiary,
-                      ),
-                      const SizedBox(width: 12),
-                      _buildStatCard(
-                        'إجمالي الأجور',
-                        NumberFormat('#,###').format(totalValue),
-                        Icons.payments_rounded,
-                        Theme.of(context).colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
                   Text(
                     'طلبات النقل واللوجستيك الحالية',
                     style: TextStyle(
@@ -531,13 +499,13 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                   ),
                   const SizedBox(height: 12),
                   Expanded(
-                    child: _tripOrders.isEmpty
-                        ? const Center(child: Text('لا توجد طلبات رحلات مسجلة حالياً.'))
-                        : ListView.builder(
-                            itemCount: _tripOrders.length,
-                            itemBuilder: (context, index) =>
-                                _buildTripCard(_tripOrders[index]),
-                          ),
+                    child: PaginatedListView<Map<String, dynamic>>(
+                      key: ValueKey(_tripListKey),
+                      fetchPage: (offset, limit) => _advanceService.getTripOrdersPage(offset: offset, limit: limit),
+                      itemBuilder: (context, trip, index) => _buildTripCard(trip),
+                      emptyMessage: 'لا توجد طلبات رحلات مسجلة حالياً.',
+                      pageSize: 20,
+                    ),
                   ),
                 ],
               ),
@@ -657,7 +625,7 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                     } else if (value == 'delete') {
                       final orderId = order['id'] as int?;
                       if (orderId == null) return;
-                      final inUse = await _supabaseService.isTripOrderInUse(orderId);
+                      final inUse = await _advanceService.isTripOrderInUse(orderId);
                       if (inUse) {
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -685,8 +653,10 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
                       );
                       if (confirm == true) {
                         try {
-                          await _supabaseService.deleteTripOrder(orderId);
+                          await _advanceService.deleteTripOrder(orderId);
                           await _loadData();
+                          if (!mounted) return;
+                          setState(() => _tripListKey++);
                         } catch (e) {
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -739,44 +709,6 @@ class _TripOrdersScreenState extends State<TripOrdersScreen> {
       decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(20)),
       child: Text(label,
           style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _buildStatCard(
-      String title, String value, IconData icon, Color color) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: color.withValues(alpha: 0.15),
-              child: Icon(icon, color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                   Text(title,
-                       style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
-                       overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Text(value,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

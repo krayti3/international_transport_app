@@ -3,7 +3,8 @@ import 'package:collection/collection.dart';
 import 'dart:typed_data';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:image_picker/image_picker.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/reference_service.dart';
 import 'document_categories_screen.dart';
 import '../widgets/date_wheel_picker.dart';
 
@@ -28,7 +29,8 @@ class VehicleDocTypeScreen extends StatefulWidget {
 }
 
 class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final ReferenceService _referenceService = ReferenceService();
   List<Map<String, dynamic>> _documents = [];
   String? _entityLabel;
   bool _isLoading = true;
@@ -43,20 +45,20 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final docs = await _supabaseService.getVehicleDocumentsByType(
+      final docs = await _fleetService.getVehicleDocumentsByType(
         entityType: widget.entityType,
         entityId: widget.entityId,
         docType: widget.docType,
       );
       String? label;
       if (widget.entityType == 'truck') {
-        final trucks = await _supabaseService.getTrucks();
+        final trucks = await _fleetService.getTrucks();
         final truck = trucks.firstWhereOrNull((t) => t['id'] == widget.entityId);
         if (truck != null) {
           label = truck['plate']?.toString() ?? truck['plate_number']?.toString();
         }
       } else {
-        final trailers = await _supabaseService.getTrailers();
+        final trailers = await _fleetService.getTrailers();
         final trailer = trailers.firstWhereOrNull((t) => t['id'] == widget.entityId);
         if (trailer != null) {
           label = trailer['plate_number']?.toString() ?? trailer['plate']?.toString();
@@ -111,7 +113,7 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
         : null;
 
     List<Map<String, dynamic>> docTypes = [];
-    await _supabaseService.getDocumentCategories().then((cats) {
+    await _referenceService.getDocumentCategories().then((cats) {
       docTypes.addAll(cats);
     });
     if (!mounted) return;
@@ -154,7 +156,7 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
                           MaterialPageRoute(builder: (_) => const DocumentCategoriesScreen()),
                         );
                         if (!mounted) return;
-                        final cats = await _supabaseService.getDocumentCategories();
+                        final cats = await _referenceService.getDocumentCategories();
                         setDialogState(() {
                           docTypes = cats;
                           if (!docTypes.any((c) => c['name']?.toString() == selectedDocType)) {
@@ -251,7 +253,7 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
                 }
                 if (pickedImageBytes != null) {
                   try {
-                    attachmentUrl = await _supabaseService.uploadFleetDocImage(
+                    attachmentUrl = await _fleetService.uploadFleetDocImage(
                       entityType: widget.entityType,
                       entityId: widget.entityId,
                       fileName: pickedImageName ?? 'doc.jpg',
@@ -267,14 +269,14 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
                   final nowIso = expiryDate!.toIso8601String().split('T').first;
                   if (isEdit) {
                     if (source == 'fleet') {
-                      await _supabaseService.updateFleetDocument(doc['id'] as int, {
+                      await _referenceService.updateFleetDocument(doc['id'] as int, {
                         'doc_type': selectedDocType ?? '',
                         'document_number': numberController.text.trim(),
                         'expiry_date': nowIso,
                         'attachment_url': attachmentUrl ?? '',
                       });
                     } else {
-                      await _supabaseService.updateTruckDocument(doc['id'] as int, {
+                      await _referenceService.updateTruckDocument(doc['id'] as int, {
                         'type': selectedDocType ?? '',
                         'document_number': numberController.text.trim(),
                         'expiry_date': nowIso,
@@ -282,7 +284,7 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
                       });
                     }
                   } else {
-                    await _supabaseService.addFleetDocument({
+                    await _referenceService.addFleetDocument({
                       'entity_type': widget.entityType,
                       'entity_id': widget.entityId,
                       'doc_type': selectedDocType ?? '',
@@ -333,9 +335,9 @@ class _VehicleDocTypeScreenState extends State<VehicleDocTypeScreen> {
     try {
       final docId = doc['id'] as int;
       if (source == 'fleet') {
-        await _supabaseService.deleteFleetDocument(docId);
+        await _referenceService.deleteFleetDocument(docId);
       } else {
-        await _supabaseService.deleteTruckDocument(docId);
+        await _referenceService.deleteTruckDocument(docId);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف الوثيقة')));

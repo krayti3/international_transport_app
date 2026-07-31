@@ -5,7 +5,7 @@ import 'package:decimal/decimal.dart';
 import 'package:collection/collection.dart';
 import 'package:international_transport_app/models/client.dart';
 import 'package:international_transport_app/models/invoice.dart';
-import '../services/supabase_service.dart';
+import '../services/client_service.dart';
 import '../services/pdf_service.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -18,7 +18,7 @@ class OutstandingInvoicesScreen extends StatefulWidget {
 }
 
 class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ClientService _clientService = ClientService();
   List<Client> _clients = [];
   List<Invoice> _outstandingInvoices = [];
   int? _selectedClientId;
@@ -34,7 +34,7 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
   }
 
   Future<void> _loadClients() async {
-    final clients = await _supabaseService.getClients();
+    final clients = await _clientService.getClients();
     if (mounted) {
       setState(() {
         _clients = clients;
@@ -60,7 +60,7 @@ class _OutstandingInvoicesScreenState extends State<OutstandingInvoicesScreen> {
     });
 
     try {
-      final invoices = await _supabaseService.getOutstandingInvoices(clientId);
+      final invoices = await _clientService.getOutstandingInvoices(clientId);
       final client = _clients.firstWhere(
         (c) => c.id == clientId,
         orElse: () => invoices.isNotEmpty ? Client.fromMap(invoices.first.toMap()) : Client(name: '', phone: ''),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/advance_service.dart';
+import '../services/fleet_service.dart';
 import '../widgets/responsive_layout.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -13,7 +14,8 @@ class CurrentTripsScreen extends StatefulWidget {
 }
 
 class _CurrentTripsScreenState extends State<CurrentTripsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final AdvanceService _advanceService = AdvanceService();
+  final FleetService _fleetService = FleetService();
   List<Map<String, dynamic>> _trips = [];
   final Map<int, String> _driverNames = {};
   bool _isLoading = true;
@@ -31,8 +33,8 @@ class _CurrentTripsScreenState extends State<CurrentTripsScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final trips = await _supabaseService.getAdvances();
-    final drivers = await _supabaseService.getDrivers();
+    final trips = await _advanceService.getAdvances();
+    final drivers = await _fleetService.getDrivers();
     _driverNames.clear();
     for (final driver in drivers) {
       final id = driver['id'] as int?;
@@ -83,13 +85,13 @@ class _CurrentTripsScreenState extends State<CurrentTripsScreen> {
             setDialogState(() => isSubmitting = true);
             try {
               final id = trip['id'];
-              await _supabaseService.updateAdvance(id, {
+              await _advanceService.updateAdvance(id, {
                 'amount_spent': spent,
                 'amount_returned': (given - spent).clamp(0.0, given),
                 'date_return': _today(),
                 'status': 'settled',
               });
-              await _supabaseService.notifyAdmins(
+              await _advanceService.notifyAdmins(
                 title: 'تسوية عهدة',
                 message: 'قامت السكرتيرة بتسوية عهدة السائق ${_driverName(trip['driver_id'] as int?)}',
               );
@@ -103,7 +105,7 @@ class _CurrentTripsScreenState extends State<CurrentTripsScreen> {
                     label: 'تراجع',
                     onPressed: () async {
                       try {
-                        await _supabaseService.updateAdvance(id, {
+                        await _advanceService.updateAdvance(id, {
                           'amount_spent': null,
                           'amount_returned': null,
                           'date_return': null,

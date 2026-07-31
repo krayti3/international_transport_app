@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/settings_service.dart';
 
 class RoleGuard extends StatefulWidget {
   final Widget child;
@@ -28,7 +28,8 @@ class _RoleGuardState extends State<RoleGuard> {
   }
 
   Future<void> _checkRole() async {
-    final role = await SupabaseService().getUserRole();
+    final settingsService = SettingsService();
+    final role = await settingsService.getUserRole();
     if (mounted) {
       setState(() {
         _userRole = role;

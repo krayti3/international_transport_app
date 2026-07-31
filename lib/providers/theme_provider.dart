@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/settings_service.dart';
 
 class ThemeProvider extends ChangeNotifier {
   static const String _boxName = 'settings';
@@ -10,7 +11,7 @@ class ThemeProvider extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == ThemeMode.dark;
 
-  final SupabaseService _supabaseService = SupabaseService();
+  final SettingsService _settingsService = SettingsService();
   ThemeProvider();
 
   Future<void> initialize(String? userId) async {
@@ -24,7 +25,7 @@ class ThemeProvider extends ChangeNotifier {
     if (userId != null && userId.isNotEmpty) {
       await _loadFromStorage(userId);
       try {
-        final row = await _supabaseService.supabase
+        final row = await Supabase.instance.client
             .from('users')
             .select('theme_mode')
             .eq('id', userId)
@@ -98,7 +99,7 @@ class ThemeProvider extends ChangeNotifier {
       }
       await box.put(_resolveKey(userId), value);
       if (userId != null && userId.isNotEmpty) {
-        await _supabaseService.updateUserThemeMode(userId, value);
+        await _settingsService.updateUserThemeMode(userId, value);
       }
     } catch (e) {
       debugPrint('ThemeProvider.setThemeMode error: $e');

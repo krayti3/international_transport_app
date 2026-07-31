@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import '../services/client_service.dart';
 import '../services/pdf_service.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import '../l10n/app_localizations.dart';
@@ -18,7 +18,7 @@ class ClientStatementScreen extends StatefulWidget {
 }
 
 class _ClientStatementScreenState extends State<ClientStatementScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ClientService _clientService = ClientService();
   List<Map<String, dynamic>> _statement = [];
   bool _isLoading = true;
   double _currentBalance = 0.0;
@@ -31,7 +31,7 @@ class _ClientStatementScreenState extends State<ClientStatementScreen> {
 
   Future<void> _loadStatement() async {
     setState(() => _isLoading = true);
-    final items = await _supabaseService.getClientStatement(widget.clientId);
+    final items = await _clientService.getClientStatement(widget.clientId);
     if (mounted) {
       setState(() {
         _statement = items;
@@ -43,12 +43,18 @@ class _ClientStatementScreenState extends State<ClientStatementScreen> {
 
   Future<void> _exportPdf() async {
     if (!mounted) return;
-    final clientData = {'name': widget.clientName, 'id': widget.clientId};
+    final clientRecord = await _clientService.getClientById(widget.clientId.toString());
+    final clientData = {
+      'name': widget.clientName,
+      'id': widget.clientId,
+      if (clientRecord != null) 'currency': clientRecord.currency,
+    };
     try {
       await PdfService.instance.shareClientStatement(
         client: clientData,
         statementItems: _statement,
         currentBalance: _currentBalance,
+        currency: clientRecord?.currency ?? 'MAD',
       );
     } catch (e) {
       if (!mounted) return;

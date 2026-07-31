@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:collection/collection.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/reference_service.dart';
+import '../services/treasury_service.dart';
 import '../services/notification_service.dart';
 import 'document_categories_screen.dart';
 import '../widgets/date_wheel_picker.dart';
@@ -20,7 +22,9 @@ class TruckDocumentsScreen extends StatefulWidget {
 }
 
 class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final ReferenceService _referenceService = ReferenceService();
+  final TreasuryService _treasuryService = TreasuryService();
   final NotificationService _notificationService = NotificationService();
   List<Map<String, dynamic>> _documents = [];
   List<Map<String, dynamic>> _trucks = [];
@@ -36,8 +40,8 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final documents = await _supabaseService.getTruckDocuments();
-    final trucks = await _supabaseService.getTrucks();
+    final documents = await _referenceService.getTruckDocuments();
+    final trucks = await _fleetService.getTrucks();
     setState(() {
       _documents = widget.truckId != null
           ? documents.where((d) => d['truck_id'] == widget.truckId).toList()
@@ -132,7 +136,7 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
     String renewalCurrency = 'MAD';
 
     List<Map<String, dynamic>> docTypes = [];
-    await _supabaseService.getDocumentCategories().then((cats) {
+    await _referenceService.getDocumentCategories().then((cats) {
       docTypes.addAll(cats);
     });
     if (!mounted) return;
@@ -187,7 +191,7 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                               MaterialPageRoute(builder: (_) => const DocumentCategoriesScreen()),
                             );
                             if (!mounted) return;
-                            final cats = await _supabaseService.getDocumentCategories();
+                            final cats = await _referenceService.getDocumentCategories();
                             setDialogState(() {
                               docTypes = cats;
                               if (!docTypes.any((c) => c['name']?.toString() == selectedDocType)) {
@@ -305,7 +309,7 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                   return;
                 }
                 if (!isEdit) {
-                  final exists = await _supabaseService.hasTruckDocumentType(
+                  final exists = await _referenceService.hasTruckDocumentType(
                     selectedTruckId!,
                     selectedDocType!,
                   );
@@ -321,7 +325,7 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                 }
                 if (pickedImageBytes != null && selectedTruckId != null) {
                   try {
-                    attachmentUrl = await _supabaseService.uploadFleetDocImage(
+                    attachmentUrl = await _fleetService.uploadFleetDocImage(
                       entityType: 'truck',
                       entityId: selectedTruckId!,
                       fileName: pickedImageName ?? 'doc.jpg',
@@ -349,9 +353,9 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
                       data['renewal_currency'] = renewalCurrency;
                     }
                     await _notificationService.cancelDocumentExpiryNotification(doc['id'] as int);
-                    await _supabaseService.updateTruckDocument(doc['id'], data);
+                    await _referenceService.updateTruckDocument(doc['id'], data);
                   } else {
-                    final newDocId = await _supabaseService.addTruckDocument(data);
+                     final newDocId = await _fleetService.addTruckDocument(data);
                     data['id'] = newDocId;
                   }
 
@@ -367,7 +371,7 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
 
                   if (isEdit && renewalCost != null && renewalCost! > 0) {
                     try {
-                      await _supabaseService.addTreasuryTransaction(
+                      await _treasuryService.addTreasuryTransaction(
                         renewalCost!,
                         'office_expense',
                         'تجديد ${selectedDocType ?? 'وثيقة'} - ${_truckLabel(selectedTruckId ?? doc['truck_id'])}',
@@ -431,7 +435,7 @@ class _TruckDocumentsScreenState extends State<TruckDocumentsScreen> {
       ),
     );
     if (confirm == true) {
-      await _supabaseService.deleteTruckDocument(doc['id']);
+      await _referenceService.deleteTruckDocument(doc['id']);
       await _loadData();
     }
   }

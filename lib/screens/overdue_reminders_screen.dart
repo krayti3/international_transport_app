@@ -3,7 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:decimal/decimal.dart';
 import 'package:international_transport_app/models/invoice.dart';
-import '../services/supabase_service.dart';
+import '../services/client_service.dart';
 import '../l10n/app_localizations.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -19,7 +19,7 @@ class OverdueRemindersScreen extends StatefulWidget {
 }
 
 class _OverdueRemindersScreenState extends State<OverdueRemindersScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final ClientService _clientService = ClientService();
   List<Invoice> _invoices = [];
   bool _isLoading = true;
 
@@ -31,7 +31,7 @@ class _OverdueRemindersScreenState extends State<OverdueRemindersScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final invoices = await _supabaseService.getOverdueInvoices();
+    final invoices = await _clientService.getOverdueInvoices();
     if (!mounted) return;
     setState(() {
       _invoices = invoices;

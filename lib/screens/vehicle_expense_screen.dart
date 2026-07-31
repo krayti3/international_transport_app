@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
-import '../services/supabase_service.dart';
+import '../services/fleet_service.dart';
+import '../services/treasury_service.dart';
+import '../services/workshop_service.dart';
 import '../widgets/date_wheel_picker.dart';
 import 'providers_screen.dart';
 
@@ -23,7 +25,9 @@ class VehicleExpenseScreen extends StatefulWidget {
 }
 
 class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
-  final SupabaseService _supabaseService = SupabaseService();
+  final FleetService _fleetService = FleetService();
+  final TreasuryService _treasuryService = TreasuryService();
+  final WorkshopService _workshopService = WorkshopService();
   List<Map<String, dynamic>> _records = [];
   String? _vehicleLabel;
   bool _isLoading = true;
@@ -40,14 +44,14 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
     try {
       String? label;
       if (widget.vehicleType == 'truck') {
-        final trucks = await _supabaseService.getTrucks();
+        final trucks = await _fleetService.getTrucks();
         final truck = trucks.firstWhere(
           (t) => t['id'] == widget.vehicleId,
           orElse: () => <String, dynamic>{},
         );
         label = truck['plate']?.toString() ?? truck['plate_number']?.toString();
       } else {
-        final trailers = await _supabaseService.getTrailers();
+        final trailers = await _fleetService.getTrailers();
         final trailer = trailers.firstWhere(
           (t) => t['id'] == widget.vehicleId,
           orElse: () => <String, dynamic>{},
@@ -57,10 +61,10 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
 
       List<Map<String, dynamic>> records;
       if (widget.vehicleType == 'truck') {
-        records = await _supabaseService.getTruckMaintenancesByTruck(widget.vehicleId);
+        records = await _fleetService.getTruckMaintenancesByTruck(widget.vehicleId);
         records = records.where((r) => r['expense_type']?.toString() == widget.expenseType).toList();
       } else {
-        records = await _supabaseService.getTrailerMaintenancesByTrailer(widget.vehicleId);
+        records = await _fleetService.getTrailerMaintenancesByTrailer(widget.vehicleId);
         records = records.where((r) => r['expense_type']?.toString() == widget.expenseType).toList();
       }
       records.sort((a, b) {
@@ -69,7 +73,7 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
         return bDate.compareTo(aDate);
       });
 
-      final cashBoxes = await _supabaseService.getCashBoxes();
+      final cashBoxes = await _treasuryService.getCashBoxes();
 
       if (!mounted) return;
       setState(() {
@@ -97,7 +101,7 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
     String selectedDocType = widget.expenseType;
     String? selectedProvider = record?['provider_name']?.toString() ?? '';
 
-    final providers = await _supabaseService.getProviders();
+    final providers = await _workshopService.getProviders();
     if (!mounted) return;
     List<String> providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
 
@@ -188,7 +192,7 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
                           context,
                           MaterialPageRoute(builder: (_) => const ProvidersScreen()),
                         );
-                        final providers = await _supabaseService.getProviders();
+                        final providers = await _workshopService.getProviders();
                         if (mounted) {
                           setDialogState(() {
                             providerNames = providers.map((p) => p['name']?.toString() ?? '').toList();
@@ -250,15 +254,15 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
                   };
                   if (isEdit) {
                     if (widget.vehicleType == 'truck') {
-                      await _supabaseService.updateTruckMaintenance(record['id'] as int, data);
+                      await _fleetService.updateTruckMaintenance(record['id'] as int, data);
                     } else {
-                      await _supabaseService.updateTrailerMaintenance(record['id'] as int, data);
+                      await _fleetService.updateTrailerMaintenance(record['id'] as int, data);
                     }
                   } else {
                     if (widget.vehicleType == 'truck') {
-                      await _supabaseService.addTruckMaintenance(data);
+                      await _fleetService.addTruckMaintenance(data);
                     } else {
-                      await _supabaseService.addTrailerMaintenance(data);
+                      await _fleetService.addTrailerMaintenance(data);
                     }
                   }
                   if (!context.mounted) return;
@@ -299,9 +303,9 @@ class _VehicleExpenseScreenState extends State<VehicleExpenseScreen> {
     if (confirm != true) return;
     try {
       if (widget.vehicleType == 'truck') {
-        await _supabaseService.deleteTruckMaintenance(record['id'] as int);
+        await _fleetService.deleteTruckMaintenance(record['id'] as int);
       } else {
-        await _supabaseService.deleteTrailerMaintenance(record['id'] as int);
+        await _fleetService.deleteTrailerMaintenance(record['id'] as int);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف المصروف')));

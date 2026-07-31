@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/supabase_service.dart';
+import '../services/treasury_service.dart';
 
 class SecretaryLedgerScreen extends StatefulWidget {
   final String userRole;
@@ -15,7 +15,7 @@ class SecretaryLedgerScreen extends StatefulWidget {
 }
 
 class _SecretaryLedgerScreenState extends State<SecretaryLedgerScreen> {
-  final SupabaseService _service = SupabaseService();
+  final TreasuryService _treasuryService = TreasuryService();
   List<Map<String, dynamic>> _filteredEntries = [];
   bool _isLoading = true;
 
@@ -44,7 +44,7 @@ class _SecretaryLedgerScreenState extends State<SecretaryLedgerScreen> {
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final data = await _service.getUnifiedLedger(
+    final data = await _treasuryService.getUnifiedLedger(
       role: widget.userRole,
       period: _period,
       searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
@@ -68,7 +68,7 @@ class _SecretaryLedgerScreenState extends State<SecretaryLedgerScreen> {
 
   Future<void> _applyFilters() async {
     setState(() => _isLoading = true);
-    final data = await _service.getUnifiedLedger(
+    final data = await _treasuryService.getUnifiedLedger(
       role: widget.userRole,
       period: _period,
       searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
@@ -104,6 +104,8 @@ class _SecretaryLedgerScreenState extends State<SecretaryLedgerScreen> {
         return 'مرجوع عهدة';
       case 'invoice':
         return 'فاتورة';
+      case 'maintenance_expense':
+        return 'مصروف صيانة';
       default:
         return type ?? '-';
     }
@@ -121,6 +123,8 @@ class _SecretaryLedgerScreenState extends State<SecretaryLedgerScreen> {
         return Colors.teal;
       case 'invoice':
         return Colors.green;
+      case 'maintenance_expense':
+        return Colors.indigo;
       default:
         return Colors.grey;
     }
